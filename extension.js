@@ -172,14 +172,18 @@ function renderHtml(webview, initialText) {
       font-weight: 700;
       overflow-wrap: anywhere;
     }
-    table {
+    .table-scroll {
+      overflow-x: auto;
       width: 100%;
+    }
+    table {
       border-collapse: collapse;
-      table-layout: fixed;
+      table-layout: auto;
+      white-space: nowrap;
     }
     th, td {
       border: 1px solid var(--line);
-      min-width: 120px;
+      min-width: 100px;
       padding: 0;
       vertical-align: top;
     }
@@ -473,6 +477,8 @@ function renderHtml(webview, initialText) {
         return wrapper;
       }
 
+      const scroll = document.createElement("div");
+      scroll.className = "table-scroll";
       const table = document.createElement("table");
       const cols = columns(block);
       const thead = document.createElement("thead");
@@ -504,7 +510,8 @@ function renderHtml(webview, initialText) {
         tbody.append(tr);
       });
       table.append(tbody);
-      wrapper.append(table);
+      scroll.append(table);
+      wrapper.append(scroll);
       return wrapper;
     }
 
