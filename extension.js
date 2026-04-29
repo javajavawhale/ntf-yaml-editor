@@ -433,7 +433,7 @@ function renderHtml(webview, initialText) {
             }
           } else if (isRawRowsBlock(block.name)) {
             for (const row of block.rows) {
-              const cells = row.map(function(c) { return c === "" ? "\"\"" : quote(c); });
+              const cells = row.map(function(c) { return c === "" ? "''" : quote(c); });
               out.push("    - [ " + cells.join(", ") + " ]");
             }
           } else if (block.raw) {
