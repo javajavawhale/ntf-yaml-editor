@@ -172,18 +172,14 @@ function renderHtml(webview, initialText) {
       font-weight: 700;
       overflow-wrap: anywhere;
     }
-    .table-scroll {
-      overflow-x: auto;
-      width: 100%;
-    }
     table {
+      width: 100%;
       border-collapse: collapse;
-      table-layout: auto;
-      white-space: nowrap;
+      table-layout: fixed;
     }
     th, td {
       border: 1px solid var(--line);
-      min-width: 100px;
+      min-width: 120px;
       padding: 0;
       vertical-align: top;
     }
@@ -211,28 +207,6 @@ function renderHtml(webview, initialText) {
       overflow: auto;
       color: var(--warn);
       background: #fff8ec;
-    }
-    .add-col-form {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
-    .add-col-form input[type=text] {
-      border: 1px solid var(--line);
-      border-radius: 4px;
-      padding: 4px 8px;
-      font: inherit;
-      min-height: unset;
-      width: 160px;
-      background: white;
-      color: var(--text);
-    }
-    .rawrows-table td:first-child {
-      background: #e8ecea;
-      font-weight: bold;
-      text-align: center;
-      color: var(--muted);
-      min-width: 40px;
     }
   </style>
 </head>
@@ -299,33 +273,8 @@ function renderHtml(webview, initialText) {
         if (!currentBlock) {
           continue;
         }
-        if (!isTableBlock(currentBlock.name) && !isRawRowsBlock(currentBlock.name)) {
-          rawBuffer.push(line.replace(/^\s{4}/, ""));
-          continue;
-        }
-        // RawRows: parse YAML sequence-of-sequences  [ a, b, ... ]
-        if (isRawRowsBlock(currentBlock.name)) {
-          const arrayLine = line.match(/^\s{4}-?\s*\[(.*)\]\s*,?$/);
-          if (arrayLine) {
-            const cells = parseInlineArray("[" + arrayLine[1] + "]");
-            currentBlock.rows.push(cells);
-          } else {
-            // multi-line array: accumulate
-            const startLine = line.match(/^\s{4}-?\s*\[(.*)$/);
-            if (startLine) {
-              rawBuffer._arr = [startLine[1]];
-            } else if (rawBuffer._arr) {
-              const endLine = line.match(/^\s*(.*?)\]\s*,?$/);
-              if (endLine) {
-                rawBuffer._arr.push(endLine[1]);
-                const cells = parseInlineArray("[" + rawBuffer._arr.join(",") + "]");
-                currentBlock.rows.push(cells);
-                delete rawBuffer._arr;
-              } else {
-                rawBuffer._arr.push(line.trim());
-              }
-            }
-          }
+        if (!isTableBlock(currentBlock.name)) {
+          rawBuffer.push(line.replace(/^\\s{4}/, ""));
           continue;
         }
         const rowStart = line.match(/^\\s{4}-\\s*(.*)$/);
@@ -359,27 +308,6 @@ function renderHtml(webview, initialText) {
 
     function isTableBlock(name) {
       return /^(LIST_MAP|SETUP_TABLE|EXPECTED_TABLE)(\\[\\d+\\])?=/.test(name);
-    }
-    function isRawRowsBlock(name) {
-      return /^(SETUP_VARIABLE|EXPECTED_VARIABLE)(\[\d+\])?=/.test(name);
-    }
-    function parseInlineArray(text) {
-      // parse YAML inline sequence like [ "a", "b", "c" ]
-      const inner = text.trim().replace(/^\[/, "").replace(/\]$/, "");
-      const items = [];
-      let cur = "";
-      let inQ = false;
-      let qc = "";
-      for (let i = 0; i < inner.length; i++) {
-        const c = inner[i];
-        if (!inQ && (c === '"' || c === "'")) { inQ = true; qc = c; continue; }
-        if (inQ && c === qc) { inQ = false; continue; }
-        if (!inQ && c === ",") { items.push(cur.trim()); cur = ""; continue; }
-        cur += c;
-      }
-      if (cur.trim() !== "" || items.length > 0) items.push(cur.trim());
-      // handle ~ as empty
-      return items.map(s => s === "~" ? "" : s);
     }
 
     function unquote(value) {
@@ -430,11 +358,6 @@ function renderHtml(webview, initialText) {
               for (const col of cols.slice(1)) {
                 out.push("      " + key(col) + ": " + quote(row[col] ?? ""));
               }
-            }
-          } else if (isRawRowsBlock(block.name)) {
-            for (const row of block.rows) {
-              const cells = row.map(c => c === "" ? "\"\"" : quote(c));
-              out.push("    - [ " + cells.join(", ") + " ]");
             }
           } else if (block.raw) {
             for (const rawLine of block.raw.split("\\n")) {
@@ -522,34 +445,26 @@ function renderHtml(webview, initialText) {
           block.rows.push(row);
           render();
         };
-        const addColForm = document.createElement("div");
-        addColForm.className = "add-col-form";
-        const colInput = document.createElement("input");
-        colInput.type = "text";
-        colInput.placeholder = "列名";
         const addColumn = document.createElement("button");
         addColumn.className = "secondary";
         addColumn.textContent = "Add Column";
-        const doAddCol = () => {
-          const col = colInput.value.trim();
-          if (!col) return;
-          for (const row of block.rows) { row[col] = ""; }
-          if (block.rows.length === 0) { block.rows.push({ [col]: "" }); }
-          colInput.value = "";
+        addColumn.onclick = () => {
+          const col = prompt("Column name");
+          if (!col) {
+            return;
+          }
+          for (const row of block.rows) {
+            row[col] = "";
+          }
+          if (block.rows.length === 0) {
+            block.rows.push({ [col]: "" });
+          }
           render();
         };
-        addColumn.onclick = doAddCol;
-        colInput.onkeydown = e => { if (e.key === "Enter") doAddCol(); };
-        addColForm.append(colInput, addColumn);
-        actions.append(addRow, " ", addColForm);
+        actions.append(addRow, " ", addColumn);
         header.append(actions);
       }
       wrapper.append(header);
-
-      if (isRawRowsBlock(block.name)) {
-        wrapper.append(renderRawRowsTable(block));
-        return wrapper;
-      }
 
       if (!isTableBlock(block.name)) {
         const raw = document.createElement("pre");
@@ -558,8 +473,6 @@ function renderHtml(webview, initialText) {
         return wrapper;
       }
 
-      const scroll = document.createElement("div");
-      scroll.className = "table-scroll";
       const table = document.createElement("table");
       const cols = columns(block);
       const thead = document.createElement("thead");
@@ -591,53 +504,8 @@ function renderHtml(webview, initialText) {
         tbody.append(tr);
       });
       table.append(tbody);
-      scroll.append(table);
-      wrapper.append(scroll);
+      wrapper.append(table);
       return wrapper;
-    }
-
-    function renderRawRowsTable(block) {
-      const scroll = document.createElement("div");
-      scroll.className = "table-scroll";
-      const table = document.createElement("table");
-      table.className = "rawrows-table";
-      const maxCols = block.rows.reduce((m, r) => Math.max(m, r.length), 0);
-      const thead = document.createElement("thead");
-      const headRow = document.createElement("tr");
-      const thIdx = document.createElement("th");
-      thIdx.textContent = "#";
-      headRow.append(thIdx);
-      for (let i = 0; i < maxCols; i++) {
-        const th = document.createElement("th");
-        th.textContent = i;
-        headRow.append(th);
-      }
-      thead.append(headRow);
-      table.append(thead);
-      const tbody = document.createElement("tbody");
-      block.rows.forEach((row, ri) => {
-        const tr = document.createElement("tr");
-        const tdIdx = document.createElement("td");
-        tdIdx.textContent = ri;
-        tr.append(tdIdx);
-        for (let ci = 0; ci < maxCols; ci++) {
-          const td = document.createElement("td");
-          const input = document.createElement("input");
-          input.value = row[ci] ?? "";
-          input.oninput = () => { row[ci] = input.value; };
-          td.append(input);
-          tr.append(td);
-        }
-        tbody.append(tr);
-      });
-      table.append(tbody);
-      const addRow = document.createElement("button");
-      addRow.className = "secondary";
-      addRow.textContent = "+ Row";
-      addRow.style.margin = "8px";
-      addRow.onclick = () => { block.rows.push(new Array(maxCols).fill("")); render(); };
-      scroll.append(table, addRow);
-      return scroll;
     }
 
     function renameColumn(block, from, to) {

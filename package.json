@@ -26,9 +26,12 @@
           },
           {
             "filenamePattern": "*.ntf.yml"
+          },
+          {
+            "filenamePattern": "sample.yaml"
           }
         ],
-        "priority": "default"
+        "priority": "option"
       }
     ],
     "commands": [
