@@ -179,7 +179,6 @@ function renderHtml(webview, initialText) {
     table {
       border-collapse: collapse;
       table-layout: auto;
-      white-space: nowrap;
     }
     th, td {
       border: 1px solid var(--line);
@@ -501,8 +500,10 @@ function renderHtml(webview, initialText) {
           const td = document.createElement("td");
           const input = document.createElement("input");
           input.value = row[col] ?? "";
+          input.size = Math.max(8, String(row[col] ?? "").length + 2);
           input.oninput = () => {
             row[col] = input.value;
+            input.size = Math.max(8, input.value.length + 2);
           };
           td.append(input);
           tr.append(td);
