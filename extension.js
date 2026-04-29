@@ -191,6 +191,8 @@ function renderHtml(webview, initialText) {
     }
     td input, th input {
       width: auto;
+      field-sizing: content;
+      min-width: 4ch;
     }
     input {
       box-sizing: border-box;
@@ -489,7 +491,6 @@ function renderHtml(webview, initialText) {
         const th = document.createElement("th");
         const input = document.createElement("input");
         input.value = col;
-        input.size = Math.max(8, col.length + 2);
         input.onchange = () => renameColumn(block, col, input.value);
         th.append(input);
         headRow.append(th);
@@ -504,10 +505,8 @@ function renderHtml(webview, initialText) {
           const td = document.createElement("td");
           const input = document.createElement("input");
           input.value = row[col] ?? "";
-          input.size = Math.max(8, String(row[col] ?? "").length + 2);
           input.oninput = () => {
             row[col] = input.value;
-            input.size = Math.max(8, input.value.length + 2);
           };
           td.append(input);
           tr.append(td);
