@@ -306,20 +306,20 @@ function renderHtml(webview, initialText) {
           continue;
         }
         if (!isTableBlock(currentBlock.name) && !isRawRowsBlock(currentBlock.name)) {
-          rawBuffer.push(line.replace(/^\s{4}/, ""));
+          rawBuffer.push(line.replace(/^\\s{4}/, ""));
           continue;
         }
         // RawRows: [ a, b, c ] 形式の配列行をパース
         if (isRawRowsBlock(currentBlock.name)) {
-          const singleLine = line.match(/^\s{4}-?\s*\[(.*)\]\s*,?$/);
+          const singleLine = line.match(/^\\s{4}-?\\s*\\[(.*)\\]\\s*,?$/);
           if (singleLine) {
             currentBlock.rows.push(parseInlineArray("[" + singleLine[1] + "]"));
           } else {
-            const startArr = line.match(/^\s{4}-?\s*\[(.*)$/);
+            const startArr = line.match(/^\\s{4}-?\\s*\\[(.*)$/);
             if (startArr) {
               rawBuffer._arr = [startArr[1]];
             } else if (rawBuffer._arr) {
-              const endArr = line.match(/^\s*(.*?)\]\s*,?$/);
+              const endArr = line.match(/^\\s*(.*?)\\]\\s*,?$/);
               if (endArr) {
                 rawBuffer._arr.push(endArr[1]);
                 currentBlock.rows.push(parseInlineArray("[" + rawBuffer._arr.join(",") + "]"));
@@ -360,15 +360,15 @@ function renderHtml(webview, initialText) {
     }
 
     function isTableBlock(name) {
-      return /^(LIST_MAP|SETUP_TABLE|EXPECTED_TABLE)(\[\d+\])?=/.test(name);
+      return /^(LIST_MAP|SETUP_TABLE|EXPECTED_TABLE)(\\[\\d+\\])?=/.test(name);
     }
 
     function isRawRowsBlock(name) {
-      return /^(SETUP_VARIABLE|EXPECTED_VARIABLE)(\[\d+\])?=/.test(name);
+      return /^(SETUP_VARIABLE|EXPECTED_VARIABLE)(\\[\\d+\\])?=/.test(name);
     }
 
     function parseInlineArray(text) {
-      const inner = text.trim().replace(/^\[/, "").replace(/\]$/, "");
+      const inner = text.trim().replace(/^\\[/, "").replace(/\\]$/, "");
       const items = [];
       let cur = "", inQ = false, qc = "";
       for (let i = 0; i < inner.length; i++) {
