@@ -189,6 +189,9 @@ function renderHtml(webview, initialText) {
     th {
       background: #e8ecea;
     }
+    td input, th input {
+      width: auto;
+    }
     input {
       box-sizing: border-box;
       width: 100%;
@@ -486,6 +489,7 @@ function renderHtml(webview, initialText) {
         const th = document.createElement("th");
         const input = document.createElement("input");
         input.value = col;
+        input.size = Math.max(8, col.length + 2);
         input.onchange = () => renameColumn(block, col, input.value);
         th.append(input);
         headRow.append(th);
