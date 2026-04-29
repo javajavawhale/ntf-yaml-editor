@@ -1,0 +1,44 @@
+{
+  "name": "ntf-yaml-editor",
+  "displayName": "NTF YAML Editor PoC",
+  "description": "Table editor PoC for Nablarch NTF YAML files.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCustomEditor:ntfYaml.editor",
+    "onCommand:ntfYaml.openAsTable"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "ntfYaml.editor",
+        "displayName": "NTF YAML Table Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.yaml"
+          },
+          {
+            "filenamePattern": "*.ntf.yml"
+          },
+          {
+            "filenamePattern": "sample.yaml"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      {
+        "command": "ntfYaml.openAsTable",
+        "title": "NTF YAML: Open as Table"
+      }
+    ]
+  }
+}
