@@ -216,6 +216,23 @@ function renderHtml(webview, initialText) {
       color: var(--warn);
       background: #fff8ec;
     }
+    .add-col-form {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .add-col-form input[type=text] {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 4px 8px;
+      font: inherit;
+      min-height: unset;
+      width: 140px;
+      field-sizing: content;
+      min-width: 80px;
+      background: white;
+      color: var(--text);
+    }
   </style>
 </head>
 <body>
@@ -453,23 +470,26 @@ function renderHtml(webview, initialText) {
           block.rows.push(row);
           render();
         };
+        const addColForm = document.createElement("div");
+        addColForm.className = "add-col-form";
+        const colInput = document.createElement("input");
+        colInput.type = "text";
+        colInput.placeholder = "列名";
         const addColumn = document.createElement("button");
         addColumn.className = "secondary";
         addColumn.textContent = "Add Column";
-        addColumn.onclick = () => {
-          const col = prompt("Column name");
-          if (!col) {
-            return;
-          }
-          for (const row of block.rows) {
-            row[col] = "";
-          }
-          if (block.rows.length === 0) {
-            block.rows.push({ [col]: "" });
-          }
+        const doAddCol = () => {
+          const col = colInput.value.trim();
+          if (!col) return;
+          for (const row of block.rows) { row[col] = ""; }
+          if (block.rows.length === 0) { block.rows.push({ [col]: "" }); }
+          colInput.value = "";
           render();
         };
-        actions.append(addRow, " ", addColumn);
+        addColumn.onclick = doAddCol;
+        colInput.onkeydown = e => { if (e.key === "Enter") doAddCol(); };
+        addColForm.append(colInput, addColumn);
+        actions.append(addRow, " ", addColForm);
         header.append(actions);
       }
       wrapper.append(header);
