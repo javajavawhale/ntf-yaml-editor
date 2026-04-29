@@ -216,13 +216,6 @@ function renderHtml(webview, initialText) {
       color: var(--warn);
       background: #fff8ec;
     }
-    .rawrows-table td:first-child {
-      background: #e8ecea;
-      font-weight: bold;
-      text-align: center;
-      color: var(--muted);
-      min-width: 2ch;
-    }
     .add-col-form {
       display: flex;
       gap: 6px;
@@ -305,30 +298,8 @@ function renderHtml(webview, initialText) {
         if (!currentBlock) {
           continue;
         }
-        if (!isTableBlock(currentBlock.name) && !isRawRowsBlock(currentBlock.name)) {
-          rawBuffer.push(line.replace(/^\s{4}/, ""));
-          continue;
-        }
-        // RawRows: [ a, b, c ] 形式の配列行をパース
-        if (isRawRowsBlock(currentBlock.name)) {
-          const singleLine = line.match(/^\s{4}-?\s*\[(.*)\]\s*,?$/);
-          if (singleLine) {
-            currentBlock.rows.push(parseInlineArray("[" + singleLine[1] + "]"));
-          } else {
-            const startArr = line.match(/^\s{4}-?\s*\[(.*)$/);
-            if (startArr) {
-              rawBuffer._arr = [startArr[1]];
-            } else if (rawBuffer._arr) {
-              const endArr = line.match(/^\s*(.*?)\]\s*,?$/);
-              if (endArr) {
-                rawBuffer._arr.push(endArr[1]);
-                currentBlock.rows.push(parseInlineArray("[" + rawBuffer._arr.join(",") + "]"));
-                delete rawBuffer._arr;
-              } else {
-                rawBuffer._arr.push(line.trim());
-              }
-            }
-          }
+        if (!isTableBlock(currentBlock.name)) {
+          rawBuffer.push(line.replace(/^\\s{4}/, ""));
           continue;
         }
         const rowStart = line.match(/^\\s{4}-\\s*(.*)$/);
@@ -354,32 +325,14 @@ function renderHtml(webview, initialText) {
     }
 
     function inferKind(name) {
-      if (isTableBlock(name)) return "ListMap";
-      if (isRawRowsBlock(name)) return "RawRows";
+      if (isTableBlock(name)) {
+        return "ListMap";
+      }
       return "Raw";
     }
 
     function isTableBlock(name) {
-      return /^(LIST_MAP|SETUP_TABLE|EXPECTED_TABLE)(\[\d+\])?=/.test(name);
-    }
-
-    function isRawRowsBlock(name) {
-      return /^(SETUP_VARIABLE|EXPECTED_VARIABLE)(\[\d+\])?=/.test(name);
-    }
-
-    function parseInlineArray(text) {
-      const inner = text.trim().replace(/^\[/, "").replace(/\]$/, "");
-      const items = [];
-      let cur = "", inQ = false, qc = "";
-      for (let i = 0; i < inner.length; i++) {
-        const c = inner[i];
-        if (!inQ && (c === '"' || c === "'")) { inQ = true; qc = c; continue; }
-        if (inQ && c === qc) { inQ = false; continue; }
-        if (!inQ && c === ",") { items.push(cur.trim()); cur = ""; continue; }
-        cur += c;
-      }
-      items.push(cur.trim());
-      return items.map(s => s === "~" ? "" : s);
+      return /^(LIST_MAP|SETUP_TABLE|EXPECTED_TABLE)(\\[\\d+\\])?=/.test(name);
     }
 
     function unquote(value) {
@@ -430,11 +383,6 @@ function renderHtml(webview, initialText) {
               for (const col of cols.slice(1)) {
                 out.push("      " + key(col) + ": " + quote(row[col] ?? ""));
               }
-            }
-          } else if (isRawRowsBlock(block.name)) {
-            for (const row of block.rows) {
-              const cells = row.map(c => c === "" ? "\"\"" : quote(c));
-              out.push("    - [ " + cells.join(", ") + " ]");
             }
           } else if (block.raw) {
             for (const rawLine of block.raw.split("\\n")) {
@@ -547,10 +495,6 @@ function renderHtml(webview, initialText) {
       wrapper.append(header);
 
       if (!isTableBlock(block.name)) {
-        if (isRawRowsBlock(block.name)) {
-          wrapper.append(renderRawRowsTable(block));
-          return wrapper;
-        }
         const raw = document.createElement("pre");
         raw.textContent = block.raw || "Unsupported block in this PoC.";
         wrapper.append(raw);
@@ -593,45 +537,6 @@ function renderHtml(webview, initialText) {
       scroll.append(table);
       wrapper.append(scroll);
       return wrapper;
-    }
-
-    function renderRawRowsTable(block) {
-      const scroll = document.createElement("div");
-      scroll.className = "table-scroll";
-      const table = document.createElement("table");
-      table.className = "rawrows-table";
-      const maxCols = block.rows.reduce((m, r) => Math.max(m, r.length), 0);
-      const thead = document.createElement("thead");
-      const headRow = document.createElement("tr");
-      const thIdx = document.createElement("th");
-      thIdx.textContent = "#";
-      headRow.append(thIdx);
-      for (let i = 0; i < maxCols; i++) {
-        const th = document.createElement("th");
-        th.textContent = i;
-        headRow.append(th);
-      }
-      thead.append(headRow);
-      table.append(thead);
-      const tbody = document.createElement("tbody");
-      block.rows.forEach((row, ri) => {
-        const tr = document.createElement("tr");
-        const tdIdx = document.createElement("td");
-        tdIdx.textContent = ri;
-        tr.append(tdIdx);
-        for (let ci = 0; ci < maxCols; ci++) {
-          const td = document.createElement("td");
-          const input = document.createElement("input");
-          input.value = row[ci] ?? "";
-          input.oninput = () => { row[ci] = input.value; };
-          td.append(input);
-          tr.append(td);
-        }
-        tbody.append(tr);
-      });
-      table.append(tbody);
-      scroll.append(table);
-      return scroll;
     }
 
     function renameColumn(block, from, to) {
