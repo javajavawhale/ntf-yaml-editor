@@ -1,22 +1,24 @@
-const Mocha = require("mocha");
-const path = require("path");
+const vscode = require("vscode");
+const { tests } = require("./ntfYamlEditor.e2e");
 
-exports.run = function() {
-  const mocha = new Mocha({
-    color: true,
-    timeout: 60000,
-    ui: "bdd"
-  });
+exports.run = async function() {
+  const failures = [];
+  console.log("NTF YAML Editor E2E");
 
-  mocha.addFile(path.resolve(__dirname, "ntfYamlEditor.e2e.js"));
+  for (const item of tests) {
+    try {
+      await item.run();
+      console.log(`  OK ${item.name}`);
+    } catch (error) {
+      failures.push({ name: item.name, error });
+      console.error(`  FAIL ${item.name}`);
+      console.error(error);
+    } finally {
+      await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+    }
+  }
 
-  return new Promise((resolve, reject) => {
-    mocha.run(failures => {
-      if (failures > 0) {
-        reject(new Error(`${failures} E2E test(s) failed.`));
-      } else {
-        resolve();
-      }
-    });
-  });
+  if (failures.length) {
+    throw new Error(`${failures.length} E2E test(s) failed.`);
+  }
 };

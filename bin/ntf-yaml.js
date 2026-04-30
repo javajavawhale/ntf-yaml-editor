@@ -2,6 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { spawnSync } = require("child_process");
 const {
   analyzeYaml,
   parseYaml,
@@ -21,10 +22,103 @@ function main(argv) {
   if (command === "format") {
     return format(args);
   }
+  if (command === "convert") {
+    return convert(args);
+  }
 
   console.error(`Unknown command: ${command}`);
   printHelp();
   return 2;
+}
+
+function convert(args, deps = defaultDeps()) {
+  const options = parseConvertArgs(args);
+  if (!options.source) {
+    console.error("convert requires an Excel source file.");
+    return 2;
+  }
+  const converter = selectConverter(options.source);
+  if (!converter) {
+    console.error(`Unsupported Excel file extension: ${options.source}`);
+    return 2;
+  }
+
+  const script = deps.resolveTool(converter);
+  if (!fs.existsSync(script)) {
+    console.error(`Converter script is missing: ${script}`);
+    return 2;
+  }
+
+  const runArgs = [script, options.source];
+  if (options.output) {
+    runArgs.push("-o", options.output);
+  }
+  const result = deps.runPython(runArgs);
+  if (result.status !== 0) {
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+    return result.status || 1;
+  }
+  if (result.stderr) process.stderr.write(result.stderr);
+
+  const yamlText = options.output
+    ? fs.readFileSync(options.output, "utf8")
+    : result.stdout;
+  if (!options.output) {
+    process.stdout.write(yamlText);
+  }
+
+  if (options.lint) {
+    const diagnostics = analyzeYaml(yamlText);
+    for (const item of diagnostics) {
+      const where = item.path?.length ? ` ${item.path.join(" > ")}` : "";
+      console.error(`${options.output || options.source}:${item.severity}:${where} ${item.message}`);
+    }
+    const errorCount = diagnostics.filter(item => item.severity === "error").length;
+    const warningCount = diagnostics.length - errorCount;
+    if (errorCount || warningCount) {
+      console.error(`ntf-yaml convert lint: ${errorCount} error(s), ${warningCount} warning(s)`);
+    } else {
+      console.error("ntf-yaml convert lint: ok");
+    }
+    return errorCount ? 1 : 0;
+  }
+  return 0;
+}
+
+function parseConvertArgs(args) {
+  const options = { source: "", output: "", lint: false };
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "-o" || arg === "--output") {
+      options.output = args[++i] || "";
+    } else if (arg === "--lint") {
+      options.lint = true;
+    } else if (!options.source) {
+      options.source = arg;
+    } else {
+      throw new Error(`Unexpected argument: ${arg}`);
+    }
+  }
+  return options;
+}
+
+function selectConverter(source) {
+  const ext = path.extname(source).toLowerCase();
+  if (ext === ".xlsx") return "xlsx_to_ntf_yaml.py";
+  if (ext === ".xls") return "xls_to_ntf_yaml.py";
+  return "";
+}
+
+function defaultDeps() {
+  return {
+    resolveTool(name) {
+      return path.resolve(__dirname, "..", "..", "tools", name);
+    },
+    runPython(args) {
+      return spawnSync("python3", args, { encoding: "utf8" });
+    }
+  };
 }
 
 function lint(args) {
@@ -81,6 +175,8 @@ function printHelp() {
     `Usage: ${name} <command> [args]`,
     "",
     "Commands:",
+    "  convert <file.xls[x]> [-o file.yaml] [--lint]",
+    "                       Convert Excel NTF data to YAML.",
     "  lint <file...>       Analyze NTF YAML files.",
     "  format [--write] <file>",
     "                       Re-serialize NTF YAML through the shared model."
@@ -88,7 +184,12 @@ function printHelp() {
 }
 
 if (require.main === module) {
-  process.exitCode = main(process.argv.slice(2));
+  try {
+    process.exitCode = main(process.argv.slice(2));
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 2;
+  }
 }
 
-module.exports = { main };
+module.exports = { main, convert, parseConvertArgs, selectConverter };

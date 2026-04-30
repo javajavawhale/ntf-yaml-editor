@@ -25,6 +25,9 @@ Covered by `npm run test:unit`:
 - Loading a migrated web fixture with null sentinel rows.
 - Analyzing common structural issues: missing required `testShots` columns, missing numbered references, ragged RawRows.
 - CLI lint behavior: non-zero for errors, zero for warning-only diagnostics.
+- CLI convert behavior for `xlsx`: generated workbook fixture is converted to YAML and immediately linted.
+- CLI convert dispatch for `xls`: `.xls` inputs are routed to the `xlrd`-based converter.
+- CLI convert behavior for real `xls`: a generated BIFF `.xls` fixture is converted through `xlrd` and immediately linted when Python `xlwt` is available.
 
 ### E2E Tests
 
@@ -36,6 +39,7 @@ Covered by `npm run test:e2e` using `@vscode/test-electron`:
 - Confirms the generated Webview HTML contains table-editor controls and RawRows rendering code.
 - Opens a YAML file with the `ntfYaml.editor` custom editor.
 - Opens the active text editor through `NTF YAML: Open as Table`.
+- Publishes VS Code Problems diagnostics for invalid `LIST_MAP=testShots` blocks.
 - Round-trips `converted/ProjectActionRequestTest.yaml` through the extension save path and checks critical YAML shape.
 - Round-trips a migrated web fixture and checks `~` null sentinel rows are preserved.
 
@@ -52,3 +56,19 @@ Use this after automated tests pass:
 5. Select a sheet containing `EXPECTED_VARIABLE` and confirm it renders as a row/cell table.
 6. Save without editing and confirm `npm test` still passes.
 7. For final confidence, run the relevant Maven test in the sample repository after saving.
+
+## CLI Smoke Checklist
+
+1. Convert an `xlsx` file:
+
+   ```sh
+   node ./bin/ntf-yaml.js convert path/to/TestData.xlsx -o /tmp/TestData.yaml --lint
+   ```
+
+2. Convert an old `xls` file:
+
+   ```sh
+   node ./bin/ntf-yaml.js convert path/to/TestData.xls -o /tmp/TestData.yaml --lint
+   ```
+
+3. Open the generated YAML in VS Code and confirm Problems shows the same diagnostics as CLI lint.

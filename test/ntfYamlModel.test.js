@@ -2,7 +2,9 @@ const assert = require("assert");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { spawnSync } = require("child_process");
 const test = require("node:test");
+const JSZip = require("jszip");
 
 const {
   analyzeYaml,
@@ -11,7 +13,11 @@ const {
   isRawRowsBlock,
   isTableBlock
 } = require("../lib/ntfYamlModel");
-const { main: runCli } = require("../bin/ntf-yaml");
+const {
+  convert,
+  main: runCli,
+  selectConverter
+} = require("../bin/ntf-yaml");
 
 const repoRoot = path.resolve(__dirname, "..", "..");
 
@@ -21,6 +27,124 @@ function getBlock(model, sheetName, blockName) {
   const block = sheet.blocks.find(item => item.name === blockName);
   assert.ok(block, `block ${blockName} should exist`);
   return block;
+}
+
+function columnName(index) {
+  let name = "";
+  let value = index + 1;
+  while (value > 0) {
+    const mod = (value - 1) % 26;
+    name = String.fromCharCode(65 + mod) + name;
+    value = Math.floor((value - mod) / 26);
+  }
+  return name;
+}
+
+async function writeXlsxFixture(file, sheets) {
+  const zip = new JSZip();
+  const sharedStrings = [];
+  const sharedIndex = new Map();
+
+  function shared(value) {
+    const text = String(value);
+    if (!sharedIndex.has(text)) {
+      sharedIndex.set(text, sharedStrings.length);
+      sharedStrings.push(text);
+    }
+    return sharedIndex.get(text);
+  }
+
+  zip.file("[Content_Types].xml", [
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">',
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>',
+    '<Default Extension="xml" ContentType="application/xml"/>',
+    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>',
+    '<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>',
+    sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join(""),
+    "</Types>"
+  ].join(""));
+  zip.folder("_rels").file(".rels", [
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">',
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>',
+    "</Relationships>"
+  ].join(""));
+  zip.folder("xl").file("workbook.xml", [
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+    '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">',
+    "<sheets>",
+    sheets.map((sheet, i) => `<sheet name="${sheet.name}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join(""),
+    "</sheets>",
+    "</workbook>"
+  ].join(""));
+  zip.folder("xl").folder("_rels").file("workbook.xml.rels", [
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">',
+    sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join(""),
+    '<Relationship Id="rIdShared" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>',
+    "</Relationships>"
+  ].join(""));
+
+  const worksheets = zip.folder("xl").folder("worksheets");
+  sheets.forEach((sheet, sheetIndex) => {
+    const rows = sheet.rows.map((row, rowIndex) => {
+      const cells = row.map((value, colIndex) => {
+        const ref = `${columnName(colIndex)}${rowIndex + 1}`;
+        return `<c r="${ref}" t="s"><v>${shared(value)}</v></c>`;
+      }).join("");
+      return `<row r="${rowIndex + 1}">${cells}</row>`;
+    }).join("");
+    worksheets.file(`sheet${sheetIndex + 1}.xml`, [
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+      '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">',
+      `<sheetData>${rows}</sheetData>`,
+      "</worksheet>"
+    ].join(""));
+  });
+
+  zip.folder("xl").file("sharedStrings.xml", [
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+    `<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${sharedStrings.length}" uniqueCount="${sharedStrings.length}">`,
+    sharedStrings.map(value => `<si><t>${escapeXml(value)}</t></si>`).join(""),
+    "</sst>"
+  ].join(""));
+
+  const buffer = await zip.generateAsync({ type: "nodebuffer" });
+  fs.writeFileSync(file, buffer);
+}
+
+function escapeXml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function hasPythonModule(name) {
+  return spawnSync("python3", ["-c", `import ${name}`], { encoding: "utf8" }).status === 0;
+}
+
+function writeXlsFixture(file) {
+  const script = [
+    "import sys, xlwt",
+    "book = xlwt.Workbook()",
+    "sheet = book.add_sheet('case1')",
+    "rows = [",
+    "  ['LIST_MAP=testShots'],",
+    "  ['no', 'description', 'expectedTable'],",
+    "  ['1', 'legacy xls case', '1'],",
+    "  ['EXPECTED_TABLE[1]=PROJECT'],",
+    "  ['PROJECT_ID', 'PROJECT_NAME'],",
+    "  ['1', 'Project from xls'],",
+    "]",
+    "for r, row in enumerate(rows):",
+    "  for c, value in enumerate(row):",
+    "    sheet.write(r, c, value)",
+    "book.save(sys.argv[1])"
+  ].join("\n");
+  const result = spawnSync("python3", ["-c", script, file], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
 }
 
 test("classifies editable table and raw-row blocks", () => {
@@ -289,4 +413,81 @@ test("CLI lint exits non-zero for errors and zero for warning-only diagnostics",
 
   assert.equal(runCli(["lint", badFile]), 1);
   assert.equal(runCli(["lint", warningFile]), 0);
+});
+
+test("CLI convert converts xlsx through the existing converter and lint pipeline", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ntf-yaml-convert-test-"));
+  const source = path.join(dir, "request.xlsx");
+  const output = path.join(dir, "request.yaml");
+
+  await writeXlsxFixture(source, [
+    {
+      name: "case1",
+      rows: [
+        ["LIST_MAP=testShots"],
+        ["no", "description", "setUpTable"],
+        ["1", "normal case", "1"],
+        ["SETUP_TABLE[1]=PROJECT"],
+        ["PROJECT_ID", "PROJECT_NAME"],
+        ["1", "Project A"]
+      ]
+    }
+  ]);
+
+  assert.equal(runCli(["convert", source, "-o", output, "--lint"]), 0);
+
+  const yaml = fs.readFileSync(output, "utf8");
+  assert.match(yaml, /case1:/);
+  assert.match(yaml, /LIST_MAP=testShots: #ListMap/);
+  assert.match(yaml, /SETUP_TABLE\[1\]=PROJECT: #ListMap/);
+  assert.deepEqual(analyzeYaml(yaml), []);
+});
+
+test("CLI convert supports xls by dispatching to the xls converter", () => {
+  assert.equal(selectConverter("legacy.xls"), "xls_to_ntf_yaml.py");
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ntf-yaml-xls-dispatch-test-"));
+  const output = path.join(dir, "legacy.yaml");
+  const calls = [];
+  const status = convert(["legacy.xls", "-o", output, "--lint"], {
+    resolveTool(name) {
+      calls.push(["resolve", name]);
+      return __filename;
+    },
+    runPython(args) {
+      calls.push(["run", args]);
+      fs.writeFileSync(output, [
+        "case1:",
+        "  LIST_MAP=testShots: #ListMap",
+        "    - no: \"1\"",
+        "      description: \"ok\"",
+        ""
+      ].join("\n"));
+      return {
+        status: 0,
+        stdout: "",
+        stderr: ""
+      };
+    }
+  });
+
+  assert.equal(status, 0);
+  assert.deepEqual(calls[0], ["resolve", "xls_to_ntf_yaml.py"]);
+  assert.equal(calls[1][1][1], "legacy.xls");
+  assert.equal(calls[1][1][3], output);
+});
+
+test("CLI convert converts real xls files through the xlrd converter", { skip: !hasPythonModule("xlwt") }, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ntf-yaml-real-xls-test-"));
+  const source = path.join(dir, "legacy.xls");
+  const output = path.join(dir, "legacy.yaml");
+  writeXlsFixture(source);
+
+  assert.equal(runCli(["convert", source, "-o", output, "--lint"]), 0);
+
+  const yaml = fs.readFileSync(output, "utf8");
+  assert.match(yaml, /case1:/);
+  assert.match(yaml, /LIST_MAP=testShots: #ListMap/);
+  assert.match(yaml, /EXPECTED_TABLE\[1\]=PROJECT: #ListMap/);
+  assert.deepEqual(analyzeYaml(yaml), []);
 });

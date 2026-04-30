@@ -1,0 +1,4 @@
+UNLICENSED
+
+This proof-of-concept extension is for internal evaluation.
+Redistribution and reuse are not granted unless a project license is added later.

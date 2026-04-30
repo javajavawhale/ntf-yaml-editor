@@ -4,6 +4,8 @@
   "description": "Table editor PoC for Nablarch NTF YAML files.",
   "version": "0.0.1",
   "publisher": "local",
+  "private": true,
+  "license": "UNLICENSED",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -21,7 +23,8 @@
   "scripts": {
     "test": "npm run test:unit && npm run test:e2e",
     "test:unit": "node --test test/*.test.js",
-    "test:e2e": "node ./test/e2e/runTest.js"
+    "test:e2e": "node ./test/e2e/runTest.js",
+    "package:vsix": "npm run test:unit && node -e \"require('fs').mkdirSync('dist', { recursive: true })\" && vsce package --allow-missing-repository --out dist/ntf-yaml-editor-0.0.1.vsix"
   },
   "contributes": {
     "customEditors": [
@@ -48,6 +51,7 @@
   },
   "devDependencies": {
     "@vscode/test-electron": "^2.5.2",
-    "mocha": "^11.7.5"
+    "@vscode/vsce": "^3.9.1",
+    "jszip": "^3.10.1"
   }
 }
