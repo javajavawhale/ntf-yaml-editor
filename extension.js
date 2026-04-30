@@ -1,6 +1,13 @@
 const vscode = require("vscode");
+const fs = require("fs");
+const path = require("path");
+const { analyzeYaml, parseYaml, serializeYaml } = require("./lib/ntfYamlModel");
 
 function activate(context) {
+  const diagnostics = vscode.languages.createDiagnosticCollection("ntf-yaml");
+  context.subscriptions.push(diagnostics);
+  registerDiagnostics(context, diagnostics);
+
   const provider = new NtfYamlEditorProvider(context);
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider("ntfYaml.editor", provider, {
@@ -22,6 +29,88 @@ function activate(context) {
       );
     })
   );
+
+  if (process.env.NTF_YAML_EDITOR_ENABLE_E2E_COMMANDS === "1") {
+    context.subscriptions.push(
+      vscode.commands.registerCommand("ntfYaml.e2e.renderHtml", async text => {
+        return renderHtml(undefined, String(text ?? ""));
+      }),
+      vscode.commands.registerCommand("ntfYaml.e2e.roundTripFile", async uri => {
+        const document = await vscode.workspace.openTextDocument(uri);
+        const nextText = serializeYaml(parseYaml(document.getText()));
+        const edit = new vscode.WorkspaceEdit();
+        const fullRange = new vscode.Range(
+          document.positionAt(0),
+          document.positionAt(document.getText().length)
+        );
+        edit.replace(document.uri, fullRange, nextText);
+        await vscode.workspace.applyEdit(edit);
+        await document.save();
+      })
+    );
+  }
+}
+
+function registerDiagnostics(context, collection) {
+  function update(document) {
+    if (!isYamlDocument(document)) {
+      collection.delete(document.uri);
+      return;
+    }
+    let items = [];
+    try {
+      items = analyzeYaml(document.getText()).map(item => toVsCodeDiagnostic(document, item));
+    } catch (error) {
+      items = [
+        new vscode.Diagnostic(
+          new vscode.Range(0, 0, 0, 1),
+          `NTF YAML analysis failed: ${error.message}`,
+          vscode.DiagnosticSeverity.Error
+        )
+      ];
+    }
+    collection.set(document.uri, items);
+  }
+
+  for (const document of vscode.workspace.textDocuments) {
+    update(document);
+  }
+  context.subscriptions.push(
+    vscode.workspace.onDidOpenTextDocument(update),
+    vscode.workspace.onDidChangeTextDocument(event => update(event.document)),
+    vscode.workspace.onDidCloseTextDocument(document => collection.delete(document.uri))
+  );
+}
+
+function isYamlDocument(document) {
+  const name = document.uri.fsPath.toLowerCase();
+  return name.endsWith(".yaml") || name.endsWith(".yml");
+}
+
+function toVsCodeDiagnostic(document, item) {
+  const range = locateDiagnosticRange(document, item.path || []);
+  const severity = item.severity === "error"
+    ? vscode.DiagnosticSeverity.Error
+    : vscode.DiagnosticSeverity.Warning;
+  const diagnostic = new vscode.Diagnostic(range, item.message, severity);
+  diagnostic.source = "ntf-yaml";
+  return diagnostic;
+}
+
+function locateDiagnosticRange(document, diagnosticPath) {
+  const text = document.getText();
+  const lines = text.split(/\r?\n/);
+  const patterns = diagnosticPath.slice(0, 2).map(escapeForSearch);
+  for (let i = 0; i < lines.length; i++) {
+    if (patterns.some(pattern => lines[i].includes(pattern))) {
+      return new vscode.Range(i, 0, i, Math.max(lines[i].length, 1));
+    }
+  }
+  return new vscode.Range(0, 0, 0, 1);
+}
+
+function escapeForSearch(value) {
+  return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 class NtfYamlEditorProvider {
@@ -66,6 +155,7 @@ class NtfYamlEditorProvider {
 function renderHtml(webview, initialText) {
   const nonce = getNonce();
   const initialState = JSON.stringify(initialText).replace(/</g, "\\u003c");
+  const modelScript = fs.readFileSync(path.join(__dirname, "lib", "ntfYamlModel.js"), "utf8");
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -245,6 +335,15 @@ function renderHtml(webview, initialText) {
 <body>
   <div id="root"></div>
   <script nonce="${nonce}">
+    ${modelScript}
+    const {
+      parseYaml,
+      serializeYaml,
+      isTableBlock,
+      isRawRowsBlock,
+      columns
+    } = globalThis.NtfYamlModel;
+
     const vscode = acquireVsCodeApi();
     let state = parseYaml(${initialState});
     let activeSheet = state.sheets[0]?.name ?? "";
@@ -258,194 +357,6 @@ function renderHtml(webview, initialText) {
         render();
       }
     });
-
-    function parseYaml(text) {
-      const sheets = [];
-      let currentSheet = null;
-      let currentBlock = null;
-      let currentRow = null;
-      let rawBuffer = [];
-
-      function flushRaw() {
-        if (currentBlock && rawBuffer.length) {
-          currentBlock.raw = rawBuffer.join("\\n");
-          rawBuffer = [];
-        }
-      }
-
-      for (const line of text.split(/\\r?\\n/)) {
-        if (!line.trim() || line.trim().startsWith("#")) {
-          continue;
-        }
-        const top = line.match(/^([^\\s][^:]*):(?:\\s*#.*)?$/);
-        if (top) {
-          flushRaw();
-          currentSheet = { name: top[1].trim(), blocks: [] };
-          sheets.push(currentSheet);
-          currentBlock = null;
-          currentRow = null;
-          continue;
-        }
-        if (!currentSheet) {
-          continue;
-        }
-        const block = line.match(/^\\s{2}([^:]+):(?:\\s*#(.*))?$/);
-        if (block) {
-          flushRaw();
-          currentBlock = {
-            name: block[1].trim(),
-            kind: block[2]?.trim() || inferKind(block[1].trim()),
-            rows: [],
-            raw: ""
-          };
-          currentSheet.blocks.push(currentBlock);
-          currentRow = null;
-          continue;
-        }
-        if (!currentBlock) {
-          continue;
-        }
-        if (!isTableBlock(currentBlock.name) && !isRawRowsBlock(currentBlock.name)) {
-          rawBuffer.push(line.replace(/^\\s{4}/, ""));
-          continue;
-        }
-        // RawRows: [ a, b, c ] 形式の配列行をパース
-        if (isRawRowsBlock(currentBlock.name)) {
-          const singleLine = line.match(/^\\s{4}-?\\s*\\[(.*)\\]\\s*,?$/);
-          if (singleLine) {
-            currentBlock.rows.push(parseInlineArray("[" + singleLine[1] + "]"));
-          } else {
-            const startArr = line.match(/^\\s{4}-?\\s*\\[(.*)$/);
-            if (startArr) {
-              rawBuffer._arr = [startArr[1]];
-            } else if (rawBuffer._arr) {
-              const endArr = line.match(/^\\s*(.*?)\\]\\s*,?$/);
-              if (endArr) {
-                rawBuffer._arr.push(endArr[1]);
-                currentBlock.rows.push(parseInlineArray("[" + rawBuffer._arr.join(",") + "]"));
-                delete rawBuffer._arr;
-              } else {
-                rawBuffer._arr.push(line.trim());
-              }
-            }
-          }
-          continue;
-        }
-        const rowStart = line.match(/^\\s{4}-\\s*(.*)$/);
-        if (rowStart) {
-          currentRow = {};
-          currentBlock.rows.push(currentRow);
-          const inline = rowStart[1];
-          if (inline) {
-            const pair = inline.match(/^([^:]+):\\s*(.*)$/);
-            if (pair) {
-              currentRow[unquote(pair[1].trim())] = unquote(pair[2].trim());
-            }
-          }
-          continue;
-        }
-        const pair = line.match(/^\\s{6}([^:]+):\\s*(.*)$/);
-        if (pair && currentRow) {
-          currentRow[unquote(pair[1].trim())] = unquote(pair[2].trim());
-        }
-      }
-      flushRaw();
-      return { sheets };
-    }
-
-    function inferKind(name) {
-      if (isTableBlock(name)) return "ListMap";
-      if (isRawRowsBlock(name)) return "RawRows";
-      return "Raw";
-    }
-
-    function isTableBlock(name) {
-      return /^(LIST_MAP|SETUP_TABLE|EXPECTED_TABLE)(\\[\\d+\\])?=/.test(name);
-    }
-
-    function isRawRowsBlock(name) {
-      return /^(SETUP_VARIABLE|EXPECTED_VARIABLE)(\\[\\d+\\])?=/.test(name);
-    }
-
-    function parseInlineArray(text) {
-      const inner = text.trim().replace(/^\\[/, "").replace(/\\]$/, "");
-      const items = [];
-      let cur = "", inQ = false, qc = "";
-      for (let i = 0; i < inner.length; i++) {
-        const c = inner[i];
-        if (!inQ && (c === '"' || c === "'")) { inQ = true; qc = c; continue; }
-        if (inQ && c === qc) { inQ = false; continue; }
-        if (!inQ && c === ",") { items.push(cur.trim()); cur = ""; continue; }
-        cur += c;
-      }
-      items.push(cur.trim());
-      return items.map(function(s) { return s === "~" ? "" : s; });
-    }
-
-    function unquote(value) {
-      if (
-        (value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))
-      ) {
-        return value.slice(1, -1);
-      }
-      return value;
-    }
-
-    function quote(value) {
-      const text = String(value ?? "");
-      return '"' + text.replace(/\\\\/g, "\\\\\\\\").replace(/"/g, '\\\\"') + '"';
-    }
-
-    function key(value) {
-      const text = String(value ?? "");
-      if (/^[A-Za-z0-9_.-]+$/.test(text)) {
-        return text;
-      }
-      return quote(text);
-    }
-
-    function columns(block) {
-      const names = [];
-      for (const row of block.rows) {
-        for (const key of Object.keys(row)) {
-          if (!names.includes(key)) {
-            names.push(key);
-          }
-        }
-      }
-      return names.length ? names : ["no"];
-    }
-
-    function serializeYaml(model) {
-      const out = [];
-      for (const sheet of model.sheets) {
-        out.push(sheet.name + ":");
-        for (const block of sheet.blocks) {
-          out.push("  " + block.name + ": #" + (block.kind || inferKind(block.name)));
-          if (isTableBlock(block.name)) {
-              const cols = columns(block);
-            for (const row of block.rows) {
-              out.push("    - " + key(cols[0]) + ": " + quote(row[cols[0]] ?? ""));
-              for (const col of cols.slice(1)) {
-                out.push("      " + key(col) + ": " + quote(row[col] ?? ""));
-              }
-            }
-          } else if (isRawRowsBlock(block.name)) {
-            for (const row of block.rows) {
-              const cells = row.map(function(c) { return c === "" ? "''" : quote(c); });
-              out.push("    - [ " + cells.join(", ") + " ]");
-            }
-          } else if (block.raw) {
-            for (const rawLine of block.raw.split("\\n")) {
-              out.push("    " + rawLine);
-            }
-          }
-          out.push("");
-        }
-      }
-      return out.join("\\n").replace(/\\n+$/, "\\n");
-    }
 
     function render() {
       const root = document.getElementById("root");

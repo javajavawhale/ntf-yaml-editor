@@ -15,6 +15,14 @@
     "onCommand:ntfYaml.openAsTable"
   ],
   "main": "./extension.js",
+  "bin": {
+    "ntf-yaml": "./bin/ntf-yaml.js"
+  },
+  "scripts": {
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "node --test test/*.test.js",
+    "test:e2e": "node ./test/e2e/runTest.js"
+  },
   "contributes": {
     "customEditors": [
       {
@@ -37,5 +45,9 @@
         "title": "NTF YAML: Open as Table"
       }
     ]
+  },
+  "devDependencies": {
+    "@vscode/test-electron": "^2.5.2",
+    "mocha": "^11.7.5"
   }
 }
