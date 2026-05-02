@@ -1,8 +1,10 @@
-# NTF YAML Editor Test Cases
+# NTF YAML Editor テストケース
 
-## Automated Coverage
+手動で確認する UX 観点のテストケースは `docs/manual-test-plan.md` に記載する。
 
-Run with:
+## 自動テストの網羅範囲
+
+実行方法:
 
 ```sh
 npm test
@@ -10,65 +12,79 @@ npm test
 
 ### Unit Tests
 
-Covered by `npm run test:unit`:
+`npm run test:unit` で確認する。
 
-- Block classification for `LIST_MAP`, `SETUP_TABLE`, `EXPECTED_TABLE`, `SETUP_VARIABLE`, and `EXPECTED_VARIABLE`.
-- Parsing table rows and quoted special keys such as `"[no]"`.
-- Serializing special keys with quotes so YAML does not reinterpret them.
-- Preserving YAML null sentinel cells (`~`) used by empty table column definitions.
-- Keeping empty strings (`""`) distinct from YAML null (`~`).
-- Preserving empty table blocks with no rows.
-- Preserving Japanese, long text, commas, quotes, and backslashes in table cells.
-- Parsing and serializing RawRows blocks for `SETUP_VARIABLE` / `EXPECTED_VARIABLE`.
-- Preserving unsupported fixed-length blocks as raw text.
-- Loading `converted/ProjectActionRequestTest.yaml` and checking key editor targets.
-- Loading a migrated web fixture with null sentinel rows.
-- Analyzing common structural issues: missing required `testShots` columns, missing numbered references, ragged RawRows.
-- CLI lint behavior: non-zero for errors, zero for warning-only diagnostics.
-- CLI convert behavior for `xlsx`: generated workbook fixture is converted to YAML and immediately linted.
-- CLI convert dispatch for `xls`: `.xls` inputs are routed to the `xlrd`-based converter.
-- CLI convert behavior for real `xls`: a generated BIFF `.xls` fixture is converted through `xlrd` and immediately linted when Python `xlwt` is available.
+- `LIST_MAP`、`SETUP_TABLE`、`EXPECTED_TABLE`、`SETUP_VARIABLE`、`EXPECTED_VARIABLE` の block 分類。
+- table row と、`"[no]"` のような quote が必要な特殊 key の parse。
+- YAML が key を別の意味に解釈しないよう、特殊 key を quote して serialize すること。
+- 空 table column 定義で使う YAML null sentinel cell、つまり `~` の保持。
+- 空文字 `""` と YAML null `~` の区別。
+- row がない空 table block の保持。
+- 日本語、長文、comma、quote、backslash を含む table cell の保持。
+- `SETUP_VARIABLE` / `EXPECTED_VARIABLE` の RawRows block の parse と serialize。
+- 未対応の fixed-length block を raw text として保持すること。
+- `test/fixtures/ntf-samples/` 配下の vendoring 済み NTF sample fixture を読み込み、web、batch、REST、form YAML の主要 editor target を確認すること。
+- よくある構造問題の解析。具体的には、`testShots` 必須 column 不足、番号付き参照 block 不足、RawRows の row 幅不一致。
+- CLI lint の exit code。error があれば non-zero、warning のみなら zero。
+- CLI convert の `xlsx` 動作。テスト内で生成した workbook fixture を YAML に変換し、そのまま lint する。
+- CLI convert の `xls` dispatch。`.xls` input が `xlrd` ベースの converter に渡ること。
+- 実 `.xls` の CLI convert。Python `xlwt` が利用できる場合、生成した BIFF `.xls` fixture を `xlrd` converter で変換し、そのまま lint する。
+
+### Webview DOM Tests
+
+`npm run test:unit` で jsdom を使って確認する。
+
+- sheet button の描画と active sheet の切り替え。
+- table cell の編集と、保存 message 経由で serialized YAML が送られること。
+- table row の追加。
+- button click と Enter key による table column の追加。
+- cell value を保持したまま table column 名を変更すること。
+- RawRows cell の編集と、`~` null sentinel の保持。
+- document update message を受けた再描画。active sheet が残っている場合は維持し、消えた場合は fallback すること。
+- 未対応 block を raw text として表示すること。
 
 ### E2E Tests
 
-Covered by `npm run test:e2e` using `@vscode/test-electron`:
+`npm run test:e2e` で `@vscode/test-electron` を使って確認する。
 
-- Starts a real VS Code Extension Host with this extension loaded.
-- Activates `local.ntf-yaml-editor`.
-- Confirms `ntfYaml.openAsTable` is registered.
-- Confirms the generated Webview HTML contains table-editor controls and RawRows rendering code.
-- Opens a YAML file with the `ntfYaml.editor` custom editor.
-- Opens the active text editor through `NTF YAML: Open as Table`.
-- Publishes VS Code Problems diagnostics for invalid `LIST_MAP=testShots` blocks.
-- Round-trips `converted/ProjectActionRequestTest.yaml` through the extension save path and checks critical YAML shape.
-- Round-trips a migrated web fixture and checks `~` null sentinel rows are preserved.
+- 実際の VS Code Extension Host を、この extension を読み込んだ状態で起動する。
+- `local.ntf-yaml-editor` を activate できること。
+- `ntfYaml.openAsTable` command が登録されていること。
+- 生成された Webview HTML に、table editor control と RawRows rendering code が含まれること。
+- YAML file を通常 open したときに `ntfYaml.editor` custom editor で開けること。
+- 明示的な補助経路として、active text editor から `NTF YAML: Open as Table` で table editor を開けること。
+- 不正な `LIST_MAP=testShots` block に対して VS Code Problems diagnostics を出せること。
+- vendoring 済み sample fixture を extension save path で round-trip し、重要な YAML 形状が壊れないこと。
+- 移行済み web fixture を round-trip し、`~` null sentinel row が保持されること。
 
-The E2E runner downloads a test VS Code build under `.vscode-test/`. In this environment, VS Code/Electron needs to run outside the filesystem/network sandbox.
+E2E runner は `.vscode-test/` 配下にテスト用 VS Code build を取得する。この環境では、VS Code/Electron の起動に filesystem/network sandbox 外での実行が必要になる場合がある。
 
-## Manual Smoke Checklist
+## 手動 Smoke Checklist
 
-Use this after automated tests pass:
+自動テストが通った後に使う簡易確認。
 
-1. Open `converted/ProjectActionRequestTest.yaml` with `NTF YAML Table Editor`.
-2. Select `confirmOfCreateNormal`.
-3. Confirm `LIST_MAP=testShots` and `LIST_MAP=requestParams` render as tables.
-4. Confirm the `"[no]"` column is shown as a normal editable column.
-5. Select a sheet containing `EXPECTED_VARIABLE` and confirm it renders as a row/cell table.
-6. Save without editing and confirm `npm test` still passes.
-7. For final confidence, run the relevant Maven test in the sample repository after saving.
+詳細な手動テストは `docs/manual-test-plan.md` を使う。
+
+1. `test/fixtures/ntf-samples/web-project-action-request.yaml` を通常どおり開き、`NTF YAML Table Editor` が自動で起動することを確認する。
+2. `confirmOfCreateNormal` を選択する。
+3. `LIST_MAP=testShots` と `LIST_MAP=requestParams` が table として表示されることを確認する。
+4. `"[no]"` column が通常の編集可能 column として表示されることを確認する。
+5. `EXPECTED_VARIABLE` を含む sheet を選び、row/cell table として表示されることを確認する。
+6. 編集せず保存し、`npm test` がまだ通ることを確認する。
+7. 最終確認として、必要に応じて sample repository 側の関連 Maven test を実行する。
 
 ## CLI Smoke Checklist
 
-1. Convert an `xlsx` file:
+1. `xlsx` file を変換する。
 
    ```sh
    node ./bin/ntf-yaml.js convert path/to/TestData.xlsx -o /tmp/TestData.yaml --lint
    ```
 
-2. Convert an old `xls` file:
+2. 旧形式の `xls` file を変換する。
 
    ```sh
    node ./bin/ntf-yaml.js convert path/to/TestData.xls -o /tmp/TestData.yaml --lint
    ```
 
-3. Open the generated YAML in VS Code and confirm Problems shows the same diagnostics as CLI lint.
+3. 生成された YAML を VS Code で開き、Problems が CLI lint と同じ diagnostics を表示することを確認する。

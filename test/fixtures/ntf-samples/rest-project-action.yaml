@@ -1,0 +1,33 @@
+プロジェクトを新規登録できること:
+  SETUP_TABLE=PROJECT: #ListMap
+    - PROJECT_ID: ~
+      PROJECT_NAME: ~
+      PROJECT_TYPE: ~
+      PROJECT_CLASS: ~
+      PROJECT_START_DATE: ~
+      PROJECT_END_DATE: ~
+      CLIENT_ID: ~
+      PROJECT_MANAGER: ~
+      PROJECT_LEADER: ~
+      USER_ID: ~
+      NOTE: ~
+      SALES: ~
+      COST_OF_GOODS_SOLD: ~
+      SGA: ~
+      ALLOCATION_OF_CORP_EXPENSES: ~
+
+  EXPECTED_TABLE=PROJECT: #ListMap
+    - PROJECT_NAME: "プロジェクト９９９"
+      PROJECT_TYPE: "development"
+      PROJECT_CLASS: "s"
+      PROJECT_START_DATE: "2016-01-01"
+      PROJECT_END_DATE: "2016-03-31"
+      CLIENT_ID: "10"
+      PROJECT_MANAGER: "鈴木"
+      PROJECT_LEADER: "佐藤"
+      USER_ID: "null"
+      NOTE: "備考９９９"
+      SALES: "10000"
+      COST_OF_GOODS_SOLD: "1000"
+      SGA: "2000"
+      ALLOCATION_OF_CORP_EXPENSES: "3000"

@@ -52,6 +52,7 @@
   "devDependencies": {
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.9.1",
+    "jsdom": "^29.1.1",
     "jszip": "^3.10.1"
   }
 }

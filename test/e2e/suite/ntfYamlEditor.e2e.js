@@ -5,7 +5,11 @@ const path = require("path");
 const vscode = require("vscode");
 
 const extensionId = "local.ntf-yaml-editor";
-const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
+const extensionRoot = path.resolve(__dirname, "..", "..", "..");
+const sampleFixtures = {
+  webProjectAction: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "web-project-action-request.yaml"),
+  webProjectBulkAction: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "web-project-bulk-action-request.yaml")
+};
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -133,8 +137,7 @@ const tests = [
   {
     name: "round-trips a real fixture through the extension save path without losing critical YAML shape",
     run: async () => {
-      const source = path.join(repoRoot, "converted", "ProjectActionRequestTest.yaml");
-      const original = fs.readFileSync(source, "utf8");
+      const original = fs.readFileSync(sampleFixtures.webProjectAction, "utf8");
       const uri = makeTempYaml("ProjectActionRequestTest.yaml", original);
 
       await vscode.commands.executeCommand("vscode.openWith", uri, "ntfYaml.editor");
@@ -151,22 +154,7 @@ const tests = [
   {
     name: "preserves null sentinel rows when saving a migrated sample fixture",
     run: async () => {
-      const source = path.join(
-        repoRoot,
-        "samples",
-        "nablarch-example-web",
-        "src",
-        "test",
-        "java",
-        "com",
-        "nablarch",
-        "example",
-        "app",
-        "web",
-        "action",
-        "ProjectBulkActionRequestTest.yaml"
-      );
-      const uri = makeTempYaml("ProjectBulkActionRequestTest.yaml", fs.readFileSync(source, "utf8"));
+      const uri = makeTempYaml("ProjectBulkActionRequestTest.yaml", fs.readFileSync(sampleFixtures.webProjectBulkAction, "utf8"));
 
       await vscode.commands.executeCommand("vscode.openWith", uri, "ntfYaml.editor");
       await waitForCustomEditorTab(uri, "ntfYaml.editor");

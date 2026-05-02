@@ -19,7 +19,19 @@ const {
   selectConverter
 } = require("../bin/ntf-yaml");
 
-const repoRoot = path.resolve(__dirname, "..", "..");
+const extensionRoot = path.resolve(__dirname, "..");
+const repoRoot = path.resolve(extensionRoot, "..");
+const sampleFixtures = {
+  webProjectAction: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "web-project-action-request.yaml"),
+  webProjectBulkAction: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "web-project-bulk-action-request.yaml"),
+  batchImportZipCodeDataFormat: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "batch-import-zip-code-data-format-action-request.yaml"),
+  restProjectAction: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "rest-project-action.yaml"),
+  webProjectForm: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "web-project-form.yaml")
+};
+
+function readSampleFixture(name) {
+  return fs.readFileSync(sampleFixtures[name], "utf8");
+}
 
 function getBlock(model, sheetName, blockName) {
   const sheet = model.sheets.find(item => item.name === sheetName);
@@ -297,46 +309,41 @@ test("preserves unsupported fixed-length blocks as raw text", () => {
   assert.match(serializeYaml(model), /    text-encoding: "ms932"/);
 });
 
-test("loads the ProjectActionRequestTest fixture and keeps key editor targets", () => {
-  const fixture = fs.readFileSync(
-    path.join(repoRoot, "converted", "ProjectActionRequestTest.yaml"),
-    "utf8"
-  );
-
-  const model = parseYaml(fixture);
+test("loads representative sample fixtures and keeps key editor targets", () => {
+  const model = parseYaml(readSampleFixture("webProjectAction"));
   const serialized = serializeYaml(model);
 
-  assert.ok(model.sheets.length > 20, "fixture should contain many action-test sheets");
+  assert.deepEqual(model.sheets.map(sheet => sheet.name), ["confirmOfCreateNormal", "downloadNormal"]);
   assert.ok(getBlock(model, "confirmOfCreateNormal", "LIST_MAP=testShots"));
   assert.ok(getBlock(model, "confirmOfCreateNormal", "LIST_MAP=requestParams"));
+  assert.ok(getBlock(model, "downloadNormal", "EXPECTED_VARIABLE=./tmp/html_dump/ProjectActionRequestTest/downloadNormal_Shot1_プロジェクト一覧ダウンロード_プロジェクト一覧.csv"));
   assert.match(serialized, /"\[no\]": "1"/);
   assert.match(serialized, /EXPECTED_VARIABLE=\.\/tmp\/html_dump\/ProjectActionRequestTest\/downloadNormal_Shot1_/);
 });
 
 test("loads the migrated web fixture and preserves null sentinel rows", () => {
-  const fixture = fs.readFileSync(
-    path.join(
-      repoRoot,
-      "samples",
-      "nablarch-example-web",
-      "src",
-      "test",
-      "java",
-      "com",
-      "nablarch",
-      "example",
-      "app",
-      "web",
-      "action",
-      "ProjectBulkActionRequestTest.yaml"
-    ),
-    "utf8"
-  );
-
-  const serialized = serializeYaml(parseYaml(fixture));
+  const serialized = serializeYaml(parseYaml(readSampleFixture("webProjectBulkAction")));
 
   assert.match(serialized, /PROJECT_ID: ~/);
   assert.match(serialized, /"\[no\]": "1"/);
+});
+
+test("loads sample fixture variants across web, batch, rest, and form YAML", () => {
+  const webAction = parseYaml(readSampleFixture("webProjectBulkAction"));
+  assert.ok(getBlock(webAction, "setUpDb", "SETUP_TABLE=PROJECT"));
+  assert.ok(getBlock(webAction, "updateNormal", "EXPECTED_TABLE[1]=PROJECT"));
+
+  const batchAction = parseYaml(readSampleFixture("batchImportZipCodeDataFormat"));
+  assert.ok(getBlock(batchAction, "testNormalEnd", "SETUP_VARIABLE[1]=work/test/importZipCode/importZipCode_by_format.csv"));
+  assert.ok(getBlock(batchAction, "testNormalEnd", "EXPECTED_TABLE[1]=ZIP_CODE_DATA"));
+
+  const restAction = parseYaml(readSampleFixture("restProjectAction"));
+  assert.ok(getBlock(restAction, "プロジェクトを新規登録できること", "SETUP_TABLE=PROJECT"));
+  assert.ok(getBlock(restAction, "プロジェクトを新規登録できること", "EXPECTED_TABLE=PROJECT"));
+
+  const webForm = parseYaml(readSampleFixture("webProjectForm"));
+  assert.ok(getBlock(webForm, "testCharsetAndLength", "LIST_MAP=charsetAndLength"));
+  assert.ok(getBlock(webForm, "testSingleValidation", "LIST_MAP=singleValidation"));
 });
 
 test("analyzes missing required testShots columns and missing references", () => {

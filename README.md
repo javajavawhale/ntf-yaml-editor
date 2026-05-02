@@ -12,10 +12,10 @@ Nablarch NTF 用 YAML を表形式で編集する VS Code 拡張の PoC。
 
 1. VS Code で `vscode-ntf-yaml-editor` フォルダを開く。
 2. `F5` で Extension Development Host を起動する。
-3. `sample.yaml` を右クリックし、`Open With...` から `NTF YAML Table Editor` を選択する。
+3. `sample.yaml` などの YAML ファイルを通常どおり開く。
 4. セルを編集し、`Save YAML` を押す。
 
-または、YAML を通常のテキストエディタで開いた状態で `NTF YAML: Open as Table` を実行する。
+`.yaml` は既定で `NTF YAML Table Editor` として開く。YAML を通常のテキストエディタで開いている場合は、補助経路として `NTF YAML: Open as Table` を実行する。
 
 ## CLI ツールチェイン
 

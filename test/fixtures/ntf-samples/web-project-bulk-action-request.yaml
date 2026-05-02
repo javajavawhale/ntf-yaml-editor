@@ -1,0 +1,133 @@
+setUpDb:
+  SETUP_TABLE=SYSTEM_ACCOUNT: #ListMap
+    - USER_ID: "105"
+      LOGIN_ID: "10000001"
+      USER_PASSWORD: "nLf7+E3ObKARUBw+6bvSRyfJ9Cy0HCcsa0DqZIE93K0="
+      ADMIN_FLAG: "0"
+      USER_ID_LOCKED: "0"
+      PASSWORD_EXPIRATION_DATE: "20170410"
+      FAILED_COUNT: "0"
+      EFFECTIVE_DATE_FROM: "20130802"
+      EFFECTIVE_DATE_TO: "20170404"
+      LAST_LOGIN_DATE_TIME: ""
+      VERSION: "0"
+
+  SETUP_TABLE=USERS: #ListMap
+    - USER_ID: "105"
+      KANJI_NAME: "一般ユーザ１"
+      KANA_NAME: "イッパンイチ"
+
+  SETUP_TABLE=PROJECT: #ListMap
+    - PROJECT_ID: ~
+      PROJECT_NAME: ~
+      PROJECT_TYPE: ~
+      PROJECT_CLASS: ~
+      PROJECT_START_DATE: ~
+      PROJECT_END_DATE: ~
+      CLIENT_ID: ~
+      PROJECT_MANAGER: ~
+      PROJECT_LEADER: ~
+      USER_ID: ~
+      NOTE: ~
+      SALES: ~
+      COST_OF_GOODS_SOLD: ~
+      SGA: ~
+      ALLOCATION_OF_CORP_EXPENSES: ~
+      VERSION: ~
+  SETUP_TABLE=INDUSTRY: #ListMap
+    - INDUSTRY_CODE: "01"
+      INDUSTRY_NAME: "農業"
+
+  SETUP_TABLE=CLIENT: #ListMap
+    - CLIENT_ID: "1"
+      CLIENT_NAME: "テスト顧客名"
+      INDUSTRY_CODE: "01"
+
+updateNormal:
+  LIST_MAP=testShots: #ListMap
+    - "no": "1"
+      description: "一括更新実行"
+      context: "user"
+      isValidToken: "true"
+      setUpTable: "1"
+      expectedTable: "1"
+      expectedStatusCode: "303"
+      expectedMessageId: ""
+      expectedSearch: ""
+      forwardUri: "completeOfUpdate"
+
+  LIST_MAP=user: #ListMap
+    - REQUEST_ID: "update"
+      USER_ID: "105"
+      HTTP_METHOD: "POST"
+
+  SETUP_TABLE[1]=PROJECT: #ListMap
+    - PROJECT_ID: "9998"
+      PROJECT_NAME: "プロジェクト００１"
+      PROJECT_TYPE: "development"
+      PROJECT_CLASS: "s"
+      PROJECT_START_DATE: "20180101"
+      PROJECT_END_DATE: "20180102"
+      CLIENT_ID: "1"
+      PROJECT_MANAGER: "まねーじゃ１"
+      PROJECT_LEADER: "りーだー１"
+      USER_ID: "105"
+      NOTE: "あ"
+      SALES: "1"
+      COST_OF_GOODS_SOLD: "2"
+      SGA: "3"
+      ALLOCATION_OF_CORP_EXPENSES: "4"
+      VERSION: "0"
+    - PROJECT_ID: "9999"
+      PROJECT_NAME: "プロジェクト００2"
+      PROJECT_TYPE: "development"
+      PROJECT_CLASS: "s"
+      PROJECT_START_DATE: "20180201"
+      PROJECT_END_DATE: "20180202"
+      CLIENT_ID: "1"
+      PROJECT_MANAGER: "まねーじゃ２"
+      PROJECT_LEADER: "りーだー２"
+      USER_ID: "105"
+      NOTE: "い"
+      SALES: "10"
+      COST_OF_GOODS_SOLD: "20"
+      SGA: "30"
+      ALLOCATION_OF_CORP_EXPENSES: "40"
+      VERSION: "0"
+
+  LIST_MAP=requestParams: #ListMap
+    - "[no]": "1"
+
+  EXPECTED_TABLE[1]=PROJECT: #ListMap
+    - PROJECT_ID: "9998"
+      PROJECT_NAME: "プロジェクト８９９８"
+      PROJECT_TYPE: "development"
+      PROJECT_CLASS: "s"
+      PROJECT_START_DATE: "2018-01-01"
+      PROJECT_END_DATE: "2018-01-02"
+      CLIENT_ID: "1"
+      PROJECT_MANAGER: "まねーじゃ１"
+      PROJECT_LEADER: "りーだー１"
+      USER_ID: "105"
+      NOTE: "あ"
+      SALES: "1"
+      COST_OF_GOODS_SOLD: "2"
+      SGA: "3"
+      ALLOCATION_OF_CORP_EXPENSES: "4"
+      VERSION: "1"
+    - PROJECT_ID: "9999"
+      PROJECT_NAME: "プロジェクト８９９９"
+      PROJECT_TYPE: "development"
+      PROJECT_CLASS: "s"
+      PROJECT_START_DATE: "2018-02-01"
+      PROJECT_END_DATE: "2018-02-28"
+      CLIENT_ID: "1"
+      PROJECT_MANAGER: "まねーじゃ２"
+      PROJECT_LEADER: "りーだー２"
+      USER_ID: "105"
+      NOTE: "い"
+      SALES: "10"
+      COST_OF_GOODS_SOLD: "20"
+      SGA: "30"
+      ALLOCATION_OF_CORP_EXPENSES: "40"
+      VERSION: "1"
