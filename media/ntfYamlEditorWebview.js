@@ -120,6 +120,7 @@
           if (!col) return;
           for (const row of block.rows) { row[col] = ""; }
           if (block.rows.length === 0) { block.rows.push({ [col]: "" }); }
+          addColumnName(block, col);
           colInput.value = "";
           render();
         };
@@ -213,7 +214,9 @@
           input.dataset.rawColumn = String(ci);
           input.value = row[ci] ?? "";
           (function(r, idx) {
-            input.oninput = function() { r[idx] = input.value; };
+            input.oninput = function() {
+              r[idx] = input.value;
+            };
           })(row, ci);
           td.append(input);
           tr.append(td);
@@ -232,10 +235,41 @@
         return;
       }
       for (const row of block.rows) {
-        row[next] = row[from] ?? "";
-        delete row[from];
+        replaceRowKey(row, from, next);
+      }
+      if (Array.isArray(block.columnOrder)) {
+        block.columnOrder = block.columnOrder.map(name => name === from ? next : name);
       }
       render();
+    }
+
+    function replaceRowKey(row, from, to) {
+      const nextRow = {};
+      let replaced = false;
+      for (const name of Object.keys(row)) {
+        if (name === from) {
+          nextRow[to] = row[from] ?? "";
+          replaced = true;
+        } else {
+          nextRow[name] = row[name];
+        }
+      }
+      if (!replaced) {
+        nextRow[to] = "";
+      }
+      for (const name of Object.keys(row)) {
+        delete row[name];
+      }
+      Object.assign(row, nextRow);
+    }
+
+    function addColumnName(block, name) {
+      if (!Array.isArray(block.columnOrder)) {
+        block.columnOrder = model.columns(block);
+      }
+      if (!block.columnOrder.includes(name)) {
+        block.columnOrder.push(name);
+      }
     }
 
     render();

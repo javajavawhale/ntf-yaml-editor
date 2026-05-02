@@ -312,23 +312,6 @@ Block: `SETUP_VARIABLE[1]=work/test/importZipCode/importZipCode_by_format.csv`
 
 - RawRows に列 label、固定幅表示、CSV preview、copy/paste support が必要か。
 
-### MT-11 日本語 sheet 名を持つ REST fixture
-
-Fixture: `rest-project-action.yaml`
-
-Sheet: `プロジェクトを新規登録できること`
-
-手順:
-
-1. fixture を開く。
-2. 日本語 sheet 名を選択する。
-3. `SETUP_TABLE=PROJECT` と `EXPECTED_TABLE=PROJECT` を確認する。
-
-期待結果:
-
-- 日本語 sheet 名が navigation で正しく表示される。
-- DB setup と expected table が読める。
-
 ### MT-12 Form validation の横長 table
 
 Fixture: `web-project-form.yaml`
@@ -447,56 +430,6 @@ Fixture: `web-project-action-request.yaml` の scratch copy
 
 - error/warning count が一致する。
 - 同じ issue だと分かる程度に message が一致している。
-
-### MT-17 行削除の要否確認
-
-Fixture: `web-project-bulk-action-request.yaml` の scratch copy
-
-対象: 複数行を持つ `LIST_MAP=requestParams` block
-
-手順:
-
-1. 対象 block を開く。
-2. 不要そうな row を1つ選ぶ。
-3. UI 上で row を削除できる操作があるか確認する。
-4. 削除操作がない場合、raw YAML 側で同じ row を消す作業と比較し、table editor に削除機能が必要か判断する。
-
-期待結果:
-
-- 現状では row 削除 UI がないことを確認する。
-- row 削除が PoC review の blocker か、broader trial 前に直すべきか、backlog かを記録する。
-
-人間が判断すること:
-
-- NTF test data の実編集で row 削除がどれくらい頻出するか。
-- 削除操作には confirmation が必要か。
-- 削除後の YAML diff がレビューしやすい形になるべきか。
-- 誤削除に備えて undo が必要か。
-
-### MT-18 列削除の要否確認
-
-Fixture: `web-project-form.yaml` の scratch copy
-
-対象: 横長の `LIST_MAP` block
-
-手順:
-
-1. 対象 block を開く。
-2. 不要そうな column を1つ選ぶ。
-3. UI 上で column を削除できる操作があるか確認する。
-4. 削除操作がない場合、raw YAML 側で同じ key を全 row から消す作業と比較し、table editor に削除機能が必要か判断する。
-
-期待結果:
-
-- 現状では column 削除 UI がないことを確認する。
-- column 削除が PoC review の blocker か、broader trial 前に直すべきか、backlog かを記録する。
-
-人間が判断すること:
-
-- NTF test data で column 削除がどれくらい頻出するか。
-- 全 row から key を消す挙動が安全か。
-- 削除前に affected row count を表示すべきか。
-- 空 column を自動検出して削除候補にする必要があるか。
 
 ## 完了条件
 

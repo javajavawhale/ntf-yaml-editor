@@ -155,6 +155,7 @@ test("webview renames table columns and keeps cell values", () => {
 
   assert.match(messages[0].text, /form\.projectDisplayName: "プロジェクト００１"/);
   assert.doesNotMatch(messages[0].text, /form\.projectName:/);
+  assert.match(messages[0].text, /"\[no\]": "1"\n      form\.projectDisplayName: "プロジェクト００１"/);
 });
 
 test("webview edits raw-row cells and serializes null sentinels", () => {
