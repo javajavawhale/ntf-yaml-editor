@@ -8,6 +8,10 @@ const {
   parseYaml,
   serializeYaml
 } = require("../lib/ntfYamlModel");
+const {
+  diffGitRefs,
+  writeHtmlReport
+} = require("../lib/ntfYamlDiff");
 
 function main(argv) {
   const [command, ...args] = argv;
@@ -25,10 +29,49 @@ function main(argv) {
   if (command === "convert") {
     return convert(args);
   }
+  if (command === "diff") {
+    return diff(args);
+  }
 
   console.error(`Unknown command: ${command}`);
   printHelp();
   return 2;
+}
+
+function diff(args) {
+  const options = parseDiffArgs(args);
+  if (!options.baseRef || !options.headRef) {
+    console.error("diff requires --base <git-ref> and --head <git-ref>.");
+    return 2;
+  }
+  const report = diffGitRefs({
+    baseRef: options.baseRef,
+    headRef: options.headRef,
+    cwd: process.cwd()
+  });
+  writeHtmlReport(report, options.output);
+  console.log(`ntf-yaml diff: wrote ${options.output}`);
+  return 0;
+}
+
+function parseDiffArgs(args) {
+  const options = { baseRef: "", headRef: "", output: "ntf-yaml-diff.html" };
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--base") {
+      options.baseRef = args[++i] || "";
+    } else if (arg === "--head") {
+      options.headRef = args[++i] || "";
+    } else if (arg === "-o" || arg === "--output") {
+      options.output = args[++i] || "";
+    } else {
+      throw new Error(`Unexpected argument: ${arg}`);
+    }
+  }
+  if (!options.output) {
+    options.output = "ntf-yaml-diff.html";
+  }
+  return options;
 }
 
 function convert(args, deps = defaultDeps()) {
@@ -179,7 +222,9 @@ function printHelp() {
     "                       Convert Excel NTF data to YAML.",
     "  lint <file...>       Analyze NTF YAML files.",
     "  format [--write] <file>",
-    "                       Re-serialize NTF YAML through the shared model."
+    "                       Re-serialize NTF YAML through the shared model.",
+    "  diff --base <ref> --head <ref> [-o file.html]",
+    "                       Generate a local cell diff HTML report."
   ].join("\n"));
 }
 
@@ -192,4 +237,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { main, convert, parseConvertArgs, selectConverter };
+module.exports = { main, convert, diff, parseConvertArgs, parseDiffArgs, selectConverter };

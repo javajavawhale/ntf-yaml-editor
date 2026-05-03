@@ -216,8 +216,8 @@ Fixture: `web-project-bulk-action-request.yaml` の scratch copy
 
 人間が判断すること:
 
-- 末尾追加だけで足りるか。
-- insert-before や delete-row が必要か。
+- 末尾追加、行移動、行削除の操作が分かりやすいか。
+- 大きな表で行操作ボタンが邪魔にならないか。
 
 ### MT-07 列を追加する
 
@@ -242,6 +242,7 @@ Fixture: `web-project-bulk-action-request.yaml` の scratch copy
 人間が判断すること:
 
 - 列追加時に全行へ列を足す挙動が NTF データ編集として自然か。
+- 列移動、列削除の操作がレビュー可能な YAML 差分になるか。
 
 ### MT-08 列名を変更する
 
@@ -311,6 +312,46 @@ Block: `SETUP_VARIABLE[1]=work/test/importZipCode/importZipCode_by_format.csv`
 人間が判断すること:
 
 - RawRows に列 label、固定幅表示、CSV preview、copy/paste support が必要か。
+
+### MT-11 シートとブロックを追加・変更・削除する
+
+Fixture: `web-project-action-request.yaml` の scratch copy
+
+手順:
+
+1. 左ペインの `New sheet` に `manualCase` と入力し、`Add Sheet` をクリックする。
+2. 追加された sheet が選択されていることを確認する。
+3. `LIST_MAP` を選び、block name に `manualParams` と入力して `Add Block` をクリックする。
+4. 追加された `LIST_MAP=manualParams` の `no` cell に `1` を入力する。
+5. block 名を `LIST_MAP=manualParamsRenamed` に変更する。
+6. sheet 名を `manualCaseRenamed` に変更する。
+7. `Save YAML` をクリックする。
+8. text として開き直し、sheet と block が保存されていることを確認する。
+9. もう一度 table editor で開き、追加した block の `Delete Block` をクリックして保存する。
+10. 追加した sheet の `Delete Sheet` をクリックして保存する。
+
+期待結果:
+
+- 新しい sheet が追加直後に active になる。
+- `LIST_MAP` block を新規作成できる。
+- sheet 名変更と block 名変更が YAML に反映される。
+- block 削除と sheet 削除が保存後 YAML に反映される。
+- 削除対象以外の既存 sheet / block が消えない。
+
+追加確認:
+
+```sh
+node ./bin/ntf-yaml.js lint /tmp/ntf-yaml-manual/web-project-action-request.yaml
+```
+
+期待結果:
+
+- 操作対象外の既存データに新しい error が増えない。
+
+人間が判断すること:
+
+- block 追加フォームで `LIST_MAP` / `SETUP_TABLE` / `EXPECTED_TABLE` / RawRows の選択が理解しやすいか。
+- 削除操作に確認 dialog が必要か。
 
 ### MT-12 Form validation の横長 table
 
@@ -430,6 +471,99 @@ Fixture: `web-project-action-request.yaml` の scratch copy
 
 - error/warning count が一致する。
 - 同じ issue だと分かる程度に message が一致している。
+
+### MT-17 CLI セル差分 HTML レポートを生成する
+
+対象: scratch 用の一時 Git repository
+
+手順:
+
+1. 一時 repository を作る。
+
+   ```sh
+   tmp=$(mktemp -d /tmp/ntf-yaml-diff-manual-XXXXXX)
+   cd "$tmp"
+   git init
+   git config user.email test@example.com
+   git config user.name Test
+   ```
+
+2. base 版の YAML を作って commit する。
+
+   ```sh
+   cat > sample.yaml <<'YAML'
+   case1:
+     LIST_MAP=requestParams: #ListMap
+       - "[no]": "1"
+         name: "before"
+   YAML
+   git add sample.yaml
+   git commit -m base
+   base=$(git rev-parse HEAD)
+   ```
+
+3. head 版で cell 変更と列追加を行って commit する。
+
+   ```sh
+   cat > sample.yaml <<'YAML'
+   case1:
+     LIST_MAP=requestParams: #ListMap
+       - "[no]": "1"
+         name: "after"
+         extra: "new"
+   YAML
+   git add sample.yaml
+   git commit -m head
+   ```
+
+4. 元 repository の CLI を使って HTML レポートを生成する。
+
+   ```sh
+   node /home/happy/nablarch/vscode-ntf-yaml-editor/bin/ntf-yaml.js diff --base "$base" --head HEAD -o report.html
+   ```
+
+5. `report.html` をブラウザまたは VS Code で開く。
+
+期待結果:
+
+- `report.html` が生成される。
+- base/head ref と commit SHA が表示される。
+- `sample.yaml`、`case1`、`LIST_MAP=requestParams` が表示される。
+- `name` cell に `before` / `after` が上下に表示される。
+- `extra` cell が追加として表示される。
+- 変更行が薄くハイライトされ、変更セルが強くハイライトされる。
+
+人間が判断すること:
+
+- 通常の Git diff より変更範囲を把握しやすいか。
+- 横長表で見たときに、変更セルまでたどり着きやすいか。
+- report の summary がレビューに必要十分か。
+
+### MT-18 VS Code からセル差分 HTML レポートを生成する
+
+対象: `MT-17` で作った一時 Git repository、または実際の作業 repository
+
+手順:
+
+1. Extension Development Host で対象 repository を workspace として開く。
+2. Command Palette から `NTF YAML: Generate Cell Diff Report` を実行する。
+3. `Base Git ref` に比較元 ref を入力する。例: `HEAD~1` または `MT-17` の `$base`。
+4. `Head Git ref` に比較先 ref を入力する。例: `HEAD`。
+5. 出力ファイル名に `ntf-yaml-diff.html` を指定する。
+6. 生成された HTML が VS Code で開かれることを確認する。
+
+期待結果:
+
+- VS Code コマンドから HTML レポートが生成される。
+- CLI で生成したレポートと同じ仕様で表示される。
+- Git ref を明示して比較できる。
+- 生成に失敗した場合、VS Code の error message に原因が表示される。
+
+人間が判断すること:
+
+- Git diff editor 周辺から直接開けない制約がある場合でも、この導線でレビュー作業が回るか。
+- 出力先を毎回入力する UX で問題ないか。
+- HTML をテキストとして開く挙動で十分か、ブラウザ表示や Webview 表示が必要か。
 
 ## 完了条件
 

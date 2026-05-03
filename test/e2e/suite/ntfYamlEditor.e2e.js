@@ -49,6 +49,7 @@ const tests = [
 
       const commands = await vscode.commands.getCommands(true);
       assert.ok(commands.includes("ntfYaml.openAsTable"));
+      assert.ok(commands.includes("ntfYaml.generateDiffReport"));
     }
   },
   {

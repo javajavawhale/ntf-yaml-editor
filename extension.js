@@ -2,6 +2,7 @@ const vscode = require("vscode");
 const fs = require("fs");
 const path = require("path");
 const { analyzeYaml, parseYaml, serializeYaml } = require("./lib/ntfYamlModel");
+const { diffGitRefs, renderHtmlReport } = require("./lib/ntfYamlDiff");
 
 function activate(context) {
   const diagnostics = vscode.languages.createDiagnosticCollection("ntf-yaml");
@@ -27,6 +28,44 @@ function activate(context) {
         editor.document.uri,
         "ntfYaml.editor"
       );
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("ntfYaml.generateDiffReport", async () => {
+      const folder = vscode.workspace.workspaceFolders?.[0];
+      if (!folder) {
+        vscode.window.showErrorMessage("NTF YAML diff requires an open workspace folder.");
+        return;
+      }
+      const baseRef = await vscode.window.showInputBox({
+        title: "NTF YAML Cell Diff",
+        prompt: "Base Git ref",
+        value: "HEAD~1"
+      });
+      if (!baseRef) return;
+      const headRef = await vscode.window.showInputBox({
+        title: "NTF YAML Cell Diff",
+        prompt: "Head Git ref",
+        value: "HEAD"
+      });
+      if (!headRef) return;
+      const outputName = await vscode.window.showInputBox({
+        title: "NTF YAML Cell Diff",
+        prompt: "Output HTML file",
+        value: "ntf-yaml-diff.html"
+      });
+      if (!outputName) return;
+      try {
+        const report = diffGitRefs({ baseRef, headRef, cwd: folder.uri.fsPath });
+        const outputPath = path.resolve(folder.uri.fsPath, outputName);
+        fs.writeFileSync(outputPath, renderHtmlReport(report));
+        const document = await vscode.workspace.openTextDocument(vscode.Uri.file(outputPath));
+        await vscode.window.showTextDocument(document, { preview: false });
+        vscode.window.showInformationMessage(`NTF YAML diff report written: ${outputName}`);
+      } catch (error) {
+        vscode.window.showErrorMessage(`NTF YAML diff failed: ${error.message}`);
+      }
     })
   );
 
@@ -174,6 +213,8 @@ function renderHtml(webview, initialText) {
       --accent: #006d77;
       --accent-strong: #00525a;
       --warn: #8a4b00;
+      --danger: #a33a2a;
+      --danger-bg: #fff4f1;
     }
     body {
       margin: 0;
@@ -221,6 +262,17 @@ function renderHtml(webview, initialText) {
       background: white;
       color: var(--accent-strong);
     }
+    button.danger {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border-color: var(--danger);
+    }
+    button.compact {
+      min-width: 26px;
+      min-height: 26px;
+      padding: 2px 6px;
+      line-height: 1;
+    }
     button.sheet {
       display: block;
       width: 100%;
@@ -244,6 +296,33 @@ function renderHtml(webview, initialText) {
     .message {
       color: var(--muted);
     }
+    .side-form,
+    .sheet-header,
+    .add-block-form,
+    .block-actions,
+    .cell-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .side-form,
+    .add-block-form {
+      margin: 0 0 12px;
+    }
+    .sheet-header {
+      margin: 0 0 12px;
+    }
+    .sheet-header input,
+    .block-name {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: white;
+      font-weight: 700;
+    }
+    .sheet-header input {
+      max-width: 420px;
+    }
     .block {
       background: var(--panel);
       border: 1px solid var(--line);
@@ -258,14 +337,19 @@ function renderHtml(webview, initialText) {
       padding: 10px;
       border-bottom: 1px solid var(--line);
       background: #f3f5f4;
+      align-items: flex-start;
+      flex-wrap: wrap;
     }
     .block-name {
       font-weight: 700;
       overflow-wrap: anywhere;
+      min-width: 260px;
+      max-width: min(720px, 100%);
     }
     .table-scroll {
       overflow-x: auto;
       width: 100%;
+      max-height: 70vh;
     }
     table {
       border-collapse: collapse;
@@ -279,6 +363,9 @@ function renderHtml(webview, initialText) {
     }
     th {
       background: #e8ecea;
+      position: sticky;
+      top: 0;
+      z-index: 1;
     }
     td input, th input {
       width: auto;
@@ -314,12 +401,27 @@ function renderHtml(webview, initialText) {
       color: var(--muted);
       min-width: 2ch;
     }
-    .add-col-form {
-      display: flex;
-      gap: 6px;
-      align-items: center;
+    .row-actions-cell {
+      min-width: 88px;
+      width: 88px;
+      background: #f7f8f7;
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      white-space: nowrap;
     }
-    .add-col-form input[type=text] {
+    td.row-actions-cell {
+      text-align: center;
+    }
+    .cell-actions {
+      padding: 4px;
+      border-bottom: 1px solid var(--line);
+      background: #f7f8f7;
+    }
+    .add-col-form input[type=text],
+    .side-form input[type=text],
+    .add-block-form input[type=text],
+    .add-block-form select {
       border: 1px solid var(--line);
       border-radius: 4px;
       padding: 4px 8px;
@@ -330,6 +432,9 @@ function renderHtml(webview, initialText) {
       min-width: 80px;
       background: white;
       color: var(--text);
+    }
+    .side-form input[type=text] {
+      width: 100%;
     }
   </style>
 </head>

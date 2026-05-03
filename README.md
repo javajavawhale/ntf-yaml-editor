@@ -51,6 +51,14 @@ YAML を共通モデル経由で再整形する。
 node ./bin/ntf-yaml.js format --write path/to/TestData.yaml
 ```
 
+2 つの Git ref 間の NTF YAML 変更を、セル差分 HTML レポートとして生成する。
+
+```sh
+node ./bin/ntf-yaml.js diff --base HEAD~1 --head HEAD -o ntf-yaml-diff.html
+```
+
+VS Code からは `NTF YAML: Generate Cell Diff Report` でも同じレポートを生成できる。
+
 `xls` 変換は Python の `xlrd` を利用する。環境に `xlrd` がない場合は先にインストールする。
 単体テストで実 `.xls` fixture 生成まで確認する場合は Python の `xlwt` も必要。
 
@@ -59,12 +67,16 @@ node ./bin/ntf-yaml.js format --write path/to/TestData.yaml
 - トップレベルキーをシートとして表示する。
 - シート直下の `LIST_MAP`, `SETUP_TABLE`, `EXPECTED_TABLE` 系ブロックを表形式で編集する。
 - `SETUP_VARIABLE`, `EXPECTED_VARIABLE` 系ブロックを RawRows 表として表示・編集する。
-- 行追加、列追加、YAML 保存に対応する。
+- シート追加、シート名変更、シート削除に対応する。
+- `LIST_MAP`, `SETUP_TABLE`, `EXPECTED_TABLE`, `SETUP_VARIABLE`, `EXPECTED_VARIABLE` ブロック追加に対応する。
+- ブロック名変更、ブロック削除に対応する。
+- 行追加、行移動、行削除、列追加、列移動、列削除、YAML 保存に対応する。
 - `"[no]"` のような YAML 上で注意が必要なキーを保存時にクォートする。
 - `~` と `""` を区別する。
 - Problems に NTF YAML の静的解析結果を表示する。
 - CLI から `xlsx` / `xls` を YAML に変換する。
 - CLI から `lint` / `format` を実行する。
+- CLI と VS Code から、明示した Git ref 同士のセル差分 HTML レポートを生成する。
 
 コメント保持、固定長ファイルブロックの専用編集、Excel への逆変換は未対応。
 

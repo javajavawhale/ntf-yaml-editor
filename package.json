@@ -14,7 +14,8 @@
   ],
   "activationEvents": [
     "onCustomEditor:ntfYaml.editor",
-    "onCommand:ntfYaml.openAsTable"
+    "onCommand:ntfYaml.openAsTable",
+    "onCommand:ntfYaml.generateDiffReport"
   ],
   "main": "./extension.js",
   "bin": {
@@ -46,6 +47,10 @@
       {
         "command": "ntfYaml.openAsTable",
         "title": "NTF YAML: Open as Table"
+      },
+      {
+        "command": "ntfYaml.generateDiffReport",
+        "title": "NTF YAML: Generate Cell Diff Report"
       }
     ]
   },

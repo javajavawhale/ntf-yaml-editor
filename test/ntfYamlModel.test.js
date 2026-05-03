@@ -16,8 +16,13 @@ const {
 const {
   convert,
   main: runCli,
+  parseDiffArgs,
   selectConverter
 } = require("../bin/ntf-yaml");
+const {
+  createDiffReport,
+  renderHtmlReport
+} = require("../lib/ntfYamlDiff");
 
 const extensionRoot = path.resolve(__dirname, "..");
 const repoRoot = path.resolve(extensionRoot, "..");
@@ -497,4 +502,49 @@ test("CLI convert converts real xls files through the xlrd converter", { skip: !
   assert.match(yaml, /LIST_MAP=testShots: #ListMap/);
   assert.match(yaml, /EXPECTED_TABLE\[1\]=PROJECT: #ListMap/);
   assert.deepEqual(analyzeYaml(yaml), []);
+});
+
+test("cell diff report highlights changed table cells and changed rows", () => {
+  const report = createDiffReport({
+    path: "test.ntf.yaml",
+    baseRef: "main",
+    headRef: "HEAD",
+    baseSha: "111111111111",
+    headSha: "222222222222",
+    baseText: [
+      "case1:",
+      "  LIST_MAP=requestParams: #ListMap",
+      "    - \"[no]\": \"1\"",
+      "      name: \"before\"",
+      ""
+    ].join("\n"),
+    headText: [
+      "case1:",
+      "  LIST_MAP=requestParams: #ListMap",
+      "    - \"[no]\": \"1\"",
+      "      name: \"after\"",
+      "      extra: \"new\"",
+      ""
+    ].join("\n")
+  });
+
+  assert.equal(report.summary.files.changed, 1);
+  assert.equal(report.summary.rows.changed, 1);
+  assert.equal(report.summary.cells.changed, 1);
+  assert.equal(report.summary.cells.added, 1);
+
+  const html = renderHtmlReport(report);
+  assert.match(html, /NTF YAML Cell Diff/);
+  assert.match(html, /before/);
+  assert.match(html, /after/);
+  assert.match(html, /extra/);
+});
+
+test("CLI diff args require explicit base and head refs", () => {
+  assert.deepEqual(parseDiffArgs(["--base", "HEAD~1", "--head", "HEAD", "-o", "report.html"]), {
+    baseRef: "HEAD~1",
+    headRef: "HEAD",
+    output: "report.html"
+  });
+  assert.equal(runCli(["diff", "--base", "HEAD~1"]), 2);
 });

@@ -68,16 +68,20 @@ function save(root) {
   root.querySelector('[data-action="save"]').click();
 }
 
+function sheetName(root) {
+  return root.querySelector('[data-role="sheet-name"]').value;
+}
+
 test("webview renders sheets and switches active sheet", () => {
   const { root, app } = createHarness();
 
   assert.equal(app.getActiveSheet(), "case1");
-  assert.equal(root.querySelector("h2").textContent, "case1");
+  assert.equal(sheetName(root), "case1");
 
   root.querySelector('[data-sheet-name="case2"]').click();
 
   assert.equal(app.getActiveSheet(), "case2");
-  assert.equal(root.querySelector("h2").textContent, "case2");
+  assert.equal(sheetName(root), "case2");
   assert.ok(block(root, "LIST_MAP=testShots"));
 });
 
@@ -171,6 +175,28 @@ test("webview edits raw-row cells and serializes null sentinels", () => {
   assert.match(messages[0].text, /    - \[ "001", "大阪", ~ \]/);
 });
 
+test("webview adds, moves, and deletes RawRows rows and columns", () => {
+  const { root, messages } = createHarness();
+  let rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
+
+  rawRows.querySelector('[data-action="add-row"]').click();
+  rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
+  rawRows.querySelector('[data-action="add-column"]').click();
+  rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
+  rawRows.querySelectorAll('[title="Move raw row up"]')[1].click();
+  rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
+  rawRows.querySelector('[title="Move raw column right"]').click();
+  rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
+  rawRows.querySelector('[title="Delete raw column"]').click();
+  rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
+  rawRows.querySelector('[title="Delete raw row"]').click();
+  save(root);
+
+  assert.match(messages[0].text, /EXPECTED_VARIABLE=\.\/tmp\/result\.csv: #RawRows/);
+  assert.match(messages[0].text, /    - \[ "001", ~, "" \]/);
+});
+
+
 test("webview re-renders on document updates while preserving active sheet when possible", () => {
   const { dom, root, app } = createHarness();
 
@@ -214,7 +240,77 @@ test("webview falls back to first sheet when update removes the active sheet", (
   }));
 
   assert.equal(app.getActiveSheet(), "case3");
-  assert.equal(root.querySelector("h2").textContent, "case3");
+  assert.equal(sheetName(root), "case3");
+});
+
+test("webview adds sheets and LIST_MAP blocks", () => {
+  const { dom, root, messages, app } = createHarness();
+  const sheetInput = root.querySelector('[data-role="new-sheet-name"]');
+
+  sheetInput.value = "case3";
+  root.querySelector('[data-action="add-sheet"]').click();
+
+  assert.equal(app.getActiveSheet(), "case3");
+  const blockInput = root.querySelector('[data-role="new-block-name"]');
+  blockInput.value = "items";
+  root.querySelector('[data-action="add-block"]').click();
+  const listMap = block(root, "LIST_MAP=items");
+  const noInput = listMap.querySelector('[data-column="no"]');
+  noInput.value = "1";
+  noInput.dispatchEvent(inputEvent(dom));
+  save(root);
+
+  assert.match(messages[0].text, /case3:/);
+  assert.match(messages[0].text, /LIST_MAP=items: #ListMap/);
+  assert.match(messages[0].text, /    - no: "1"/);
+});
+
+test("webview renames sheets and LIST_MAP blocks", () => {
+  const { dom, root, messages } = createHarness();
+  const sheetInput = root.querySelector('[data-role="sheet-name"]');
+  sheetInput.value = "caseRenamed";
+  sheetInput.dispatchEvent(changeEvent(dom));
+  const requestParams = block(root, "LIST_MAP=requestParams");
+  const blockInput = requestParams.querySelector('[data-role="block-name"]');
+
+  blockInput.value = "LIST_MAP=requestParamsRenamed";
+  blockInput.dispatchEvent(changeEvent(dom));
+  save(root);
+
+  assert.match(messages[0].text, /caseRenamed:/);
+  assert.match(messages[0].text, /LIST_MAP=requestParamsRenamed: #ListMap/);
+});
+
+test("webview moves and deletes table rows and columns", () => {
+  const { root, messages } = createHarness([
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - \"[no]\": \"1\"",
+    "      name: \"first\"",
+    "      extra: \"x\"",
+    "    - \"[no]\": \"2\"",
+    "      name: \"second\"",
+    "      extra: \"y\"",
+    ""
+  ].join("\n"));
+  let requestParams = block(root, "LIST_MAP=requestParams");
+
+  requestParams.querySelectorAll('[title="Move row up"]')[1].click();
+  requestParams = block(root, "LIST_MAP=requestParams");
+  Array.from(requestParams.querySelectorAll('[title="Move column right"]'))
+    .find(button => button.closest("th").querySelector('[data-role="column-name"]').value === "[no]")
+    .click();
+  requestParams = block(root, "LIST_MAP=requestParams");
+  Array.from(requestParams.querySelectorAll('[title="Delete column"]'))
+    .find(button => button.closest("th").querySelector('[data-role="column-name"]').value === "extra")
+    .click();
+  requestParams = block(root, "LIST_MAP=requestParams");
+  requestParams.querySelector('[title="Delete row"]').click();
+  save(root);
+
+  assert.match(messages[0].text, /name: "first"/);
+  assert.doesNotMatch(messages[0].text, /extra:/);
+  assert.doesNotMatch(messages[0].text, /\[no\]": "2"/);
 });
 
 test("webview renders unsupported blocks as preserved raw text", () => {
