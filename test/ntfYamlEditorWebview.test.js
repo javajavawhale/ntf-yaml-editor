@@ -131,35 +131,38 @@ test("webview adds rows to table blocks", () => {
 test("webview adds columns to populated table blocks", () => {
   const { dom, root, messages } = createHarness();
   const requestParams = block(root, "LIST_MAP=requestParams");
-  const colInput = requestParams.querySelector('[data-role="new-column-name"]');
 
-  colInput.value = "form.clientId";
   requestParams.querySelector('[data-action="add-column"]').click();
-  const added = block(root, "LIST_MAP=requestParams").querySelector('[data-column="form.clientId"]');
-  assert.ok(added, "new column input should render");
+  let added = block(root, "LIST_MAP=requestParams");
+  const newColHeader = Array.from(added.querySelectorAll('[data-role="column-name"]'))
+    .find(input => input.value === "col");
+  assert.ok(newColHeader, "auto-named column header should render");
 
-  added.value = "12345";
-  added.dispatchEvent(inputEvent(dom));
+  newColHeader.value = "form.clientId";
+  newColHeader.dispatchEvent(changeEvent(dom));
+  const colInput = block(root, "LIST_MAP=requestParams").querySelector('[data-column="form.clientId"]');
+  assert.ok(colInput, "renamed column input should render");
+
+  colInput.value = "12345";
+  colInput.dispatchEvent(inputEvent(dom));
   save(root);
 
   assert.match(messages[0].text, /form\.clientId: "12345"/);
 });
 
-test("webview adds a column by pressing enter in an empty table block", () => {
-  const { dom, root, messages } = createHarness([
+test("webview adds a column to an empty table block", () => {
+  const { root, messages } = createHarness([
     "case1:",
     "  SETUP_TABLE=PROJECT: #ListMap",
     ""
   ].join("\n"));
   const setupTable = block(root, "SETUP_TABLE=PROJECT");
-  const colInput = setupTable.querySelector('[data-role="new-column-name"]');
 
-  colInput.value = "PROJECT_ID";
-  colInput.dispatchEvent(keydownEvent(dom, "Enter"));
+  setupTable.querySelector('[data-action="add-column"]').click();
   save(root);
 
   assert.match(messages[0].text, /SETUP_TABLE=PROJECT: #ListMap/);
-  assert.match(messages[0].text, /    - PROJECT_ID: ""/);
+  assert.match(messages[0].text, /    - col: ""/);
 });
 
 test("webview renames table columns and keeps cell values", () => {
@@ -296,7 +299,7 @@ test("webview renders RawRows without column numbers and highlights structural c
   ].join("\n"));
   const rawRows = block(root, "SETUP_VARIABLE[1]=data.csv");
 
-  assert.equal(rawRows.querySelector("thead th:nth-child(2)").textContent.trim(), "×");
+  assert.ok(rawRows.querySelector("thead th:nth-child(2) [title='Delete raw column'], thead th:nth-child(2) button[title='Delete raw column']") || rawRows.querySelector("thead th:nth-child(2)").querySelector("button"));
   assert.ok(rawRows.querySelector(".raw-metadata-row"));
   assert.ok(rawRows.querySelector(".raw-section-header-row"));
   assert.ok(rawRows.querySelector(".raw-key-cell"));

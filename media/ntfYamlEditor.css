@@ -1,0 +1,419 @@
+:root {
+    --bg: #f7f7f5;
+    --panel: #ffffff;
+    --text: #202124;
+    --muted: #626a73;
+    --line: #c9ced4;
+    --accent: #006d77;
+    --accent-strong: #00525a;
+    --warn: #8a4b00;
+    --danger: #a33a2a;
+    --danger-bg: #fff4f1;
+}
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+}
+
+.app {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    min-height: 100vh;
+}
+
+aside {
+    border-right: 1px solid var(--line);
+    background: #eef1ef;
+    padding: 14px;
+    overflow: auto;
+}
+
+main {
+    padding: 16px;
+    overflow: auto;
+}
+
+h1,
+h2,
+h3 {
+    margin: 0 0 10px;
+    line-height: 1.3;
+}
+
+h1 {
+    font-size: 18px;
+}
+
+h2 {
+    font-size: 16px;
+    margin-top: 18px;
+}
+
+button {
+    border: 1px solid var(--accent-strong);
+    border-radius: 6px;
+    background: var(--accent);
+    color: white;
+    padding: 6px 10px;
+    cursor: pointer;
+    font: inherit;
+}
+
+button.secondary {
+    background: white;
+    color: var(--accent-strong);
+}
+
+button.danger {
+    background: var(--danger-bg);
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+button.danger.ghost {
+    background: transparent;
+    color: var(--danger);
+    border-color: transparent;
+}
+
+button.compact {
+    min-width: 26px;
+    min-height: 26px;
+    padding: 2px 6px;
+    line-height: 1;
+}
+
+.sheet {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    text-align: left;
+    background: white;
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    border-color: var(--line);
+    padding: 6px 36px 6px 8px;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+.sheet-item {
+    position: relative;
+    margin: 0 0 8px;
+}
+
+.sheet input {
+    min-height: 24px;
+    padding: 2px 4px;
+    background: transparent;
+    font-weight: 700;
+}
+
+.sheet.active {
+    border-color: var(--accent-strong);
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.toolbar,
+.side-toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+
+.side-toolbar button {
+    width: 100%;
+}
+
+.message {
+    color: var(--muted);
+}
+
+.side-form,
+.add-block-form,
+.block-actions,
+.cell-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.side-form,
+.add-block-form {
+    margin: 0 0 12px;
+}
+
+.side-form button {
+    width: 100%;
+}
+
+.sheet-header {
+    margin: 0 0 12px;
+}
+
+.block-name {
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: white;
+    font-weight: 700;
+}
+
+.block {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    margin: 0 0 16px;
+    overflow: hidden;
+}
+
+.block-header {
+    display: flex;
+    gap: 8px;
+    padding: 10px 44px 10px 10px;
+    border-bottom: 1px solid var(--line);
+    background: #f3f5f4;
+    align-items: center;
+    flex-wrap: wrap;
+    position: relative;
+}
+
+.block-header>.table-delete-button {}
+
+.block-name {
+    font-weight: 700;
+    overflow-wrap: anywhere;
+    min-width: 260px;
+    max-width: min(720px, 100%);
+}
+
+.table-scroll {
+    overflow-x: auto;
+    width: 100%;
+    max-height: 70vh;
+}
+
+table {
+    border-collapse: collapse;
+    table-layout: auto;
+}
+
+th,
+td {
+    border: 1px solid var(--line);
+    min-width: 100px;
+    padding: 0;
+    vertical-align: top;
+}
+
+th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.table-header-cell {
+    background: #e8ecea;
+    font-weight: 700;
+}
+
+td input,
+th input {
+    width: auto;
+    field-sizing: content;
+    min-width: 4ch;
+}
+
+/* ---- 列ヘッダーセル ---- */
+.th-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 2px 4px;
+}
+
+.th-inner>.drag-handle {
+    padding-top: 0;
+    padding-bottom: 0;
+    line-height: 1;
+}
+
+th.table-header-cell {
+    position: relative;
+}
+
+th.table-header-cell>.table-delete-button {}
+
+.th-content {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 0 2px;
+}
+
+.th-content input {
+    flex: 1;
+    min-width: 4ch;
+    min-height: 0;
+    padding: 0 4px;
+    width: auto;
+    field-sizing: content;
+}
+
+/* ---- 汎用 input ---- */
+input {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 32px;
+    border: 0;
+    padding: 6px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+}
+
+input:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    background: white;
+}
+
+pre {
+    margin: 0;
+    padding: 10px;
+    overflow: auto;
+    color: var(--warn);
+    background: #fff8ec;
+}
+
+/* ---- RawRows テーブル ---- */
+.rawrows-table td:first-child {
+    font-weight: bold;
+    text-align: center;
+    color: var(--muted);
+    min-width: 2ch;
+}
+
+.rawrows-table .raw-key-cell {
+    background: #e8ecea;
+}
+
+.rawrows-table .raw-metadata-row .raw-key-cell input {
+    font-weight: 700;
+}
+
+.rawrows-table .raw-filler-cell {
+    background: #f7f8f7;
+    min-width: 0;
+}
+
+/* ---- 行アクション列 ---- */
+.row-actions-cell {
+    width: 1px;
+    min-width: 0;
+    background: #f7f8f7;
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    white-space: nowrap;
+    padding: 0;
+    vertical-align: top;
+}
+
+.row-actions-cell>.table-delete-button {
+    padding: 1px 1px;
+}
+
+.row-actions-inner {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px;
+}
+
+.cell-actions {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    z-index: 3;
+    padding: 0;
+    background: transparent;
+}
+
+.table-delete-button {
+    position: absolute;
+    top: 0;
+    right: 0;
+}
+
+button.table-delete-button {
+    font-weight: 700;
+    z-index: 3;
+    border-radius: 4px;
+    padding: 4px 4px;
+    min-width: 0;
+    min-height: 0;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ---- D&D ---- */
+.drag-handle {
+    color: var(--muted);
+    cursor: grab;
+    user-select: none;
+    padding: 0 2px;
+    font-size: 13px;
+    opacity: 0.55;
+    vertical-align: middle;
+    flex-shrink: 0;
+    display: inline-block;
+}
+
+.drag-handle--h {
+    transform: rotate(90deg);
+}
+
+[draggable=true] {
+    cursor: grab;
+}
+
+.dragging {
+    opacity: 0.55;
+}
+
+.drop-target {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+/* ---- フォーム入力 ---- */
+.side-form input[type=text],
+.add-block-form input[type=text],
+.add-block-form select {
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font: inherit;
+    min-height: unset;
+    width: 140px;
+    field-sizing: content;
+    min-width: 80px;
+    background: white;
+    color: var(--text);
+}
+
+.side-form input[type=text] {
+    width: 100%;
+}

@@ -48,17 +48,22 @@
       aside.append(renderSaveControl());
       aside.append(renderAddSheetForm());
       for (const item of state.sheets) {
-        const button = document.createElement("button");
-        button.className = "sheet" + (item._id === activeSheetId ? " active" : "");
-        button.dataset.sheetName = item.name;
-        button.draggable = true;
-        button.textContent = item.name || "(unnamed sheet)";
-        button.onclick = () => {
-          activeSheetId = item._id;
+        const itemWrapper = document.createElement("div");
+        itemWrapper.className = "sheet-item";
+        itemWrapper.draggable = true;
+        attachDragSort(itemWrapper, state.sheets, item, () => { activeSheetId = item._id; });
+        const sheetControl = item._id === activeSheetId
+          ? renderActiveSheetNameInput(item)
+          : renderSheetSelector(item);
+        const deleteBtn = smallButton(CLOSE_SVG, "Delete sheet", () => {
+          const index = state.sheets.indexOf(item);
+          state.sheets.splice(index, 1);
+          activeSheetId = state.sheets[Math.max(0, index - 1)]?._id ?? "";
           render();
-        };
-        attachDragSort(button, state.sheets, item, () => { activeSheetId = item._id; });
-        aside.append(button);
+        }, "danger ghost compact table-delete-button");
+        deleteBtn.dataset.action = "delete-sheet";
+        itemWrapper.append(sheetControl, deleteBtn);
+        aside.append(itemWrapper);
       }
 
       if (!sheet) {
@@ -105,24 +110,39 @@
       return form;
     }
 
-    function renderSheetHeader(sheet) {
-      const header = document.createElement("div");
-      header.className = "sheet-header";
+    function renderSheetSelector(sheet) {
+      const button = document.createElement("button");
+      button.className = "sheet";
+      button.dataset.sheetName = sheet.name;
+      button.append(createDragHandle());
+      button.append(document.createTextNode(sheet.name || "(unnamed sheet)"));
+      button.onclick = () => {
+        activeSheetId = sheet._id;
+        render();
+      };
+      return button;
+    }
+
+    function renderActiveSheetNameInput(sheet) {
+      const container = document.createElement("div");
+      container.className = "sheet active";
+      container.dataset.sheetName = sheet.name;
+      container.append(createDragHandle());
       const input = document.createElement("input");
       input.dataset.role = "sheet-name";
       input.value = sheet.name;
+      input.placeholder = "Sheet name";
       input.onchange = () => renameSheet(sheet, input.value);
-      const remove = document.createElement("button");
-      remove.className = "danger";
-      remove.dataset.action = "delete-sheet";
-      remove.textContent = "Delete Sheet";
-      remove.onclick = () => {
-        const index = state.sheets.indexOf(sheet);
-        state.sheets.splice(index, 1);
-        activeSheetId = state.sheets[Math.max(0, index - 1)]?._id ?? "";
-        render();
-      };
-      header.append(input, remove);
+      container.append(input);
+      return container;
+    }
+
+    function renderSheetHeader(sheet) {
+      const header = document.createElement("div");
+      header.className = "sheet-header";
+      const title = document.createElement("h2");
+      title.textContent = sheet.name || "(unnamed sheet)";
+      header.append(title);
       return header;
     }
 
@@ -165,6 +185,7 @@
       attachDragSort(wrapper, sheet.blocks, block);
       const header = document.createElement("div");
       header.className = "block-header";
+      header.append(createDragHandle());
       const name = document.createElement("input");
       name.className = "block-name";
       name.dataset.role = "block-name";
@@ -187,30 +208,20 @@
           block.rows.push(row);
           render();
         };
-        const addColForm = document.createElement("div");
-        addColForm.className = "add-col-form";
-        const colInput = document.createElement("input");
-        colInput.type = "text";
-        colInput.placeholder = "列名";
-        colInput.dataset.role = "new-column-name";
         const addColumn = document.createElement("button");
         addColumn.className = "secondary";
         addColumn.dataset.action = "add-column";
         addColumn.textContent = "Add Column";
-        const doAddCol = () => {
-          const col = colInput.value.trim();
-          if (!col) return;
+        addColumn.onclick = () => {
+          const col = uniqueName("col", model.columns(block));
           for (const row of block.rows) { row[col] = ""; }
           if (block.rows.length === 0) { block.rows.push({ [col]: "" }); }
           addColumnName(block, col);
-          colInput.value = "";
           render();
         };
-        addColumn.onclick = doAddCol;
-        colInput.onkeydown = e => { if (e.key === "Enter") doAddCol(); };
-        addColForm.append(colInput, addColumn);
-        actions.append(addRow, addColForm, renderDeleteBlockButton(sheet, block));
+        actions.append(addRow, addColumn);
         header.append(actions);
+        header.append(renderDeleteBlockButton(sheet, block));
       } else if (model.isRawRowsBlock(block.name)) {
         const actions = document.createElement("div");
         actions.className = "block-actions";
@@ -237,13 +248,11 @@
           }
           render();
         };
-        actions.append(addRow, addColumn, renderDeleteBlockButton(sheet, block));
+        actions.append(addRow, addColumn);
         header.append(actions);
+        header.append(renderDeleteBlockButton(sheet, block));
       } else {
-        const actions = document.createElement("div");
-        actions.className = "block-actions";
-        actions.append(renderDeleteBlockButton(sheet, block));
-        header.append(actions);
+        header.append(renderDeleteBlockButton(sheet, block));
       }
       wrapper.append(header);
 
@@ -266,7 +275,6 @@
       const headRow = document.createElement("tr");
       const actionHead = document.createElement("th");
       actionHead.className = "row-actions-cell table-header-cell";
-      actionHead.textContent = "#";
       headRow.append(actionHead);
       for (const col of cols) {
         const th = document.createElement("th");
@@ -278,16 +286,20 @@
           block.columnOrder = order;
           render();
         });
-        const columnActions = document.createElement("div");
-        columnActions.className = "cell-actions";
-        columnActions.append(
-          smallButton("×", "Delete column", () => deleteColumn(block, col), "danger ghost compact table-delete-button")
-        );
+        const thInner = document.createElement("div");
+        thInner.className = "th-inner";
+        const thContent = document.createElement("div");
+        thContent.className = "th-content";
         const input = document.createElement("input");
         input.dataset.role = "column-name";
         input.value = col;
         input.onchange = () => renameColumn(block, col, input.value);
-        th.append(columnActions, input);
+        thContent.append(input);
+        thInner.append(createDragHandle("h"), thContent);
+        th.append(
+          thInner,
+          smallButton(CLOSE_SVG, "Delete column", () => deleteColumn(block, col), "danger ghost compact table-delete-button")
+        );
         headRow.append(th);
       }
       thead.append(headRow);
@@ -300,8 +312,12 @@
         attachDragSort(tr, block.rows, row);
         const actionTd = document.createElement("td");
         actionTd.className = "row-actions-cell";
+        const rowActionsInner = document.createElement("div");
+        rowActionsInner.className = "row-actions-inner";
+        rowActionsInner.append(createDragHandle());
         actionTd.append(
-          smallButton("×", "Delete row", () => deleteRow(block, index), "danger ghost compact table-delete-button")
+          rowActionsInner,
+          smallButton(CLOSE_SVG, "Delete row", () => deleteRow(block, index), "danger ghost compact table-delete-button")
         );
         tr.append(actionTd);
         cols.forEach(col => {
@@ -339,12 +355,13 @@
         th.className = "table-header-cell";
         th.draggable = true;
         attachIndexDragSort(th, () => rawWidth(block), i, (from, to) => moveRawColumnTo(block, from, to));
-        const columnActions = document.createElement("div");
-        columnActions.className = "cell-actions";
-        columnActions.append(
-          smallButton("×", "Delete raw column", () => deleteRawColumn(block, i), "danger ghost compact table-delete-button")
+        const thInner = document.createElement("div");
+        thInner.className = "th-inner";
+        thInner.append(createDragHandle("h"));
+        th.append(
+          thInner,
+          smallButton(CLOSE_SVG, "Delete raw column", () => deleteRawColumn(block, i), "danger ghost compact table-delete-button")
         );
-        th.append(columnActions);
         headRow.append(th);
       }
       thead.append(headRow);
@@ -359,8 +376,12 @@
         attachDragSort(tr, block.rows, row);
         const tdIdx = document.createElement("td");
         tdIdx.className = "row-actions-cell";
+        const rawActionsInner = document.createElement("div");
+        rawActionsInner.className = "row-actions-inner";
+        rawActionsInner.append(createDragHandle());
         tdIdx.append(
-          smallButton("×", "Delete raw row", () => deleteRow(block, ri), "danger ghost compact table-delete-button")
+          rawActionsInner,
+          smallButton(CLOSE_SVG, "Delete raw row", () => deleteRow(block, ri), "danger ghost compact table-delete-button")
         );
         tr.append(tdIdx);
         for (let ci = 0; ci < row.length; ci++) {
@@ -401,25 +422,36 @@
     }
 
     function renderDeleteBlockButton(sheet, block) {
-      const button = document.createElement("button");
-      button.className = "danger";
-      button.dataset.action = "delete-block";
-      button.textContent = "Delete Block";
-      button.onclick = () => {
+      const btn = smallButton(CLOSE_SVG, "Delete block", () => {
         sheet.blocks.splice(sheet.blocks.indexOf(block), 1);
         render();
-      };
-      return button;
+      }, "danger ghost compact table-delete-button");
+      btn.dataset.action = "delete-block";
+      return btn;
     }
+
+    const CLOSE_SVG = '<svg width="7" height="7" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 
     function smallButton(text, title, onclick, className) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = className || "secondary compact";
       button.title = title;
-      button.textContent = text;
+      if (text.startsWith("<")) {
+        button.innerHTML = text;
+      } else {
+        button.textContent = text;
+      }
       button.onclick = onclick;
       return button;
+    }
+
+    function createDragHandle(direction) {
+      const handle = document.createElement("span");
+      handle.className = "drag-handle" + (direction === "h" ? " drag-handle--h" : "");
+      handle.setAttribute("aria-hidden", "true");
+      handle.textContent = "⣿";
+      return handle;
     }
 
     function renameSheet(sheet, to) {
