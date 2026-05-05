@@ -11,14 +11,19 @@
     const vscode = options.vscode;
     const document = root.ownerDocument;
     let state = model.parseYaml(options.initialText || "");
-    let activeSheet = state.sheets[0]?.name ?? "";
+    let nextId = 1;
+    let activeSheetId = "";
+    ensureIds(state);
+    activeSheetId = state.sheets[0]?._id ?? "";
 
     function handleMessage(event) {
       if (event.data.type === "update") {
+        const activeName = activeSheet()?.name;
         state = model.parseYaml(event.data.text);
-        if (!state.sheets.some(sheet => sheet.name === activeSheet)) {
-          activeSheet = state.sheets[0]?.name ?? "";
-        }
+        ensureIds(state);
+        activeSheetId = state.sheets.find(sheet => sheet.name === activeName)?._id
+          ?? state.sheets[0]?._id
+          ?? "";
         render();
       }
     }
@@ -28,7 +33,7 @@
     }
 
     function render() {
-      const sheet = state.sheets.find(item => item.name === activeSheet);
+      const sheet = activeSheet();
       root.innerHTML = "";
 
       const app = document.createElement("div");
@@ -40,30 +45,21 @@
       const title = document.createElement("h1");
       title.textContent = "NTF YAML";
       aside.append(title);
+      aside.append(renderSaveControl());
       aside.append(renderAddSheetForm());
       for (const item of state.sheets) {
         const button = document.createElement("button");
-        button.className = "sheet" + (item.name === activeSheet ? " active" : "");
+        button.className = "sheet" + (item._id === activeSheetId ? " active" : "");
         button.dataset.sheetName = item.name;
-        button.textContent = item.name;
+        button.draggable = true;
+        button.textContent = item.name || "(unnamed sheet)";
         button.onclick = () => {
-          activeSheet = item.name;
+          activeSheetId = item._id;
           render();
         };
+        attachDragSort(button, state.sheets, item, () => { activeSheetId = item._id; });
         aside.append(button);
       }
-
-      const toolbar = document.createElement("div");
-      toolbar.className = "toolbar";
-      const save = document.createElement("button");
-      save.dataset.action = "save";
-      save.textContent = "Save YAML";
-      save.onclick = () => vscode.postMessage({ type: "save", text: model.serializeYaml(state) });
-      const message = document.createElement("span");
-      message.className = "message";
-      message.textContent = "Table blocks are editable. Raw blocks are preserved as text.";
-      toolbar.append(save, message);
-      main.append(toolbar);
 
       if (!sheet) {
         const empty = document.createElement("p");
@@ -80,26 +76,32 @@
       root.append(app);
     }
 
+    function renderSaveControl() {
+      const toolbar = document.createElement("div");
+      toolbar.className = "side-toolbar";
+      const save = document.createElement("button");
+      save.dataset.action = "save";
+      save.textContent = "Save YAML";
+      save.onclick = () => vscode.postMessage({ type: "save", text: model.serializeYaml(state) });
+      toolbar.append(save);
+      return toolbar;
+    }
+
     function renderAddSheetForm() {
       const form = document.createElement("div");
       form.className = "side-form";
-      const input = document.createElement("input");
-      input.type = "text";
-      input.placeholder = "New sheet";
-      input.dataset.role = "new-sheet-name";
       const button = document.createElement("button");
       button.className = "secondary";
       button.dataset.action = "add-sheet";
       button.textContent = "Add Sheet";
       const add = () => {
-        const name = uniqueName(input.value.trim() || "newSheet", state.sheets.map(sheet => sheet.name));
-        state.sheets.push({ name, blocks: [] });
-        activeSheet = name;
+        const sheet = withId({ name: "", blocks: [] });
+        state.sheets.push(sheet);
+        activeSheetId = sheet._id;
         render();
       };
       button.onclick = add;
-      input.onkeydown = e => { if (e.key === "Enter") add(); };
-      form.append(input, button);
+      form.append(button);
       return form;
     }
 
@@ -117,7 +119,7 @@
       remove.onclick = () => {
         const index = state.sheets.indexOf(sheet);
         state.sheets.splice(index, 1);
-        activeSheet = state.sheets[Math.max(0, index - 1)]?.name ?? "";
+        activeSheetId = state.sheets[Math.max(0, index - 1)]?._id ?? "";
         render();
       };
       header.append(input, remove);
@@ -135,28 +137,23 @@
         option.textContent = value;
         kind.append(option);
       }
-      const input = document.createElement("input");
-      input.type = "text";
-      input.placeholder = "Block name or path";
-      input.dataset.role = "new-block-name";
       const button = document.createElement("button");
       button.className = "secondary";
       button.dataset.action = "add-block";
       button.textContent = "Add Block";
       const add = () => {
-        const name = uniqueName(kind.value + "=" + (input.value.trim() || "newBlock"), sheet.blocks.map(block => block.name));
-        sheet.blocks.push({
+        const name = uniqueName(kind.value + "=", sheet.blocks.map(block => block.name));
+        sheet.blocks.push(withId({
           name,
           kind: model.inferKind(name),
           rows: model.isRawRowsBlock(name) ? [[""]] : [{}],
           columnOrder: model.isTableBlock(name) ? ["no"] : [],
           raw: ""
-        });
+        }));
         render();
       };
       button.onclick = add;
-      input.onkeydown = e => { if (e.key === "Enter") add(); };
-      form.append(kind, input, button);
+      form.append(kind, button);
       return form;
     }
 
@@ -164,6 +161,8 @@
       const wrapper = document.createElement("section");
       wrapper.className = "block";
       wrapper.dataset.blockName = block.name;
+      wrapper.draggable = true;
+      attachDragSort(wrapper, sheet.blocks, block);
       const header = document.createElement("div");
       header.className = "block-header";
       const name = document.createElement("input");
@@ -266,17 +265,23 @@
       const thead = document.createElement("thead");
       const headRow = document.createElement("tr");
       const actionHead = document.createElement("th");
-      actionHead.className = "row-actions-cell";
+      actionHead.className = "row-actions-cell table-header-cell";
       actionHead.textContent = "#";
       headRow.append(actionHead);
       for (const col of cols) {
         const th = document.createElement("th");
+        th.className = "table-header-cell";
+        th.draggable = true;
+        attachIndexDragSort(th, () => model.columns(block).length, cols.indexOf(col), (from, to) => {
+          const order = model.columns(block);
+          moveItem(order, from, to);
+          block.columnOrder = order;
+          render();
+        });
         const columnActions = document.createElement("div");
         columnActions.className = "cell-actions";
         columnActions.append(
-          smallButton("←", "Move column left", () => moveColumn(block, col, -1)),
-          smallButton("→", "Move column right", () => moveColumn(block, col, 1)),
-          smallButton("×", "Delete column", () => deleteColumn(block, col), "danger compact")
+          smallButton("×", "Delete column", () => deleteColumn(block, col), "danger ghost compact table-delete-button")
         );
         const input = document.createElement("input");
         input.dataset.role = "column-name";
@@ -291,12 +296,12 @@
       const tbody = document.createElement("tbody");
       block.rows.forEach((row, index) => {
         const tr = document.createElement("tr");
+        tr.draggable = true;
+        attachDragSort(tr, block.rows, row);
         const actionTd = document.createElement("td");
         actionTd.className = "row-actions-cell";
         actionTd.append(
-          smallButton("↑", "Move row up", () => moveRow(block, index, -1)),
-          smallButton("↓", "Move row down", () => moveRow(block, index, 1)),
-          smallButton("×", "Delete row", () => deleteRow(block, index), "danger compact")
+          smallButton("×", "Delete row", () => deleteRow(block, index), "danger ghost compact table-delete-button")
         );
         tr.append(actionTd);
         cols.forEach(col => {
@@ -327,38 +332,49 @@
       const thead = document.createElement("thead");
       const headRow = document.createElement("tr");
       const thIdx = document.createElement("th");
-      thIdx.textContent = "#";
-      thIdx.className = "row-actions-cell";
+      thIdx.className = "row-actions-cell table-header-cell";
       headRow.append(thIdx);
       for (let i = 0; i < maxCols; i++) {
         const th = document.createElement("th");
+        th.className = "table-header-cell";
+        th.draggable = true;
+        attachIndexDragSort(th, () => rawWidth(block), i, (from, to) => moveRawColumnTo(block, from, to));
         const columnActions = document.createElement("div");
         columnActions.className = "cell-actions";
         columnActions.append(
-          smallButton("←", "Move raw column left", () => moveRawColumn(block, i, -1)),
-          smallButton("→", "Move raw column right", () => moveRawColumn(block, i, 1)),
-          smallButton("×", "Delete raw column", () => deleteRawColumn(block, i), "danger compact")
+          smallButton("×", "Delete raw column", () => deleteRawColumn(block, i), "danger ghost compact table-delete-button")
         );
-        const label = document.createElement("div");
-        label.textContent = i;
-        th.append(columnActions, label);
+        th.append(columnActions);
         headRow.append(th);
       }
       thead.append(headRow);
       table.append(thead);
       const tbody = document.createElement("tbody");
+      const sectionState = { name: "", continuationCount: 0 };
       block.rows.forEach(function(row, ri) {
         const tr = document.createElement("tr");
+        const rowView = rawRowView(row, sectionState);
+        tr.className = rowView.className;
+        tr.draggable = true;
+        attachDragSort(tr, block.rows, row);
         const tdIdx = document.createElement("td");
         tdIdx.className = "row-actions-cell";
         tdIdx.append(
-          smallButton("↑", "Move raw row up", () => moveRow(block, ri, -1)),
-          smallButton("↓", "Move raw row down", () => moveRow(block, ri, 1)),
-          smallButton("×", "Delete raw row", () => deleteRow(block, ri), "danger compact")
+          smallButton("×", "Delete raw row", () => deleteRow(block, ri), "danger ghost compact table-delete-button")
         );
         tr.append(tdIdx);
-        for (let ci = 0; ci < maxCols; ci++) {
+        for (let ci = 0; ci < row.length; ci++) {
           const td = document.createElement("td");
+          if (ci === 0) {
+            td.className = "raw-key-cell";
+            if (rowView.lockFirstCell) {
+              tr.append(td);
+              continue;
+            }
+          }
+          if (rowView.headerLike) {
+            td.classList.add("table-header-cell");
+          }
           const input = document.createElement("input");
           input.dataset.rawRow = String(ri);
           input.dataset.rawColumn = String(ci);
@@ -370,6 +386,12 @@
           })(row, ci);
           td.append(input);
           tr.append(td);
+        }
+        if (row.length < maxCols) {
+          const filler = document.createElement("td");
+          filler.className = "raw-filler-cell";
+          filler.colSpan = maxCols - row.length;
+          tr.append(filler);
         }
         tbody.append(tr);
       });
@@ -402,18 +424,18 @@
 
     function renameSheet(sheet, to) {
       const next = String(to || "").trim();
-      if (!next || next === sheet.name) {
+      if (next === sheet.name) {
         render();
         return;
       }
       sheet.name = uniqueName(next, state.sheets.filter(item => item !== sheet).map(item => item.name));
-      activeSheet = sheet.name;
+      activeSheetId = sheet._id;
       render();
     }
 
     function renameBlock(sheet, block, to) {
       const next = String(to || "").trim();
-      if (!next || next === block.name) {
+      if (next === block.name) {
         render();
         return;
       }
@@ -480,17 +502,6 @@
       render();
     }
 
-    function moveRow(block, index, direction) {
-      const next = index + direction;
-      if (next < 0 || next >= block.rows.length) {
-        return;
-      }
-      const row = block.rows[index];
-      block.rows.splice(index, 1);
-      block.rows.splice(next, 0, row);
-      render();
-    }
-
     function deleteColumn(block, name) {
       for (const row of block.rows) {
         delete row[name];
@@ -498,19 +509,6 @@
       if (Array.isArray(block.columnOrder)) {
         block.columnOrder = block.columnOrder.filter(col => col !== name);
       }
-      render();
-    }
-
-    function moveColumn(block, name, direction) {
-      const order = model.columns(block);
-      const index = order.indexOf(name);
-      const next = index + direction;
-      if (index < 0 || next < 0 || next >= order.length) {
-        return;
-      }
-      order.splice(index, 1);
-      order.splice(next, 0, name);
-      block.columnOrder = order;
       render();
     }
 
@@ -525,16 +523,15 @@
       render();
     }
 
-    function moveRawColumn(block, index, direction) {
-      const next = index + direction;
+    function moveRawColumnTo(block, from, to) {
       const width = rawWidth(block);
-      if (next < 0 || next >= width) {
+      if (from < 0 || to < 0 || from >= width || to >= width || from === to) {
         return;
       }
       for (const row of block.rows) {
-        const value = row[index] ?? "";
-        row.splice(index, 1);
-        row.splice(next, 0, value);
+        const value = row[from] ?? "";
+        row.splice(from, 1);
+        row.splice(to, 0, value);
       }
       render();
     }
@@ -560,11 +557,141 @@
       return base + index;
     }
 
+    function ensureIds(modelState) {
+      for (const sheet of modelState.sheets) {
+        withId(sheet);
+        for (const block of sheet.blocks) {
+          withId(block);
+        }
+      }
+    }
+
+    function withId(item) {
+      if (!item._id) {
+        item._id = "ntf-" + nextId++;
+      }
+      return item;
+    }
+
+    function activeSheet() {
+      return state.sheets.find(item => item._id === activeSheetId)
+        ?? state.sheets[0]
+        ?? null;
+    }
+
+    function attachDragSort(element, items, item, afterMove) {
+      element.addEventListener("dragstart", event => {
+        event.stopPropagation();
+        element.classList.add("dragging");
+        event.dataTransfer?.setData("text/plain", String(items.indexOf(item)));
+      });
+      element.addEventListener("dragend", () => {
+        element.classList.remove("dragging");
+      });
+      element.addEventListener("dragover", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        element.classList.add("drop-target");
+      });
+      element.addEventListener("dragleave", () => {
+        element.classList.remove("drop-target");
+      });
+      element.addEventListener("drop", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        element.classList.remove("drop-target");
+        const from = Number(event.dataTransfer?.getData("text/plain"));
+        const to = items.indexOf(item);
+        moveItem(items, from, to);
+        if (afterMove) afterMove();
+        render();
+      });
+    }
+
+    function attachIndexDragSort(element, getLength, index, move) {
+      element.addEventListener("dragstart", event => {
+        event.stopPropagation();
+        element.classList.add("dragging");
+        event.dataTransfer?.setData("text/plain", String(index));
+      });
+      element.addEventListener("dragend", () => {
+        element.classList.remove("dragging");
+      });
+      element.addEventListener("dragover", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        element.classList.add("drop-target");
+      });
+      element.addEventListener("dragleave", () => {
+        element.classList.remove("drop-target");
+      });
+      element.addEventListener("drop", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        element.classList.remove("drop-target");
+        const from = Number(event.dataTransfer?.getData("text/plain"));
+        if (from >= 0 && from < getLength()) {
+          move(from, index);
+        }
+      });
+    }
+
+    function moveItem(items, from, to) {
+      if (from < 0 || to < 0 || from >= items.length || to >= items.length || from === to) {
+        return;
+      }
+      const [item] = items.splice(from, 1);
+      items.splice(to, 0, item);
+    }
+
+    function rawRowView(row, sectionState) {
+      const first = String(row[0] ?? "");
+      if (isNtfFileDirective(first)) {
+        sectionState.name = "";
+        sectionState.continuationCount = 0;
+        return { className: "raw-metadata-row" };
+      }
+      if (/^(header|data|end)$/.test(first)) {
+        sectionState.name = first;
+        sectionState.continuationCount = 0;
+        return { className: "raw-section-header-row", headerLike: true };
+      }
+      if (!first && sectionState.name) {
+        sectionState.continuationCount++;
+        return {
+          className: sectionState.continuationCount === 1 ? "raw-type-row" : "raw-value-row",
+          headerLike: sectionState.continuationCount === 1,
+          lockFirstCell: true
+        };
+      }
+      sectionState.name = "";
+      sectionState.continuationCount = 0;
+      return { className: "" };
+    }
+
+    const ntfFileDirectives = new Set([
+      "text-encoding",
+      "record-separator",
+      "field-separator",
+      "quoting-delimiter",
+      "positive-zone-sign-nibble",
+      "negative-zone-sign-nibble",
+      "positive-pack-sign-nibble",
+      "negative-pack-sign-nibble",
+      "required-decimal-point",
+      "fixed-sign-position",
+      "required-plus-sign"
+    ]);
+
+    function isNtfFileDirective(name) {
+      return ntfFileDirectives.has(String(name ?? ""));
+    }
+
     render();
     return {
       render,
       getState: () => state,
-      getActiveSheet: () => activeSheet,
+      getActiveSheet: () => activeSheet()?.name ?? "",
       dispose() {
         if (options.window) {
           options.window.removeEventListener("message", handleMessage);

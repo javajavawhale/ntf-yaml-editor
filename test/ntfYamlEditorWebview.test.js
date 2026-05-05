@@ -64,6 +64,23 @@ function keydownEvent(dom, key) {
   return new dom.window.KeyboardEvent("keydown", { key, bubbles: true });
 }
 
+function dragDrop(dom, from, to) {
+  const data = new Map();
+  const dataTransfer = {
+    setData(type, value) {
+      data.set(type, value);
+    },
+    getData(type) {
+      return data.get(type) || "";
+    }
+  };
+  for (const [target, type] of [[from, "dragstart"], [to, "dragover"], [to, "drop"], [from, "dragend"]]) {
+    const event = new dom.window.Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", { value: dataTransfer });
+    target.dispatchEvent(event);
+  }
+}
+
 function save(root) {
   root.querySelector('[data-action="save"]').click();
 }
@@ -175,25 +192,23 @@ test("webview edits raw-row cells and serializes null sentinels", () => {
   assert.match(messages[0].text, /    - \[ "001", "大阪", ~ \]/);
 });
 
-test("webview adds, moves, and deletes RawRows rows and columns", () => {
-  const { root, messages } = createHarness();
+test("webview adds and deletes RawRows rows and columns", () => {
+  const { dom, root, messages } = createHarness();
   let rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
 
   rawRows.querySelector('[data-action="add-row"]').click();
   rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
   rawRows.querySelector('[data-action="add-column"]').click();
   rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
-  rawRows.querySelectorAll('[title="Move raw row up"]')[1].click();
-  rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
-  rawRows.querySelector('[title="Move raw column right"]').click();
-  rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
   rawRows.querySelector('[title="Delete raw column"]').click();
   rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
-  rawRows.querySelector('[title="Delete raw row"]').click();
+  dragDrop(dom, rawRows.querySelectorAll("tbody tr")[1], rawRows.querySelectorAll("tbody tr")[0]);
+  rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
+  dragDrop(dom, rawRows.querySelectorAll("thead th")[2], rawRows.querySelectorAll("thead th")[1]);
   save(root);
 
   assert.match(messages[0].text, /EXPECTED_VARIABLE=\.\/tmp\/result\.csv: #RawRows/);
-  assert.match(messages[0].text, /    - \[ "001", ~, "" \]/);
+  assert.match(messages[0].text, /    - \[ "", "", "" \]\n    - \[ "", "東京", "" \]/);
 });
 
 
@@ -245,16 +260,19 @@ test("webview falls back to first sheet when update removes the active sheet", (
 
 test("webview adds sheets and LIST_MAP blocks", () => {
   const { dom, root, messages, app } = createHarness();
-  const sheetInput = root.querySelector('[data-role="new-sheet-name"]');
 
-  sheetInput.value = "case3";
   root.querySelector('[data-action="add-sheet"]').click();
 
-  assert.equal(app.getActiveSheet(), "case3");
-  const blockInput = root.querySelector('[data-role="new-block-name"]');
-  blockInput.value = "items";
+  assert.equal(app.getActiveSheet(), "");
+  const sheetInput = root.querySelector('[data-role="sheet-name"]');
+  sheetInput.value = "case3";
+  sheetInput.dispatchEvent(changeEvent(dom));
   root.querySelector('[data-action="add-block"]').click();
-  const listMap = block(root, "LIST_MAP=items");
+  let listMap = block(root, "LIST_MAP=");
+  const blockInput = listMap.querySelector('[data-role="block-name"]');
+  blockInput.value = "LIST_MAP=items";
+  blockInput.dispatchEvent(changeEvent(dom));
+  listMap = block(root, "LIST_MAP=items");
   const noInput = listMap.querySelector('[data-column="no"]');
   noInput.value = "1";
   noInput.dispatchEvent(inputEvent(dom));
@@ -263,6 +281,94 @@ test("webview adds sheets and LIST_MAP blocks", () => {
   assert.match(messages[0].text, /case3:/);
   assert.match(messages[0].text, /LIST_MAP=items: #ListMap/);
   assert.match(messages[0].text, /    - no: "1"/);
+});
+
+test("webview renders RawRows without column numbers and highlights structural cells", () => {
+  const { root } = createHarness([
+    "case1:",
+    "  SETUP_VARIABLE[1]=data.csv: #RawRows",
+    "    - [ \"text-encoding\", \"UTF-8\" ]",
+    "    - [ \"quoting-delimiter\", \"\\\"\" ]",
+    "    - [ \"header\", \"name\", \"value\" ]",
+    "    - [ \"\", \"全角\", \"半角\" ]",
+    "    - [ \"\", \"1\", \"\" ]",
+    ""
+  ].join("\n"));
+  const rawRows = block(root, "SETUP_VARIABLE[1]=data.csv");
+
+  assert.equal(rawRows.querySelector("thead th:nth-child(2)").textContent.trim(), "×");
+  assert.ok(rawRows.querySelector(".raw-metadata-row"));
+  assert.ok(rawRows.querySelector(".raw-section-header-row"));
+  assert.ok(rawRows.querySelector(".raw-key-cell"));
+  assert.ok(rawRows.querySelector(".raw-section-header-row .table-header-cell"));
+  assert.ok(rawRows.querySelector(".raw-type-row .table-header-cell"));
+  assert.equal(rawRows.querySelector('[data-raw-row="0"][data-raw-column="1"]').closest("td").classList.contains("table-header-cell"), false);
+  assert.equal(rawRows.querySelector('[data-raw-row="0"][data-raw-column="0"]').closest("tr").classList.contains("raw-metadata-row"), true);
+  assert.equal(rawRows.querySelector('[data-raw-row="1"][data-raw-column="0"]').closest("tr").classList.contains("raw-metadata-row"), true);
+  assert.equal(rawRows.querySelector('[data-raw-row="0"][data-raw-column="2"]'), null);
+  assert.ok(rawRows.querySelector(".raw-filler-cell"));
+  assert.equal(rawRows.querySelector('[data-raw-row="3"][data-raw-column="0"]'), null);
+  assert.equal(rawRows.querySelector(".raw-type-row .raw-row-label"), null);
+  assert.equal(rawRows.querySelector(".raw-value-row .raw-row-label"), null);
+  assert.ok(rawRows.querySelector(".raw-type-row"));
+  assert.ok(rawRows.querySelector(".raw-value-row"));
+});
+
+test("webview only treats NTF file generation directives as RawRows metadata", () => {
+  const { root } = createHarness([
+    "case1:",
+    "  SETUP_VARIABLE[1]=data.csv: #RawRows",
+    "    - [ \"field-separator\", \",\" ]",
+    "    - [ \"positive-zone-sign-nibble\", \"C\" ]",
+    "    - [ \"file-type\", \"Variable\" ]",
+    "    - [ \"record-length\", \"120\" ]",
+    "    - [ \"ignore-blank-lines\", \"true\" ]",
+    ""
+  ].join("\n"));
+  const rawRows = block(root, "SETUP_VARIABLE[1]=data.csv");
+
+  assert.equal(rawRows.querySelector('[data-raw-row="0"][data-raw-column="0"]').closest("tr").classList.contains("raw-metadata-row"), true);
+  assert.equal(rawRows.querySelector('[data-raw-row="1"][data-raw-column="0"]').closest("tr").classList.contains("raw-metadata-row"), true);
+  assert.equal(rawRows.querySelector('[data-raw-row="2"][data-raw-column="0"]').closest("tr").classList.contains("raw-metadata-row"), false);
+  assert.equal(rawRows.querySelector('[data-raw-row="3"][data-raw-column="0"]').closest("tr").classList.contains("raw-metadata-row"), false);
+  assert.equal(rawRows.querySelector('[data-raw-row="4"][data-raw-column="0"]').closest("tr").classList.contains("raw-metadata-row"), false);
+});
+
+test("webview reorders sheets, blocks, rows, and columns with drag and drop", () => {
+  const { dom, root, messages } = createHarness([
+    "case1:",
+    "  LIST_MAP=first: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"first-row\"",
+    "    - no: \"2\"",
+    "      name: \"second-row\"",
+    "",
+    "  LIST_MAP=second: #ListMap",
+    "    - no: \"3\"",
+    "      name: \"other\"",
+    "",
+    "case2:",
+    "  LIST_MAP=third: #ListMap",
+    "    - no: \"4\"",
+    "      name: \"third\"",
+    ""
+  ].join("\n"));
+
+  dragDrop(dom, root.querySelector('[data-sheet-name="case2"]'), root.querySelector('[data-sheet-name="case1"]'));
+  root.querySelector('[data-sheet-name="case1"]').click();
+  dragDrop(dom, block(root, "LIST_MAP=second"), block(root, "LIST_MAP=first"));
+
+  let first = block(root, "LIST_MAP=first");
+  dragDrop(dom, first.querySelectorAll("tbody tr")[1], first.querySelectorAll("tbody tr")[0]);
+  first = block(root, "LIST_MAP=first");
+  const headerCells = Array.from(first.querySelectorAll("thead th")).slice(1);
+  dragDrop(dom, headerCells[1], headerCells[0]);
+  save(root);
+
+  assert.ok(messages[0].text.indexOf("case2:") < messages[0].text.indexOf("case1:"));
+  assert.ok(messages[0].text.indexOf("LIST_MAP=second") < messages[0].text.indexOf("LIST_MAP=first"));
+  assert.ok(messages[0].text.indexOf('name: "second-row"') < messages[0].text.indexOf('name: "first-row"'));
+  assert.match(messages[0].text, /    - name: "second-row"\n      no: "2"/);
 });
 
 test("webview renames sheets and LIST_MAP blocks", () => {
@@ -281,7 +387,7 @@ test("webview renames sheets and LIST_MAP blocks", () => {
   assert.match(messages[0].text, /LIST_MAP=requestParamsRenamed: #ListMap/);
 });
 
-test("webview moves and deletes table rows and columns", () => {
+test("webview deletes table rows and columns", () => {
   const { root, messages } = createHarness([
     "case1:",
     "  LIST_MAP=requestParams: #ListMap",
@@ -295,12 +401,6 @@ test("webview moves and deletes table rows and columns", () => {
   ].join("\n"));
   let requestParams = block(root, "LIST_MAP=requestParams");
 
-  requestParams.querySelectorAll('[title="Move row up"]')[1].click();
-  requestParams = block(root, "LIST_MAP=requestParams");
-  Array.from(requestParams.querySelectorAll('[title="Move column right"]'))
-    .find(button => button.closest("th").querySelector('[data-role="column-name"]').value === "[no]")
-    .click();
-  requestParams = block(root, "LIST_MAP=requestParams");
   Array.from(requestParams.querySelectorAll('[title="Delete column"]'))
     .find(button => button.closest("th").querySelector('[data-role="column-name"]').value === "extra")
     .click();
@@ -308,9 +408,9 @@ test("webview moves and deletes table rows and columns", () => {
   requestParams.querySelector('[title="Delete row"]').click();
   save(root);
 
-  assert.match(messages[0].text, /name: "first"/);
+  assert.match(messages[0].text, /name: "second"/);
   assert.doesNotMatch(messages[0].text, /extra:/);
-  assert.doesNotMatch(messages[0].text, /\[no\]": "2"/);
+  assert.doesNotMatch(messages[0].text, /\[no\]": "1"/);
 });
 
 test("webview renders unsupported blocks as preserved raw text", () => {

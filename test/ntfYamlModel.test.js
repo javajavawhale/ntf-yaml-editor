@@ -27,11 +27,11 @@ const {
 const extensionRoot = path.resolve(__dirname, "..");
 const repoRoot = path.resolve(extensionRoot, "..");
 const sampleFixtures = {
-  webProjectAction: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "web-project-action-request.yaml"),
-  webProjectBulkAction: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "web-project-bulk-action-request.yaml"),
-  batchImportZipCodeDataFormat: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "batch-import-zip-code-data-format-action-request.yaml"),
-  restProjectAction: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "rest-project-action.yaml"),
-  webProjectForm: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "web-project-form.yaml")
+  webProjectAction: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "web-project-action-request.ntf.yaml"),
+  webProjectBulkAction: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "web-project-bulk-action-request.ntf.yaml"),
+  batchImportZipCodeDataFormat: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "batch-import-zip-code-data-format-action-request.ntf.yaml"),
+  restProjectAction: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "rest-project-action.ntf.yaml"),
+  webProjectForm: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "web-project-form.ntf.yaml")
 };
 
 function readSampleFixture(name) {
@@ -294,6 +294,30 @@ test("parses and serializes RawRows variable blocks", () => {
 
   assert.deepEqual(block.rows, [["001", "東京,港区", "A\"B", null]]);
   assert.match(serializeYaml(model), /    - \[ "001", "東京,港区", "A\\"B", ~ \]/);
+});
+
+test("parses multiline RawRows arrays without synthetic blank cells", () => {
+  const yaml = [
+    "case1:",
+    "  SETUP_VARIABLE[1]=data.csv: #RawRows",
+    "    - [",
+    "        \"header\",",
+    "        \"recordKbn\",",
+    "        \"zipCode\",",
+    "      ]",
+    "    - [",
+    "        \"\",",
+    "        \"1\",",
+    "        \"0600000\",",
+    "      ]",
+    ""
+  ].join("\n");
+
+  const model = parseYaml(yaml);
+  const block = getBlock(model, "case1", "SETUP_VARIABLE[1]=data.csv");
+
+  assert.deepEqual(block.rows[0], ["header", "recordKbn", "zipCode"]);
+  assert.deepEqual(block.rows[1], ["", "1", "0600000"]);
 });
 
 test("preserves unsupported fixed-length blocks as raw text", () => {

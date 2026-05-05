@@ -267,6 +267,11 @@ function renderHtml(webview, initialText) {
       color: var(--danger);
       border-color: var(--danger);
     }
+    button.danger.ghost {
+      background: transparent;
+      color: var(--muted);
+      border-color: transparent;
+    }
     button.compact {
       min-width: 26px;
       min-height: 26px;
@@ -286,12 +291,16 @@ function renderHtml(webview, initialText) {
       border-color: var(--accent-strong);
       box-shadow: inset 3px 0 0 var(--accent);
     }
-    .toolbar {
+    .toolbar,
+    .side-toolbar {
       display: flex;
       gap: 8px;
       align-items: center;
       margin-bottom: 14px;
       flex-wrap: wrap;
+    }
+    .side-toolbar button {
+      width: 100%;
     }
     .message {
       color: var(--muted);
@@ -309,6 +318,9 @@ function renderHtml(webview, initialText) {
     .side-form,
     .add-block-form {
       margin: 0 0 12px;
+    }
+    .side-form button {
+      width: 100%;
     }
     .sheet-header {
       margin: 0 0 12px;
@@ -362,15 +374,24 @@ function renderHtml(webview, initialText) {
       vertical-align: top;
     }
     th {
-      background: #e8ecea;
       position: sticky;
       top: 0;
       z-index: 1;
+    }
+    .table-header-cell {
+      background: #e8ecea;
+      font-weight: 700;
+    }
+    th.table-header-cell {
+      position: sticky;
     }
     td input, th input {
       width: auto;
       field-sizing: content;
       min-width: 4ch;
+    }
+    th input {
+      padding-right: 28px;
     }
     input {
       box-sizing: border-box;
@@ -395,15 +416,24 @@ function renderHtml(webview, initialText) {
       background: #fff8ec;
     }
     .rawrows-table td:first-child {
-      background: #e8ecea;
       font-weight: bold;
       text-align: center;
       color: var(--muted);
       min-width: 2ch;
     }
+    .rawrows-table .raw-key-cell {
+      background: #e8ecea;
+    }
+    .rawrows-table .raw-metadata-row .raw-key-cell input {
+      font-weight: 700;
+    }
+    .rawrows-table .raw-filler-cell {
+      background: #f7f8f7;
+      min-width: 0;
+    }
     .row-actions-cell {
-      min-width: 88px;
-      width: 88px;
+      min-width: 34px;
+      width: 34px;
       background: #f7f8f7;
       position: sticky;
       left: 0;
@@ -414,9 +444,32 @@ function renderHtml(webview, initialText) {
       text-align: center;
     }
     .cell-actions {
-      padding: 4px;
-      border-bottom: 1px solid var(--line);
-      background: #f7f8f7;
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      z-index: 3;
+      padding: 0;
+      background: transparent;
+    }
+    .table-delete-button {
+      font-weight: 700;
+      z-index: 3;
+      border-radius: 4px;
+    }
+    .row-actions-cell > .table-delete-button {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+    }
+    [draggable=true] {
+      cursor: grab;
+    }
+    .dragging {
+      opacity: 0.55;
+    }
+    .drop-target {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
     }
     .add-col-form input[type=text],
     .side-form input[type=text],
