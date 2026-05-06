@@ -565,11 +565,42 @@ Fixture: `web-project-action-request.yaml` の scratch copy
 - 出力先を毎回入力する UX で問題ないか。
 - HTML をテキストとして開く挙動で十分か、ブラウザ表示や Webview 表示が必要か。
 
+### MT-19 SCM 変更から A/B 2パターンのセル差分を比較する
+
+対象: NTF YAML を含む Git repository の working tree 変更
+
+準備:
+
+1. Extension Development Host で対象 repository を workspace として開く。
+2. tracked な `.yaml` または `.ntf.yaml` ファイルの表セルを1つ以上変更する。
+3. Source Control view の Changes に対象ファイルが出ることを確認する。
+
+手順:
+
+1. A パターン: Source Control view の Changes で対象ファイルを通常クリックする。
+2. 左右に開いた `NTF YAML Table Editor` を確認する。
+3. B パターン: 同じ Changes の対象ファイルを右クリックし、`NTF YAML: Open Cell Diff` を実行する。
+4. 単独の `NTF YAML Cell Diff` panel を確認する。
+
+期待結果:
+
+- A パターンでは、既存の Git diff editor 上で左右の table preview が開く。
+- A パターンでは、差分サマリが表示され、変更行と変更セルが table 上で強調される。
+- A パターンでは、Git 側 preview は読み取り専用になり、保存や追加削除操作が表示されない。
+- B パターンでは、専用 WebviewPanel にセル差分レポートが表示される。
+- B パターンでは、変更行、変更セル、before/after が1画面で確認できる。
+
+人間が判断すること:
+
+- A の「Git diff editor に乗る」形が、既存の VS Code 操作感として自然か。
+- B の「専用 Cell Diff panel」が、レビュー対象の把握に十分か。
+- 最終的に残すべき導線は A、B、または両方か。
+
 ## 完了条件
 
 次を満たしたら手動テスト完了とする。
 
-- MT-01 から MT-18 までを実行した、または skip 理由を明記した。
+- MT-01 から MT-19 までを実行した、または skip 理由を明記した。
 - 失敗 case には再現手順がある。
 - UX 懸念を次のいずれかに分類した。
   - PoC review の blocker

@@ -287,6 +287,101 @@ input:focus {
     background: white;
 }
 
+input[readonly] {
+    cursor: default;
+}
+
+.diff-legend {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin: 0 0 12px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.diff-legend-item {
+    display: inline-flex;
+    gap: 5px;
+    align-items: center;
+}
+
+.diff-legend-swatch {
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+}
+
+.diff-legend-added {
+    background: #daf1df;
+}
+
+.diff-legend-changed {
+    background: #fff0b8;
+    border-color: #d8a700;
+}
+
+.diff-legend-deleted {
+    background: #ffdcd2;
+}
+
+.diff-sheet-added,
+.diff-block-added,
+.diff-sheet-added.sheet.active,
+.diff-sheet-added.sheet-header,
+.diff-block-added .block-header {
+    background: #dff3e3;
+    border-color: #4b9b63;
+    box-shadow: inset 4px 0 0 #2f8a45;
+}
+
+.diff-sheet-deleted,
+.diff-block-deleted,
+.diff-sheet-deleted.sheet.active,
+.diff-sheet-deleted.sheet-header,
+.diff-block-deleted .block-header {
+    background: #ffe3dc;
+    border-color: #c9543d;
+    box-shadow: inset 4px 0 0 #b43d28;
+}
+
+.diff-sheet-changed,
+.diff-block-changed,
+.diff-sheet-changed.sheet.active,
+.diff-sheet-changed.sheet-header,
+.diff-block-changed .block-header {
+    background: #fffbea;
+    border-color: #d8a700;
+    box-shadow: inset 4px 0 0 #d8a700;
+}
+
+.diff-row-added {
+    background: #edf8ef;
+}
+
+.diff-row-deleted {
+    background: #fff1ed;
+}
+
+.diff-row-changed {
+    background: #fffbea;
+}
+
+.diff-cell-added {
+    background: #daf1df;
+}
+
+.diff-cell-deleted {
+    background: #ffdcd2;
+}
+
+.diff-cell-changed {
+    background: #fff0b8;
+    box-shadow: inset 0 0 0 2px #d8a700;
+}
+
 pre {
     margin: 0;
     padding: 10px;

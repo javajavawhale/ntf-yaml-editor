@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { analyzeYaml, parseYaml, serializeYaml } = require("./lib/ntfYamlModel");
 const { diffGitRefs, renderHtmlReport } = require("./lib/ntfYamlDiff");
+const { createDocumentDiffReport, createReportFromResource } = require("./lib/ntfYamlGitDiffContext");
 
 function activate(context) {
   const diagnostics = vscode.languages.createDiagnosticCollection("ntf-yaml");
@@ -65,6 +66,21 @@ function activate(context) {
         vscode.window.showInformationMessage(`NTF YAML diff report written: ${outputName}`);
       } catch (error) {
         vscode.window.showErrorMessage(`NTF YAML diff failed: ${error.message}`);
+      }
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("ntfYaml.openCellDiff", async (...resources) => {
+      try {
+        const report = await createCellDiffReportFromCommand(resources);
+        if (!report) {
+          vscode.window.showInformationMessage("No NTF YAML cell diff is available for the selected resource.");
+          return;
+        }
+        openCellDiffPanel(context, report);
+      } catch (error) {
+        vscode.window.showErrorMessage(`NTF YAML cell diff failed: ${error.message}`);
       }
     })
   );
@@ -155,28 +171,34 @@ function escapeForSearch(value) {
 class NtfYamlEditorProvider {
   constructor(context) {
     this.context = context;
+    this.editors = new Set();
+    context.subscriptions.push(
+      vscode.workspace.onDidChangeTextDocument(event => this.updateRelatedEditors(event.document.uri)),
+      vscode.workspace.onDidSaveTextDocument(document => this.updateRelatedEditors(document.uri))
+    );
   }
 
   async resolveCustomTextEditor(document, webviewPanel) {
     webviewPanel.webview.options = { enableScripts: true };
-    webviewPanel.webview.html = renderHtml(webviewPanel.webview, document.getText());
+    webviewPanel.webview.html = renderHtml(webviewPanel.webview, document.getText(), {
+      diffReport: createEditorDiffReport(document),
+      readOnly: document.uri.scheme !== "file"
+    });
 
     const updateWebview = () => {
       webviewPanel.webview.postMessage({
         type: "update",
-        text: document.getText()
+        text: document.getText(),
+        diffReport: createEditorDiffReport(document)
       });
     };
 
-    const subscription = vscode.workspace.onDidChangeTextDocument(event => {
-      if (event.document.uri.toString() === document.uri.toString()) {
-        updateWebview();
-      }
-    });
-    webviewPanel.onDidDispose(() => subscription.dispose());
+    const editor = { document, updateWebview };
+    this.editors.add(editor);
+    webviewPanel.onDidDispose(() => this.editors.delete(editor));
 
     webviewPanel.webview.onDidReceiveMessage(async message => {
-      if (message.type !== "save") {
+      if (message.type !== "save" || document.uri.scheme !== "file") {
         return;
       }
       const edit = new vscode.WorkspaceEdit();
@@ -189,11 +211,203 @@ class NtfYamlEditorProvider {
       await document.save();
     });
   }
+
+  updateRelatedEditors(uri) {
+    const changedPath = backingFilePath(uri);
+    for (const editor of this.editors) {
+      const editorPath = backingFilePath(editor.document.uri);
+      if (
+        editor.document.uri.toString() === uri.toString()
+        || (changedPath && editorPath && path.resolve(changedPath) === path.resolve(editorPath))
+      ) {
+        editor.updateWebview();
+      }
+    }
+  }
 }
 
-function renderHtml(webview, initialText) {
+async function createCellDiffReportFromCommand(resources) {
+  const candidates = collectResourceUris(resources);
+  const uri = candidates.find(isYamlUri) || vscode.window.activeTextEditor?.document?.uri;
+  if (!uri || !isYamlUri(uri)) return null;
+  const repositoryPath = await gitRepositoryPathFor(uri);
+  if (uri.scheme === "git") {
+    const document = await vscode.workspace.openTextDocument(uri);
+    return createDocumentDiffReport({
+      uri,
+      text: document.getText(),
+      workspaceFolder: repositoryPath,
+      repositoryPath
+    });
+  }
+  return createReportFromResource(uri, { workspaceFolder: repositoryPath, repositoryPath });
+}
+
+function collectResourceUris(items) {
+  const result = [];
+  for (const item of items || []) {
+    collectResourceUrisInto(item, result);
+  }
+  return result;
+}
+
+function collectResourceUrisInto(item, result) {
+  if (!item) return;
+  if (Array.isArray(item)) {
+    for (const child of item) collectResourceUrisInto(child, result);
+    return;
+  }
+  if (item.resourceUri || item.uri || item.scheme) {
+    result.push(item.resourceUri || item.uri || item);
+  }
+  if (Array.isArray(item.resourceStates)) {
+    for (const state of item.resourceStates) collectResourceUrisInto(state, result);
+  }
+}
+
+function isYamlUri(uri) {
+  const fsPath = uri?.fsPath || uri?.path || "";
+  const lower = fsPath.toLowerCase();
+  return lower.endsWith(".yaml") || lower.endsWith(".yml");
+}
+
+function backingFilePath(uri) {
+  if (!uri) return "";
+  if (uri.scheme === "git") {
+    return parseGitQuery(uri.query).path || uri.fsPath || "";
+  }
+  return uri.fsPath || "";
+}
+
+function createEditorDiffReport(document) {
+  try {
+    const folder = workspaceFolderFor(document.uri);
+    return createDocumentDiffReport({
+      uri: document.uri,
+      text: document.getText(),
+      workspaceFolder: folder?.uri.fsPath || ""
+    });
+  } catch {
+    return null;
+  }
+}
+
+function workspaceFolderFor(uri) {
+  return vscode.workspace.getWorkspaceFolder(uri)
+    || vscode.workspace.workspaceFolders?.find(folder => uri.fsPath?.startsWith(folder.uri.fsPath));
+}
+
+async function gitRepositoryPathFor(uri) {
+  const fileUri = uri.scheme === "git" ? vscode.Uri.file(parseGitQuery(uri.query).path || uri.fsPath) : uri;
+  try {
+    const extension = vscode.extensions.getExtension("vscode.git");
+    const gitExtension = extension?.isActive ? extension.exports : await extension?.activate();
+    const git = gitExtension?.getAPI?.(1);
+    const repository = git?.repositories?.find(repo => isInsideUri(fileUri, repo.rootUri));
+    if (repository?.rootUri?.fsPath) {
+      return repository.rootUri.fsPath;
+    }
+  } catch {
+    // Fall back to filesystem/git discovery in ntfYamlGitDiffContext.
+  }
+  return workspaceFolderFor(fileUri)?.uri.fsPath || "";
+}
+
+function parseGitQuery(query) {
+  try {
+    return query ? JSON.parse(decodeURIComponent(query)) : {};
+  } catch {
+    return {};
+  }
+}
+
+function isInsideUri(uri, rootUri) {
+  if (!uri?.fsPath || !rootUri?.fsPath) return false;
+  const relative = path.relative(rootUri.fsPath, uri.fsPath);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function openCellDiffPanel(context, report) {
+  const panel = vscode.window.createWebviewPanel(
+    "ntfYaml.cellDiff",
+    "NTF YAML Cell Diff",
+    vscode.ViewColumn.Active,
+    { enableScripts: true, retainContextWhenHidden: true }
+  );
+  panel.webview.html = renderHtmlDiffPanel(panel.webview, report);
+}
+
+function renderHtmlDiffPanel(webview, report) {
+  const nonce = getNonce();
+  const baseState = JSON.stringify(report.baseText || "").replace(/</g, "\\u003c");
+  const headState = JSON.stringify(report.headText || "").replace(/</g, "\\u003c");
+  const diffReportState = JSON.stringify(report).replace(/</g, "\\u003c");
+  const modelScript = fs.readFileSync(path.join(__dirname, "lib", "ntfYamlModel.js"), "utf8");
+  const webviewScript = fs.readFileSync(path.join(__dirname, "media", "ntfYamlEditorWebview.js"), "utf8");
+  const editorCss = fs.readFileSync(path.join(__dirname, "media", "ntfYamlEditor.css"), "utf8");
+  const baseRef = report.baseRef || "base";
+  const headRef = report.headRef || "head";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NTF YAML Cell Diff</title>
+  <style nonce="${nonce}">
+${editorCss}
+.diff-panel-container{display:flex;height:100vh;overflow:hidden}
+.diff-panel-pane{flex:1;overflow:auto;min-width:0}
+.diff-panel-pane+.diff-panel-pane{border-left:1px solid var(--vscode-editorGroup-border,#ccc)}
+.diff-panel-label{padding:4px 12px;font-size:12px;color:var(--vscode-descriptionForeground);background:var(--vscode-editorGroupHeader-tabsBackground);border-bottom:1px solid var(--vscode-editorGroup-border,#ccc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  </style>
+</head>
+<body>
+  <div class="diff-panel-container">
+    <div class="diff-panel-pane">
+      <div class="diff-panel-label">${baseRef}</div>
+      <div id="base-root"></div>
+    </div>
+    <div class="diff-panel-pane">
+      <div class="diff-panel-label">${headRef}</div>
+      <div id="head-root"></div>
+    </div>
+  </div>
+  <script nonce="${nonce}">
+    ${modelScript}
+    ${webviewScript}
+    const vscode = acquireVsCodeApi();
+    const diffReport = ${diffReportState};
+    globalThis.NtfYamlEditorWebview.createNtfYamlEditorApp({
+      root: document.getElementById("base-root"),
+      initialText: ${baseState},
+      initialDiffReport: diffReport,
+      readOnly: true,
+      diffSide: "base",
+      model: globalThis.NtfYamlModel,
+      vscode,
+      window
+    });
+    globalThis.NtfYamlEditorWebview.createNtfYamlEditorApp({
+      root: document.getElementById("head-root"),
+      initialText: ${headState},
+      initialDiffReport: diffReport,
+      readOnly: true,
+      diffSide: "head",
+      model: globalThis.NtfYamlModel,
+      vscode,
+      window
+    });
+  </script>
+</body>
+</html>`;
+}
+
+function renderHtml(webview, initialText, options = {}) {
   const nonce = getNonce();
   const initialState = JSON.stringify(initialText).replace(/</g, "\\u003c");
+  const initialDiffReport = JSON.stringify(options.diffReport || null).replace(/</g, "\\u003c");
+  const initialReadOnly = options.readOnly ? "true" : "false";
   const modelScript = fs.readFileSync(path.join(__dirname, "lib", "ntfYamlModel.js"), "utf8");
   const webviewScript = fs.readFileSync(path.join(__dirname, "media", "ntfYamlEditorWebview.js"), "utf8");
   const editorCss = fs.readFileSync(path.join(__dirname, "media", "ntfYamlEditor.css"), "utf8");
@@ -217,6 +431,8 @@ ${editorCss}
     globalThis.NtfYamlEditorWebview.createNtfYamlEditorApp({
       root: document.getElementById("root"),
       initialText: ${initialState},
+      initialDiffReport: ${initialDiffReport},
+      readOnly: ${initialReadOnly},
       model: globalThis.NtfYamlModel,
       vscode,
       window

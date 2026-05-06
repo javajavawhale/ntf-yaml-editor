@@ -5,7 +5,7 @@ const { JSDOM } = require("jsdom");
 const model = require("../lib/ntfYamlModel");
 const { createNtfYamlEditorApp } = require("../media/ntfYamlEditorWebview");
 
-function createHarness(initialText = sampleYaml()) {
+function createHarness(initialText = sampleYaml(), options = {}) {
   const dom = new JSDOM('<!doctype html><div id="root"></div>', {
     url: "https://ntf-yaml-editor.test/"
   });
@@ -14,6 +14,9 @@ function createHarness(initialText = sampleYaml()) {
   const app = createNtfYamlEditorApp({
     root,
     initialText,
+    initialDiffReport: options.initialDiffReport,
+    readOnly: options.readOnly,
+    diffSide: options.diffSide,
     model,
     vscode: {
       postMessage(message) {
@@ -115,6 +118,115 @@ test("webview edits a table cell and sends serialized YAML on save", () => {
   assert.equal(messages[0].type, "save");
   assert.match(messages[0].text, /form\.projectName: "プロジェクト９９９"/);
   assert.match(messages[0].text, /"\[no\]": "1"/);
+});
+
+test("webview renders a read-only cell diff overlay", () => {
+  const initialDiffReport = {
+    baseRef: "HEAD",
+    headRef: "working tree",
+    summary: {
+      rows: { changed: 1, added: 0, deleted: 0 },
+      cells: { changed: 1, added: 0, deleted: 0 }
+    },
+    files: [{
+      path: "case.ntf.yaml",
+      sheets: [{
+        name: "case1",
+        status: "changed",
+        blocks: [{
+          name: "LIST_MAP=requestParams",
+          status: "changed",
+          rows: [{
+            key: "0",
+            headIndex: 0,
+            status: "changed",
+            cells: [{
+              column: "form.projectName",
+              status: "changed",
+              before: "プロジェクト０００",
+              after: "プロジェクト００１"
+            }]
+          }]
+        }]
+      }]
+    }]
+  };
+
+  const { root, messages } = createHarness(sampleYaml(), { initialDiffReport, readOnly: true });
+  const requestParams = block(root, "LIST_MAP=requestParams");
+  const projectName = requestParams.querySelector('[data-column="form.projectName"]');
+
+  assert.equal(root.querySelector('[data-action="save"]'), null);
+  assert.equal(root.querySelector('[data-action="add-sheet"]'), null);
+  assert.equal(requestParams.querySelector('[data-action="add-row"]'), null);
+  assert.equal(projectName.readOnly, true);
+  assert.equal(root.querySelector(".diff-summary"), null);
+  assert.ok(root.querySelector(".diff-legend"));
+  assert.equal(root.querySelector(".diff-status"), null);
+  assert.ok(root.querySelector(".sheet-header").classList.contains("diff-sheet-changed"));
+  assert.ok(requestParams.classList.contains("diff-block-changed"));
+  assert.ok(projectName.closest("td").classList.contains("diff-cell-changed"));
+  assert.equal(projectName.closest("td").dataset.diffStatus, "changed");
+  assert.ok(projectName.closest("tr").classList.contains("diff-row-changed"));
+  assert.equal(projectName.title, "before: プロジェクト０００");
+  assert.deepEqual(messages, []);
+});
+
+test("webview only renders added and deleted sheets and blocks on the side where they exist", () => {
+  const initialDiffReport = {
+    files: [{
+      path: "case.ntf.yaml",
+      sheets: [
+        {
+          name: "deletedSheet",
+          status: "deleted",
+          blocks: [{
+            name: "LIST_MAP=deletedBlock",
+            status: "deleted",
+            rows: []
+          }]
+        },
+        {
+          name: "addedSheet",
+          status: "added",
+          blocks: [{
+            name: "LIST_MAP=addedBlock",
+            status: "added",
+            rows: []
+          }]
+        },
+        {
+          name: "case1",
+          status: "changed",
+          blocks: [{
+            name: "LIST_MAP=addedBlockInExistingSheet",
+            status: "added",
+            rows: []
+          }]
+        }
+      ]
+    }]
+  };
+  const leftText = [
+    "deletedSheet:",
+    "  LIST_MAP=deletedBlock: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"gone\"",
+    "",
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - \"[no]\": \"1\"",
+    "      form.projectName: \"プロジェクト００１\"",
+    ""
+  ].join("\n");
+
+  const { root, app } = createHarness(leftText, { initialDiffReport, readOnly: true });
+
+  assert.ok(root.querySelector('[data-sheet-name="deletedSheet"]').classList.contains("diff-sheet-deleted"));
+  assert.equal(root.querySelector('[data-sheet-name="addedSheet"]'), null);
+  root.querySelector('[data-sheet-name="case1"]').click();
+  assert.equal(app.getActiveSheet(), "case1");
+  assert.equal(root.querySelector('[data-block-name="LIST_MAP=addedBlockInExistingSheet"]'), null);
 });
 
 test("webview adds rows to table blocks", () => {
@@ -427,3 +539,77 @@ test("webview renders unsupported blocks as preserved raw text", () => {
   const fixed = block(root, "EXPECTED_FIXED[1]=./tmp/fixed.txt");
   assert.match(fixed.querySelector("pre").textContent, /text-encoding: "ms932"/);
 });
+
+test("webview highlights diff on head side using headIndex", () => {
+  // head side (diffSide: "head") should match rows by headIndex, not by key
+  const initialDiffReport = {
+    files: [{
+      path: "case.ntf.yaml",
+      sheets: [{
+        name: "case1",
+        status: "changed",
+        blocks: [{
+          name: "LIST_MAP=requestParams",
+          status: "changed",
+          rows: [{
+            key: "0",
+            headIndex: 0,
+            status: "changed",
+            cells: [{
+              column: "form.projectName",
+              status: "changed",
+              before: "プロジェクト０００",
+              after: "プロジェクト００１"
+            }]
+          }]
+        }]
+      }]
+    }]
+  };
+
+  const { root } = createHarness(sampleYaml(), { initialDiffReport, readOnly: false, diffSide: "head" });
+  const requestParams = block(root, "LIST_MAP=requestParams");
+  const projectName = requestParams.querySelector('[data-column="form.projectName"]');
+
+  assert.ok(projectName.closest("tr").classList.contains("diff-row-changed"));
+  assert.ok(projectName.closest("td").classList.contains("diff-cell-changed"));
+  assert.equal(projectName.title, "before: プロジェクト０００");
+});
+
+test("webview does not highlight deleted rows on head side (headIndex is null)", () => {
+  // deleted rows have headIndex=null and must not match any head row
+  const initialDiffReport = {
+    files: [{
+      path: "case.ntf.yaml",
+      sheets: [{
+        name: "case1",
+        status: "changed",
+        blocks: [{
+          name: "LIST_MAP=requestParams",
+          status: "changed",
+          rows: [{
+            key: "0",
+            headIndex: null,
+            status: "deleted",
+            cells: [{
+              column: "form.projectName",
+              status: "deleted",
+              before: "プロジェクト０００",
+              after: undefined
+            }]
+          }]
+        }]
+      }]
+    }]
+  };
+
+  const { root } = createHarness(sampleYaml(), { initialDiffReport, readOnly: false, diffSide: "head" });
+  const requestParams = block(root, "LIST_MAP=requestParams");
+  const tr = requestParams.querySelector("tbody tr");
+
+  // row exists in head but must not carry any diff highlight
+  assert.ok(tr);
+  assert.ok(!tr.classList.contains("diff-row-deleted"));
+  assert.ok(!tr.classList.contains("diff-row-changed"));
+});
+

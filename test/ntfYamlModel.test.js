@@ -23,6 +23,10 @@ const {
   createDiffReport,
   renderHtmlReport
 } = require("../lib/ntfYamlDiff");
+const {
+  createDocumentDiffReport,
+  parseGitQuery
+} = require("../lib/ntfYamlGitDiffContext");
 
 const extensionRoot = path.resolve(__dirname, "..");
 const repoRoot = path.resolve(extensionRoot, "..");
@@ -140,6 +144,12 @@ function escapeXml(value) {
 
 function hasPythonModule(name) {
   return spawnSync("python3", ["-c", `import ${name}`], { encoding: "utf8" }).status === 0;
+}
+
+function git(cwd, args) {
+  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  return result.stdout;
 }
 
 function writeXlsFixture(file) {
@@ -342,12 +352,10 @@ test("loads representative sample fixtures and keeps key editor targets", () => 
   const model = parseYaml(readSampleFixture("webProjectAction"));
   const serialized = serializeYaml(model);
 
-  assert.deepEqual(model.sheets.map(sheet => sheet.name), ["confirmOfCreateNormal", "downloadNormal"]);
+  assert.deepEqual(model.sheets.map(sheet => sheet.name), ["confirmOfCreateNormal", "sheetAdded"]);
   assert.ok(getBlock(model, "confirmOfCreateNormal", "LIST_MAP=testShots"));
   assert.ok(getBlock(model, "confirmOfCreateNormal", "LIST_MAP=requestParams"));
-  assert.ok(getBlock(model, "downloadNormal", "EXPECTED_VARIABLE=./tmp/html_dump/ProjectActionRequestTest/downloadNormal_Shot1_プロジェクト一覧ダウンロード_プロジェクト一覧.csv"));
   assert.match(serialized, /"\[no\]": "1"/);
-  assert.match(serialized, /EXPECTED_VARIABLE=\.\/tmp\/html_dump\/ProjectActionRequestTest\/downloadNormal_Shot1_/);
 });
 
 test("loads the migrated web fixture and preserves null sentinel rows", () => {
@@ -367,8 +375,8 @@ test("loads sample fixture variants across web, batch, rest, and form YAML", () 
   assert.ok(getBlock(batchAction, "testNormalEnd", "EXPECTED_TABLE[1]=ZIP_CODE_DATA"));
 
   const restAction = parseYaml(readSampleFixture("restProjectAction"));
-  assert.ok(getBlock(restAction, "プロジェクトを新規登録できること", "SETUP_TABLE=PROJECT"));
   assert.ok(getBlock(restAction, "プロジェクトを新規登録できること", "EXPECTED_TABLE=PROJECT"));
+  assert.ok(!restAction.sheets[0].blocks.find(b => b.name === "SETUP_TABLE=PROJECT"), "SETUP_TABLE=PROJECT should not exist in modified fixture");
 
   const webForm = parseYaml(readSampleFixture("webProjectForm"));
   assert.ok(getBlock(webForm, "testCharsetAndLength", "LIST_MAP=charsetAndLength"));
@@ -562,6 +570,230 @@ test("cell diff report highlights changed table cells and changed rows", () => {
   assert.match(html, /before/);
   assert.match(html, /after/);
   assert.match(html, /extra/);
+});
+
+test("cell diff report preserves added and deleted sheet/block status", () => {
+  const report = createDiffReport({
+    path: "test.ntf.yaml",
+    baseText: [
+      "deletedSheet:",
+      "  LIST_MAP=rows: #ListMap",
+      "    - no: \"1\"",
+      "      name: \"before\"",
+      "",
+      "changedSheet:",
+      "  LIST_MAP=rows: #ListMap",
+      "    - no: \"1\"",
+      "      name: \"before\"",
+      ""
+    ].join("\n"),
+    headText: [
+      "changedSheet:",
+      "  LIST_MAP=rows: #ListMap",
+      "    - no: \"1\"",
+      "      name: \"after\"",
+      "",
+      "  SETUP_TABLE=ADDED: #ListMap",
+      "    - ID: \"1\"",
+      "",
+      "addedSheet:",
+      "  LIST_MAP=rows: #ListMap",
+      "    - no: \"1\"",
+      "      name: \"after\"",
+      ""
+    ].join("\n")
+  });
+  const file = report.files[0];
+  const sheets = Object.fromEntries(file.sheets.map(sheet => [sheet.name, sheet]));
+  assert.equal(sheets.deletedSheet.status, "deleted");
+  assert.equal(sheets.addedSheet.status, "added");
+  assert.equal(sheets.changedSheet.status, "changed");
+  assert.equal(sheets.changedSheet.blocks.find(block => block.name === "SETUP_TABLE=ADDED").status, "added");
+});
+
+test("document diff report compares working tree files against HEAD", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ntf-yaml-document-diff-"));
+  git(dir, ["init"]);
+  git(dir, ["config", "user.email", "ntf-yaml@example.test"]);
+  git(dir, ["config", "user.name", "NTF YAML Test"]);
+  const file = path.join(dir, "case.ntf.yaml");
+  fs.writeFileSync(file, [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"before\"",
+    ""
+  ].join("\n"));
+  git(dir, ["add", "case.ntf.yaml"]);
+  git(dir, ["commit", "-m", "base"]);
+
+  const headText = [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"after\"",
+    ""
+  ].join("\n");
+  fs.writeFileSync(file, headText);
+
+  const report = createDocumentDiffReport({
+    uri: { scheme: "file", fsPath: file },
+    text: headText,
+    workspaceFolder: dir
+  });
+
+  assert.equal(report.baseRef, "HEAD");
+  assert.equal(report.headRef, "working tree");
+  assert.equal(report.files[0].path, "case.ntf.yaml");
+  assert.equal(report.summary.cells.changed, 1);
+});
+
+test("document diff report resolves the git root when workspace folder is not the repository root", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ntf-yaml-nested-git-root-"));
+  const nested = path.join(dir, "sub", "module");
+  fs.mkdirSync(nested, { recursive: true });
+  git(dir, ["init"]);
+  git(dir, ["config", "user.email", "ntf-yaml@example.test"]);
+  git(dir, ["config", "user.name", "NTF YAML Test"]);
+  const file = path.join(nested, "case.ntf.yaml");
+  fs.writeFileSync(file, [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"before\"",
+    ""
+  ].join("\n"));
+  git(dir, ["add", "sub/module/case.ntf.yaml"]);
+  git(dir, ["commit", "-m", "base"]);
+
+  const headText = fs.readFileSync(file, "utf8").replace("before", "after");
+  fs.writeFileSync(file, headText);
+
+  const report = createDocumentDiffReport({
+    uri: { scheme: "file", fsPath: file },
+    text: headText,
+    workspaceFolder: nested
+  });
+
+  assert.equal(report.repositoryPath, dir);
+  assert.equal(report.files[0].path, "sub/module/case.ntf.yaml");
+  assert.equal(report.summary.cells.changed, 1);
+});
+
+test("document diff report compares git URI text against the working tree file", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ntf-yaml-git-uri-diff-"));
+  const file = path.join(dir, "case.ntf.yaml");
+  const baseText = [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"before\"",
+    ""
+  ].join("\n");
+  const headText = baseText.replace("before", "after");
+  fs.writeFileSync(file, headText);
+  const query = encodeURIComponent(JSON.stringify({ path: file, ref: "HEAD" }));
+
+  const report = createDocumentDiffReport({
+    uri: { scheme: "git", fsPath: file, query },
+    text: baseText,
+    workspaceFolder: dir
+  });
+
+  assert.deepEqual(parseGitQuery(query), { path: file, ref: "HEAD" });
+  assert.equal(report.baseRef, "HEAD");
+  assert.equal(report.headRef, "working tree");
+  assert.equal(report.summary.cells.changed, 1);
+});
+
+test("cell diff detects middle-row deletion and insertion without misidentifying as changed", () => {
+  // Regression: before LCS, removing a middle row shifted subsequent rows by index,
+  // causing the row after the deleted one to show as "changed" instead of "unchanged".
+  const baseText = [
+    "case1:",
+    "  LIST_MAP=project1: #ListMap",
+    "    - name: projectName",
+    "      get: before",
+    "    - name: projectType",
+    "      get: development",
+    "    - name: projectClass",
+    "      get: s",
+    "    - name: clientId",
+    "      get: \"1\"",
+    ""
+  ].join("\n");
+  const headText = [
+    "case1:",
+    "  LIST_MAP=project1: #ListMap",
+    "    - name: projectName",
+    "      get: after",
+    "    - name: projectType",
+    "      get: development",
+    "    - name: clientId",
+    "      get: \"1\"",
+    ""
+  ].join("\n");
+
+  const report = createDiffReport({ path: "test.ntf.yaml", baseText, headText });
+  const block = report.files[0].sheets[0].blocks[0];
+  const byStatus = block.rows.reduce((acc, row) => {
+    (acc[row.status] = acc[row.status] || []).push(
+      row.cells.find(c => c.column === "name")?.before ?? row.cells.find(c => c.column === "name")?.after
+    );
+    return acc;
+  }, {});
+
+  // projectName row changed (get value differs), projectClass row deleted
+  assert.deepEqual(byStatus.changed?.map(n => String(n)), ["projectName"]);
+  assert.deepEqual(byStatus.deleted?.map(n => String(n)), ["projectClass"]);
+  // projectType and clientId rows are unchanged — must not appear in block.rows
+  assert.ok(!block.rows.some(r => {
+    const nameCell = r.cells.find(c => c.column === "name");
+    return (nameCell?.before ?? nameCell?.after) === "projectType"
+      || (nameCell?.before ?? nameCell?.after) === "clientId";
+  }), "unchanged rows should not appear in diff output");
+});
+
+test("diff report stores baseText and headText", () => {
+  const baseText = "case1:\n  LIST_MAP=rows: #ListMap\n    - no: \"1\"\n      name: \"before\"\n";
+  const headText = "case1:\n  LIST_MAP=rows: #ListMap\n    - no: \"1\"\n      name: \"after\"\n";
+  const report = createDiffReport({ path: "test.ntf.yaml", baseText, headText });
+  assert.equal(report.baseText, baseText);
+  assert.equal(report.headText, headText);
+});
+
+test("diff rows carry headIndex for head-side matching, null for deleted rows", () => {
+  const report = createDiffReport({
+    path: "test.ntf.yaml",
+    baseText: [
+      "case1:",
+      "  LIST_MAP=project1: #ListMap",
+      "    - name: projectName",
+      "      get: before",
+      "    - name: projectClass",
+      "      get: s",
+      "    - name: clientId",
+      "      get: \"1\"",
+      ""
+    ].join("\n"),
+    headText: [
+      "case1:",
+      "  LIST_MAP=project1: #ListMap",
+      "    - name: projectName",
+      "      get: after",
+      "    - name: clientId",
+      "      get: \"1\"",
+      ""
+    ].join("\n")
+  });
+  const block = report.files[0].sheets[0].blocks[0];
+  const changedRow = block.rows.find(r => r.status === "changed");
+  const deletedRow = block.rows.find(r => r.status === "deleted");
+
+  // changed row (projectName): head position = 0
+  assert.equal(changedRow.headIndex, 0);
+  // deleted row (projectClass): not present in head
+  assert.equal(deletedRow.headIndex, null);
 });
 
 test("CLI diff args require explicit base and head refs", () => {

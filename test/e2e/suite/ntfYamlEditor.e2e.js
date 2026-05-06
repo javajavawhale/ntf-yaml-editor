@@ -7,8 +7,8 @@ const vscode = require("vscode");
 const extensionId = "local.ntf-yaml-editor";
 const extensionRoot = path.resolve(__dirname, "..", "..", "..");
 const sampleFixtures = {
-  webProjectAction: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "web-project-action-request.yaml"),
-  webProjectBulkAction: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "web-project-bulk-action-request.yaml")
+  webProjectAction: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "web-project-action-request.ntf.yaml"),
+  webProjectBulkAction: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "web-project-bulk-action-request.ntf.yaml")
 };
 
 function delay(ms) {

@@ -15,7 +15,11 @@
   "activationEvents": [
     "onCustomEditor:ntfYaml.editor",
     "onCommand:ntfYaml.openAsTable",
-    "onCommand:ntfYaml.generateDiffReport"
+    "onCommand:ntfYaml.generateDiffReport",
+    "onCommand:ntfYaml.openCellDiff"
+  ],
+  "extensionDependencies": [
+    "vscode.git"
   ],
   "main": "./extension.js",
   "bin": {
@@ -51,8 +55,57 @@
       {
         "command": "ntfYaml.generateDiffReport",
         "title": "NTF YAML: Generate Cell Diff Report"
+      },
+      {
+        "command": "ntfYaml.openCellDiff",
+        "title": "NTF YAML: Open Cell Diff"
       }
-    ]
+    ],
+    "menus": {
+      "scm/resourceGroup/context": [
+        {
+          "command": "ntfYaml.openCellDiff",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "navigation"
+        },
+        {
+          "command": "ntfYaml.openCellDiff",
+          "when": "scmProvider == git && scmResourceGroup == index",
+          "group": "navigation"
+        }
+      ],
+      "scm/resourceFolder/context": [
+        {
+          "command": "ntfYaml.openCellDiff",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "navigation"
+        },
+        {
+          "command": "ntfYaml.openCellDiff",
+          "when": "scmProvider == git && scmResourceGroup == index",
+          "group": "navigation"
+        }
+      ],
+      "scm/resourceState/context": [
+        {
+          "command": "ntfYaml.openCellDiff",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "navigation"
+        },
+        {
+          "command": "ntfYaml.openCellDiff",
+          "when": "scmProvider == git && scmResourceGroup == index",
+          "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "ntfYaml.openCellDiff",
+          "when": "resourceFilename =~ /\\.ya?ml$/",
+          "group": "navigation@9"
+        }
+      ]
+    }
   },
   "devDependencies": {
     "@vscode/test-electron": "^2.5.2",

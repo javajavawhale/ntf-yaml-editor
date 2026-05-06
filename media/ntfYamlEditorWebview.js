@@ -11,6 +11,9 @@
     const vscode = options.vscode;
     const document = root.ownerDocument;
     let state = model.parseYaml(options.initialText || "");
+    let diffReport = options.initialDiffReport || null;
+    const readOnly = Boolean(options.readOnly);
+    const diffSide = options.diffSide != null ? options.diffSide : (readOnly ? "base" : "head");
     let nextId = 1;
     let activeSheetId = "";
     ensureIds(state);
@@ -20,6 +23,7 @@
       if (event.data.type === "update") {
         const activeName = activeSheet()?.name;
         state = model.parseYaml(event.data.text);
+        diffReport = event.data.diffReport || null;
         ensureIds(state);
         activeSheetId = state.sheets.find(sheet => sheet.name === activeName)?._id
           ?? state.sheets[0]?._id
@@ -45,24 +49,31 @@
       const title = document.createElement("h1");
       title.textContent = "NTF YAML";
       aside.append(title);
-      aside.append(renderSaveControl());
-      aside.append(renderAddSheetForm());
+      if (!readOnly) {
+        aside.append(renderSaveControl());
+        aside.append(renderAddSheetForm());
+      }
       for (const item of state.sheets) {
         const itemWrapper = document.createElement("div");
         itemWrapper.className = "sheet-item";
-        itemWrapper.draggable = true;
-        attachDragSort(itemWrapper, state.sheets, item, () => { activeSheetId = item._id; });
+        itemWrapper.draggable = !readOnly;
+        if (!readOnly) {
+          attachDragSort(itemWrapper, state.sheets, item, () => { activeSheetId = item._id; });
+        }
         const sheetControl = item._id === activeSheetId
           ? renderActiveSheetNameInput(item)
           : renderSheetSelector(item);
-        const deleteBtn = smallButton(CLOSE_SVG, "Delete sheet", () => {
-          const index = state.sheets.indexOf(item);
-          state.sheets.splice(index, 1);
-          activeSheetId = state.sheets[Math.max(0, index - 1)]?._id ?? "";
-          render();
-        }, "danger ghost compact table-delete-button");
-        deleteBtn.dataset.action = "delete-sheet";
-        itemWrapper.append(sheetControl, deleteBtn);
+        itemWrapper.append(sheetControl);
+        if (!readOnly) {
+          const deleteBtn = smallButton(CLOSE_SVG, "Delete sheet", () => {
+            const index = state.sheets.indexOf(item);
+            state.sheets.splice(index, 1);
+            activeSheetId = state.sheets[Math.max(0, index - 1)]?._id ?? "";
+            render();
+          }, "danger ghost compact table-delete-button");
+          deleteBtn.dataset.action = "delete-sheet";
+          itemWrapper.append(deleteBtn);
+        }
         aside.append(itemWrapper);
       }
 
@@ -71,8 +82,13 @@
         empty.textContent = "No sheets found.";
         main.append(empty);
       } else {
+        if (diffReport) {
+          main.append(renderDiffLegend());
+        }
         main.append(renderSheetHeader(sheet));
-        main.append(renderAddBlockForm(sheet));
+        if (!readOnly) {
+          main.append(renderAddBlockForm(sheet));
+        }
         for (const block of sheet.blocks) {
           main.append(renderBlock(sheet, block));
         }
@@ -114,7 +130,10 @@
       const button = document.createElement("button");
       button.className = "sheet";
       button.dataset.sheetName = sheet.name;
-      button.append(createDragHandle());
+      applyDiffClass(button, findDiffSheet(sheet.name)?.status, "diff-sheet");
+      if (!readOnly) {
+        button.append(createDragHandle());
+      }
       button.append(document.createTextNode(sheet.name || "(unnamed sheet)"));
       button.onclick = () => {
         activeSheetId = sheet._id;
@@ -127,10 +146,14 @@
       const container = document.createElement("div");
       container.className = "sheet active";
       container.dataset.sheetName = sheet.name;
-      container.append(createDragHandle());
+      applyDiffClass(container, findDiffSheet(sheet.name)?.status, "diff-sheet");
+      if (!readOnly) {
+        container.append(createDragHandle());
+      }
       const input = document.createElement("input");
       input.dataset.role = "sheet-name";
       input.value = sheet.name;
+      input.readOnly = readOnly;
       input.placeholder = "Sheet name";
       input.onchange = () => renameSheet(sheet, input.value);
       container.append(input);
@@ -140,6 +163,7 @@
     function renderSheetHeader(sheet) {
       const header = document.createElement("div");
       header.className = "sheet-header";
+      applyDiffClass(header, findDiffSheet(sheet.name)?.status, "diff-sheet");
       const title = document.createElement("h2");
       title.textContent = sheet.name || "(unnamed sheet)";
       header.append(title);
@@ -181,19 +205,26 @@
       const wrapper = document.createElement("section");
       wrapper.className = "block";
       wrapper.dataset.blockName = block.name;
-      wrapper.draggable = true;
-      attachDragSort(wrapper, sheet.blocks, block);
+      wrapper.draggable = !readOnly;
+      if (!readOnly) {
+        attachDragSort(wrapper, sheet.blocks, block);
+      }
+      const diffBlock = findDiffBlock(sheet.name, block.name);
+      applyDiffClass(wrapper, diffBlock?.status, "diff-block");
       const header = document.createElement("div");
       header.className = "block-header";
-      header.append(createDragHandle());
+      if (!readOnly) {
+        header.append(createDragHandle());
+      }
       const name = document.createElement("input");
       name.className = "block-name";
       name.dataset.role = "block-name";
       name.value = block.name;
+      name.readOnly = readOnly;
       name.onchange = () => renameBlock(sheet, block, name.value);
       header.append(name);
 
-      if (model.isTableBlock(block.name)) {
+      if (!readOnly && model.isTableBlock(block.name)) {
         const actions = document.createElement("div");
         actions.className = "block-actions";
         const addRow = document.createElement("button");
@@ -222,7 +253,7 @@
         actions.append(addRow, addColumn);
         header.append(actions);
         header.append(renderDeleteBlockButton(sheet, block));
-      } else if (model.isRawRowsBlock(block.name)) {
+      } else if (!readOnly && model.isRawRowsBlock(block.name)) {
         const actions = document.createElement("div");
         actions.className = "block-actions";
         const addRow = document.createElement("button");
@@ -251,14 +282,14 @@
         actions.append(addRow, addColumn);
         header.append(actions);
         header.append(renderDeleteBlockButton(sheet, block));
-      } else {
+      } else if (!readOnly) {
         header.append(renderDeleteBlockButton(sheet, block));
       }
       wrapper.append(header);
 
       if (!model.isTableBlock(block.name)) {
         if (model.isRawRowsBlock(block.name)) {
-          wrapper.append(renderRawRowsTable(block));
+          wrapper.append(renderRawRowsTable(block, diffBlock));
           return wrapper;
         }
         const raw = document.createElement("pre");
@@ -279,13 +310,15 @@
       for (const col of cols) {
         const th = document.createElement("th");
         th.className = "table-header-cell";
-        th.draggable = true;
-        attachIndexDragSort(th, () => model.columns(block).length, cols.indexOf(col), (from, to) => {
-          const order = model.columns(block);
-          moveItem(order, from, to);
-          block.columnOrder = order;
-          render();
-        });
+        th.draggable = !readOnly;
+        if (!readOnly) {
+          attachIndexDragSort(th, () => model.columns(block).length, cols.indexOf(col), (from, to) => {
+            const order = model.columns(block);
+            moveItem(order, from, to);
+            block.columnOrder = order;
+            render();
+          });
+        }
         const thInner = document.createElement("div");
         thInner.className = "th-inner";
         const thContent = document.createElement("div");
@@ -293,13 +326,17 @@
         const input = document.createElement("input");
         input.dataset.role = "column-name";
         input.value = col;
+        input.readOnly = readOnly;
         input.onchange = () => renameColumn(block, col, input.value);
         thContent.append(input);
-        thInner.append(createDragHandle("h"), thContent);
-        th.append(
-          thInner,
-          smallButton(CLOSE_SVG, "Delete column", () => deleteColumn(block, col), "danger ghost compact table-delete-button")
-        );
+        if (!readOnly) {
+          thInner.append(createDragHandle("h"));
+        }
+        thInner.append(thContent);
+        th.append(thInner);
+        if (!readOnly) {
+          th.append(smallButton(CLOSE_SVG, "Delete column", () => deleteColumn(block, col), "danger ghost compact table-delete-button"));
+        }
         headRow.append(th);
       }
       thead.append(headRow);
@@ -308,23 +345,36 @@
       const tbody = document.createElement("tbody");
       block.rows.forEach((row, index) => {
         const tr = document.createElement("tr");
-        tr.draggable = true;
-        attachDragSort(tr, block.rows, row);
+        const diffRow = findDiffRow(diffBlock, tableRowKey(row, index));
+        applyDiffClass(tr, diffRow?.status, "diff-row");
+        tr.draggable = !readOnly;
+        if (!readOnly) {
+          attachDragSort(tr, block.rows, row);
+        }
         const actionTd = document.createElement("td");
         actionTd.className = "row-actions-cell";
         const rowActionsInner = document.createElement("div");
         rowActionsInner.className = "row-actions-inner";
-        rowActionsInner.append(createDragHandle());
-        actionTd.append(
-          rowActionsInner,
-          smallButton(CLOSE_SVG, "Delete row", () => deleteRow(block, index), "danger ghost compact table-delete-button")
-        );
+        if (!readOnly) {
+          rowActionsInner.append(createDragHandle());
+          actionTd.append(
+            rowActionsInner,
+            smallButton(CLOSE_SVG, "Delete row", () => deleteRow(block, index), "danger ghost compact table-delete-button")
+          );
+        }
         tr.append(actionTd);
         cols.forEach(col => {
           const td = document.createElement("td");
+          const diffCell = findDiffCell(diffRow, col);
+          applyDiffClass(td, diffCell?.status, "diff-cell");
+          setDiffStatus(td, diffCell?.status);
           const input = document.createElement("input");
           input.dataset.column = col;
           input.value = row[col] ?? "";
+          input.readOnly = readOnly;
+          if (diffCell?.status && diffCell.status !== "unchanged") {
+            input.title = "before: " + valueText(diffCell.before);
+          }
           input.oninput = () => {
             row[col] = input.value;
           };
@@ -339,7 +389,7 @@
       return wrapper;
     }
 
-    function renderRawRowsTable(block) {
+    function renderRawRowsTable(block, diffBlock) {
       const scroll = document.createElement("div");
       scroll.className = "table-scroll";
       const table = document.createElement("table");
@@ -353,15 +403,19 @@
       for (let i = 0; i < maxCols; i++) {
         const th = document.createElement("th");
         th.className = "table-header-cell";
-        th.draggable = true;
-        attachIndexDragSort(th, () => rawWidth(block), i, (from, to) => moveRawColumnTo(block, from, to));
+        th.draggable = !readOnly;
+        if (!readOnly) {
+          attachIndexDragSort(th, () => rawWidth(block), i, (from, to) => moveRawColumnTo(block, from, to));
+        }
         const thInner = document.createElement("div");
         thInner.className = "th-inner";
-        thInner.append(createDragHandle("h"));
-        th.append(
-          thInner,
-          smallButton(CLOSE_SVG, "Delete raw column", () => deleteRawColumn(block, i), "danger ghost compact table-delete-button")
-        );
+        if (!readOnly) {
+          thInner.append(createDragHandle("h"));
+        }
+        th.append(thInner);
+        if (!readOnly) {
+          th.append(smallButton(CLOSE_SVG, "Delete raw column", () => deleteRawColumn(block, i), "danger ghost compact table-delete-button"));
+        }
         headRow.append(th);
       }
       thead.append(headRow);
@@ -372,22 +426,33 @@
         const tr = document.createElement("tr");
         const rowView = rawRowView(row, sectionState);
         tr.className = rowView.className;
-        tr.draggable = true;
-        attachDragSort(tr, block.rows, row);
+        const diffRow = findDiffRow(diffBlock, String(ri));
+        applyDiffClass(tr, diffRow?.status, "diff-row");
+        tr.draggable = !readOnly;
+        if (!readOnly) {
+          attachDragSort(tr, block.rows, row);
+        }
         const tdIdx = document.createElement("td");
         tdIdx.className = "row-actions-cell";
         const rawActionsInner = document.createElement("div");
         rawActionsInner.className = "row-actions-inner";
-        rawActionsInner.append(createDragHandle());
-        tdIdx.append(
-          rawActionsInner,
-          smallButton(CLOSE_SVG, "Delete raw row", () => deleteRow(block, ri), "danger ghost compact table-delete-button")
-        );
+        if (!readOnly) {
+          rawActionsInner.append(createDragHandle());
+          tdIdx.append(
+            rawActionsInner,
+            smallButton(CLOSE_SVG, "Delete raw row", () => deleteRow(block, ri), "danger ghost compact table-delete-button")
+          );
+        }
         tr.append(tdIdx);
         for (let ci = 0; ci < row.length; ci++) {
           const td = document.createElement("td");
+          const diffCell = findDiffCell(diffRow, String(ci));
+          applyDiffClass(td, diffCell?.status, "diff-cell");
+          setDiffStatus(td, diffCell?.status);
           if (ci === 0) {
             td.className = "raw-key-cell";
+            applyDiffClass(td, diffCell?.status, "diff-cell");
+            setDiffStatus(td, diffCell?.status);
             if (rowView.lockFirstCell) {
               tr.append(td);
               continue;
@@ -400,6 +465,10 @@
           input.dataset.rawRow = String(ri);
           input.dataset.rawColumn = String(ci);
           input.value = row[ci] ?? "";
+          input.readOnly = readOnly;
+          if (diffCell?.status && diffCell.status !== "unchanged") {
+            input.title = "before: " + valueText(diffCell.before);
+          }
           (function(r, idx) {
             input.oninput = function() {
               r[idx] = input.value;
@@ -609,6 +678,65 @@
       return state.sheets.find(item => item._id === activeSheetId)
         ?? state.sheets[0]
         ?? null;
+    }
+
+    function findDiffBlock(sheetName, blockName) {
+      const file = diffReport?.files?.[0];
+      const sheet = findDiffSheet(sheetName);
+      return sheet?.blocks?.find(item => item.name === blockName) || null;
+    }
+
+    function findDiffSheet(sheetName) {
+      const file = diffReport?.files?.[0];
+      return file?.sheets?.find(item => item.name === sheetName) || null;
+    }
+
+    function findDiffRow(block, key) {
+      if (!block?.rows) return null;
+      if (diffSide === "base") {
+        return block.rows.find(item => item.key === key) || null;
+      }
+      return block.rows.find(item => item.headIndex !== null && item.headIndex !== undefined && String(item.headIndex) === key) || null;
+    }
+
+    function findDiffCell(row, column) {
+      return row?.cells?.find(item => item.column === column) || null;
+    }
+
+    function tableRowKey(row, index) {
+      return String(index);
+    }
+
+    function applyDiffClass(element, status, prefix) {
+      if (status && status !== "unchanged") {
+        element.classList.add(prefix + "-" + status);
+      }
+    }
+
+    function setDiffStatus(element, status) {
+      if (status && status !== "unchanged") {
+        element.dataset.diffStatus = status;
+      }
+    }
+
+    function valueText(value) {
+      return value === null ? "~" : String(value ?? "");
+    }
+
+    function renderDiffLegend() {
+      const legend = document.createElement("div");
+      legend.className = "diff-legend";
+      for (const [status, label] of [["added", "追加"], ["changed", "変更"], ["deleted", "削除"]]) {
+        const item = document.createElement("span");
+        item.className = "diff-legend-item";
+        const swatch = document.createElement("span");
+        swatch.className = "diff-legend-swatch diff-legend-" + status;
+        const text = document.createElement("span");
+        text.textContent = label;
+        item.append(swatch, text);
+        legend.append(item);
+      }
+      return legend;
     }
 
     function attachDragSort(element, items, item, afterMove) {

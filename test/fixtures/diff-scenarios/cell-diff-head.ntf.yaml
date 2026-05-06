@@ -1,0 +1,28 @@
+changedSheet:
+  LIST_MAP=changedRows: #ListMap
+    - no: "1"
+      name: "after cell"
+      note: "same"
+      addedColumn: "new cell"
+    - no: "3"
+      name: "added row"
+      note: "head only"
+
+  SETUP_TABLE=ADDED_BLOCK: #ListMap
+    - ID: "9"
+      NAME: "added block row"
+
+blockOnlySheet:
+  LIST_MAP=stableBlock: #ListMap
+    - no: "1"
+      name: "stable"
+
+  EXPECTED_TABLE=CHANGED_BLOCK: #ListMap
+    - ID: "1"
+      VALUE: "after block cell"
+
+addedSheet:
+  LIST_MAP=addedSheetRows: #ListMap
+    - no: "1"
+      name: "added sheet row"
+

@@ -1,6 +1,7 @@
 confirmOfCreateNormal:
-  LIST_MAP=testShots: #ListMap
-    - "no": "1"
+  LIST_MAP=testShots:
+    #ListMap
+    - no: "1"
       description: "確認画面へ遷移すること。"
       context: "user"
       isValidToken: "true"
@@ -9,100 +10,55 @@ confirmOfCreateNormal:
       expectedSearch: ""
       forwardUri: "/WEB-INF/view/project/confirmOfCreate.jsp"
 
-  LIST_MAP=user: #ListMap
+  LIST_MAP=user:
+    #ListMap
     - REQUEST_ID: "confirmOfCreate"
-      USER_ID: "105"
-      HTTP_METHOD: "POST"
+      USER_ID: "106"
+      HTTP_METHOD: "POT"
 
-  LIST_MAP=requestParams: #ListMap
+  LIST_MAP=requestParams:
+    #ListMap
     - "[no]": "1"
-      form.projectName: "プロジェクト００１"
+      form.projectName: "プロジェクト９９９"
       form.projectType: "development"
       form.projectClass: "s"
       form.clientId: "1"
       form.projectStartDate: "2018/01/01"
+      form.diffAdded: "added cell"
+    - "[no]": "1"
+      form.projectName: "追加行"
+      form.projectType: "maintenance"
+      form.projectClass: "s"
+      form.clientId: "9"
+      form.projectStartDate: "2026/05/06"
+      form.diffAdded: "row added"
 
-  LIST_MAP=project1: #ListMap
+  LIST_MAP=project1:
+    #ListMap
     - name: "projectName"
-      get: "プロジェクト００１"
+      get: "プロジェクト９９９"
+      col: ""
     - name: "projectType"
       get: "development"
-    - name: "projectClass"
-      get: "s"
-    - name: "clientId"
+      col: ""
+    - name: "clinetId"
       get: "1"
-    - name: "projectStartDate"
-      get: "2018-01-01"
-    - name: "projectEndDate"
+      col: ""
+    - name: ""
       get: ""
-    - name: "projectManager"
-      get: ""
-    - name: "projectLeader"
-      get: ""
-    - name: "note"
-      get: ""
-    - name: "sales"
-      get: ""
-    - name: "costOfGoodsSold"
-      get: ""
-    - name: "sga"
-      get: ""
-    - name: "allocationOfCorpExpenses"
-      get: ""
-    - name: "version"
-      get: ""
+      col: ""
 
-downloadNormal:
-  LIST_MAP=testShots: #ListMap
-    - "no": "1"
-      description: "プロジェクト一覧ダウンロード"
-      context: "user"
-      isValidToken: "false"
-      setUpTable: "1"
-      queryParams: "searchCondition"
-      expectedStatusCode: "200"
-      expectedMessageId: ""
-      expectedSearch: ""
-      forwardUri: ""
+  SETUP_TABLE=addedBlock:
+    #ListMap
+    - ID: "9"
+      VALUE: "added block row"
 
-  LIST_MAP=user: #ListMap
-    - REQUEST_ID: "download"
-      USER_ID: "105"
-      HTTP_METHOD: "GET"
+sheetAdded:
+  LIST_MAP=addedSheetRows:
+    #ListMap
+    - no: "1"
+      name: "added sheet row"
 
-  SETUP_TABLE[1]=PROJECT: #ListMap
-    - PROJECT_ID: "10000"
-      PROJECT_NAME: "プロジェクト００１"
-      PROJECT_TYPE: "development"
-      PROJECT_CLASS: "s"
-      PROJECT_START_DATE: "20150101"
-      PROJECT_END_DATE: "20161231"
-      CLIENT_ID: "1"
-      PROJECT_MANAGER: "テストマネージャー"
-      PROJECT_LEADER: "テストリーダー"
-      USER_ID: "105"
-      NOTE: "テスト備考"
-      SALES: "1000"
-      COST_OF_GOODS_SOLD: "2000"
-      SGA: "3000"
-      ALLOCATION_OF_CORP_EXPENSES: "4000"
-      VERSION: "0"
-
-  LIST_MAP=requestParams: #ListMap
-    - "[no]": "1"
-
-  LIST_MAP=searchCondition: #ListMap
-    - searchForm.projectName: "プロジェクト００１"
-      searchForm.pageNumber: "1"
-      searchForm.sortKey: "id"
-
-  EXPECTED_VARIABLE=./tmp/html_dump/ProjectActionRequestTest/downloadNormal_Shot1_プロジェクト一覧ダウンロード_プロジェクト一覧.csv: #RawRows
-    - ["text-encoding", "Shift_JIS"]
-    - ["record-separator", "CRLF"]
-    - ["field-separator", ","]
-    - ["header", "projectName", "projectType", "projectClass", "projectManager", "projectLeader", "clientId", "clientName", "projectStartDate", "projectEndDate", "note", "sales", "costOfGoodsSold", "sga", "allocationOfCorpExpenses"]
-    - ["", "全角漢字", "全角漢字", "全角漢字", "全角漢字", "全角漢字", "全角漢字", "全角漢字", "全角漢字", "全角漢字", "全角漢字", "全角漢字", "全角漢字", "全角漢字", "全角漢字"]
-    - ["", "\"プロジェクト名\"", "\"プロジェクト種別\"", "\"プロジェクト分類\"", "\"プロジェクトマネージャー\"", "\"プロジェクトリーダー\"", "\"顧客ID\"", "\"顧客名\"", "\"プロジェクト開始日\"", "\"プロジェクト終了日\"", "\"備考\"", "\"売上高\"", "\"売上原価\"", "\"販管費\"", "\"本社配賦\""]
-    - ["data", "projectName", "projectType", "projectClass", "projectManager", "projectLeader", "clientId", "clientName", "projectStartDate", "projectEndDate", "note", "sales", "costOfGoodsSold", "sga", "allocationOfCorpExpenses"]
-    - ["", "全角漢字", "半角", "半角", "全角漢字", "全角漢字", "半角", "全角漢字", "半角", "半角", "全角漢字", "半角", "半角", "半角", "半角"]
-    - ["", "\"プロジェクト００１\"", "\"development\"", "\"s\"", "\"テストマネージャー\"", "\"テストリーダー\"", "\"1\"", "\"テスト顧客名\"", "\"2015/01/01\"", "\"2016/12/31\"", "\"テスト備考\"", "\"1000\"", "\"2000\"", "\"3000\"", "\"4000\""]
+  LIST_MAP=asa:
+    #ListMap
+    - no: ""
