@@ -62,7 +62,8 @@
           render();
         }, "danger ghost compact table-delete-button");
         deleteBtn.dataset.action = "delete-sheet";
-        itemWrapper.append(sheetControl, deleteBtn);
+        sheetControl.append(deleteBtn);
+        itemWrapper.append(sheetControl);
         aside.append(itemWrapper);
       }
 
@@ -111,23 +112,26 @@
     }
 
     function renderSheetSelector(sheet) {
-      const button = document.createElement("button");
-      button.className = "sheet";
-      button.dataset.sheetName = sheet.name;
-      button.append(createDragHandle());
-      button.append(document.createTextNode(sheet.name || "(unnamed sheet)"));
-      button.onclick = () => {
+      const div = document.createElement("div");
+      div.className = "sheet";
+      div.dataset.sheetName = sheet.name;
+      div.setAttribute("role", "button");
+      div.tabIndex = 0;
+      div.append(document.createTextNode(sheet.name || "(unnamed sheet)"));
+      div.onclick = () => {
         activeSheetId = sheet._id;
         render();
       };
-      return button;
+      div.onkeydown = (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); div.click(); }
+      };
+      return div;
     }
 
     function renderActiveSheetNameInput(sheet) {
       const container = document.createElement("div");
       container.className = "sheet active";
       container.dataset.sheetName = sheet.name;
-      container.append(createDragHandle());
       const input = document.createElement("input");
       input.dataset.role = "sheet-name";
       input.value = sheet.name;
