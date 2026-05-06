@@ -185,7 +185,6 @@
       attachDragSort(wrapper, sheet.blocks, block);
       const header = document.createElement("div");
       header.className = "block-header";
-      header.append(createDragHandle());
       const name = document.createElement("input");
       name.className = "block-name";
       name.dataset.role = "block-name";
@@ -274,20 +273,27 @@
       const thead = document.createElement("thead");
       const headRow = document.createElement("tr");
       const actionHead = document.createElement("th");
-      actionHead.className = "row-actions-cell table-header-cell";
+      actionHead.className = "row-actions-cell";
       headRow.append(actionHead);
       for (const col of cols) {
+        const colIndex = cols.indexOf(col);
         const th = document.createElement("th");
         th.className = "table-header-cell";
+        th.dataset.colIndex = String(colIndex);
         th.draggable = true;
-        attachIndexDragSort(th, () => model.columns(block).length, cols.indexOf(col), (from, to) => {
+        attachIndexDragSort(th, () => model.columns(block).length, colIndex, (from, to) => {
           const order = model.columns(block);
           moveItem(order, from, to);
           block.columnOrder = order;
           render();
         });
-        const thInner = document.createElement("div");
-        thInner.className = "th-inner";
+        const colActionBar = document.createElement("div");
+        colActionBar.className = "col-action-bar";
+        const colDragHandle = createDragHandle("h");
+        colActionBar.append(colDragHandle);
+        colActionBar.append(
+          smallButton(CLOSE_SVG, "Delete column", () => deleteColumn(block, col), "action-bar-delete")
+        );
         const thContent = document.createElement("div");
         thContent.className = "th-content";
         const input = document.createElement("input");
@@ -295,11 +301,7 @@
         input.value = col;
         input.onchange = () => renameColumn(block, col, input.value);
         thContent.append(input);
-        thInner.append(createDragHandle("h"), thContent);
-        th.append(
-          thInner,
-          smallButton(CLOSE_SVG, "Delete column", () => deleteColumn(block, col), "danger ghost compact table-delete-button")
-        );
+        th.append(colActionBar, thContent);
         headRow.append(th);
       }
       thead.append(headRow);
@@ -312,13 +314,14 @@
         attachDragSort(tr, block.rows, row);
         const actionTd = document.createElement("td");
         actionTd.className = "row-actions-cell";
-        const rowActionsInner = document.createElement("div");
-        rowActionsInner.className = "row-actions-inner";
-        rowActionsInner.append(createDragHandle());
-        actionTd.append(
-          rowActionsInner,
-          smallButton(CLOSE_SVG, "Delete row", () => deleteRow(block, index), "danger ghost compact table-delete-button")
+        const rowActionBar = document.createElement("div");
+        rowActionBar.className = "row-action-bar";
+        const rowDragHandle = createDragHandle();
+        rowActionBar.append(rowDragHandle);
+        rowActionBar.append(
+          smallButton(CLOSE_SVG, "Delete row", () => deleteRow(block, index), "action-bar-delete")
         );
+        actionTd.append(rowActionBar);
         tr.append(actionTd);
         cols.forEach(col => {
           const td = document.createElement("td");
@@ -334,6 +337,9 @@
         tbody.append(tr);
       });
       table.append(tbody);
+      attachTableFocus(table, headRow, input => {
+        return Array.from(input.closest("tr").children).indexOf(input.closest("td")) - 1;
+      });
       scroll.append(table);
       wrapper.append(scroll);
       return wrapper;
@@ -348,20 +354,22 @@
       const thead = document.createElement("thead");
       const headRow = document.createElement("tr");
       const thIdx = document.createElement("th");
-      thIdx.className = "row-actions-cell table-header-cell";
+      thIdx.className = "row-actions-cell";
       headRow.append(thIdx);
       for (let i = 0; i < maxCols; i++) {
         const th = document.createElement("th");
         th.className = "table-header-cell";
+        th.dataset.colIndex = String(i);
         th.draggable = true;
         attachIndexDragSort(th, () => rawWidth(block), i, (from, to) => moveRawColumnTo(block, from, to));
-        const thInner = document.createElement("div");
-        thInner.className = "th-inner";
-        thInner.append(createDragHandle("h"));
-        th.append(
-          thInner,
-          smallButton(CLOSE_SVG, "Delete raw column", () => deleteRawColumn(block, i), "danger ghost compact table-delete-button")
+        const colActionBar = document.createElement("div");
+        colActionBar.className = "col-action-bar";
+        const colDragHandle = createDragHandle("h");
+        colActionBar.append(colDragHandle);
+        colActionBar.append(
+          smallButton(CLOSE_SVG, "Delete raw column", () => deleteRawColumn(block, i), "action-bar-delete")
         );
+        th.append(colActionBar);
         headRow.append(th);
       }
       thead.append(headRow);
@@ -376,13 +384,14 @@
         attachDragSort(tr, block.rows, row);
         const tdIdx = document.createElement("td");
         tdIdx.className = "row-actions-cell";
-        const rawActionsInner = document.createElement("div");
-        rawActionsInner.className = "row-actions-inner";
-        rawActionsInner.append(createDragHandle());
-        tdIdx.append(
-          rawActionsInner,
-          smallButton(CLOSE_SVG, "Delete raw row", () => deleteRow(block, ri), "danger ghost compact table-delete-button")
+        const rowActionBar = document.createElement("div");
+        rowActionBar.className = "row-action-bar";
+        const rowDragHandle = createDragHandle();
+        rowActionBar.append(rowDragHandle);
+        rowActionBar.append(
+          smallButton(CLOSE_SVG, "Delete raw row", () => deleteRow(block, ri), "action-bar-delete")
         );
+        tdIdx.append(rowActionBar);
         tr.append(tdIdx);
         for (let ci = 0; ci < row.length; ci++) {
           const td = document.createElement("td");
@@ -417,6 +426,7 @@
         tbody.append(tr);
       });
       table.append(tbody);
+      attachTableFocus(table, headRow, input => parseInt(input.dataset.rawColumn ?? "0"));
       scroll.append(table);
       return scroll;
     }
@@ -452,6 +462,31 @@
       handle.setAttribute("aria-hidden", "true");
       handle.textContent = "⣿";
       return handle;
+    }
+
+    function attachTableFocus(table, headRow, getColIndex) {
+      let blurTimer = null;
+      table.querySelectorAll("tbody td input").forEach(input => {
+        input.addEventListener("focus", () => {
+          clearTimeout(blurTimer);
+          const tr = input.closest("tr");
+          const colIdx = getColIndex(input);
+          table.querySelectorAll("tr.row-focused").forEach(r => r.classList.remove("row-focused"));
+          table.querySelectorAll("th.col-focused").forEach(h => h.classList.remove("col-focused"));
+          tr.classList.add("row-focused");
+          const th = headRow.querySelector(`th[data-col-index="${colIdx}"]`);
+          if (th) th.classList.add("col-focused");
+        });
+        input.addEventListener("blur", () => {
+          blurTimer = setTimeout(() => {
+            table.querySelectorAll("tr.row-focused").forEach(r => r.classList.remove("row-focused"));
+            table.querySelectorAll("th.col-focused").forEach(h => h.classList.remove("col-focused"));
+          }, 200);
+        });
+      });
+      table.querySelectorAll(".action-bar-delete").forEach(btn => {
+        btn.addEventListener("mousedown", () => clearTimeout(blurTimer));
+      });
     }
 
     function renameSheet(sheet, to) {
