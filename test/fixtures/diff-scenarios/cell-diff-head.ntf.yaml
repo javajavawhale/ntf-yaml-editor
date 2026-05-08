@@ -1,16 +1,20 @@
+deletedSheet:
+  LIST_MAP=deletedSheetRows: #ListMap
+    - no: "1"
+      name: "deleted sheet row"
+
 changedSheet:
   LIST_MAP=changedRows: #ListMap
     - no: "1"
-      name: "after cell"
+      name: "before cell"
       note: "same"
-      addedColumn: "new cell"
-    - no: "3"
-      name: "added row"
-      note: "head only"
+    - no: "2"
+      name: "deleted row"
+      note: "base only"
 
-  SETUP_TABLE=ADDED_BLOCK: #ListMap
-    - ID: "9"
-      NAME: "added block row"
+  SETUP_TABLE=DELETED_BLOCK: #ListMap
+    - ID: "1"
+      NAME: "deleted block row"
 
 blockOnlySheet:
   LIST_MAP=stableBlock: #ListMap
@@ -19,10 +23,5 @@ blockOnlySheet:
 
   EXPECTED_TABLE=CHANGED_BLOCK: #ListMap
     - ID: "1"
-      VALUE: "after block cell"
-
-addedSheet:
-  LIST_MAP=addedSheetRows: #ListMap
-    - no: "1"
-      name: "added sheet row"
+      VALUE: "before block cell"
 
