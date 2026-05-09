@@ -115,7 +115,10 @@ function renderAppHtml(options) {
         window
       });
     </script>
-  `);
+  `, {
+    htmlClass: options.diffReport ? "scm-diff-html" : "",
+    bodyClass: options.diffReport ? "scm-diff-body" : ""
+  });
 }
 
 function renderCellDiffHtml(report, options) {
@@ -128,12 +131,15 @@ function renderCellDiffHtml(report, options) {
   const actions = options.controls
     ? '<button class="diff-control-btn secondary">Export HTML</button><button class="diff-control-btn secondary">Export All</button>'
     : "";
+  const panelHeader = options.controls
+    ? `<div class="diff-panel-header">
+        <div class="diff-panel-actions">${actions}</div>
+      </div>`
+    : "";
 
   return htmlDocument("NTF YAML Cell Diff", `
     <div class="diff-panel-shell">
-      <div class="diff-panel-header">
-        <div class="diff-panel-actions">${actions}</div>
-      </div>
+      ${panelHeader}
       <div class="diff-panel-container">
         <div class="diff-panel-pane">
           <div class="diff-panel-label">${baseHeader}</div>
@@ -169,30 +175,37 @@ function renderCellDiffHtml(report, options) {
         window
       });
     </script>
-  `);
+  `, { htmlClass: "diff-panel-html", bodyClass: "diff-panel-body" });
 }
 
-function htmlDocument(title, body) {
+function htmlDocument(title, body, options = {}) {
+  const htmlClass = options.htmlClass || "";
+  const bodyClass = options.bodyClass || "";
   return [
     "<!doctype html>",
-    '<html lang="en">',
+    htmlClass ? `<html lang="en" class="${escapeHtml(htmlClass)}">` : '<html lang="en">',
     "<head>",
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     `<title>${escapeHtml(title)}</title>`,
     "<style>",
     editorCss,
-    ".diff-panel-shell{display:flex;flex-direction:column;height:100vh;overflow:hidden}",
+    ".scm-diff-html,.scm-diff-body{width:100%;height:100%;margin:0;padding:0;overflow:hidden}",
+    ".scm-diff-body{display:flex;flex-direction:column}",
+    ".scm-diff-body>#root{flex:1;min-height:0;overflow:hidden}",
+    ".diff-panel-html,.diff-panel-body{width:100%;height:100%;margin:0;padding:0;overflow:hidden}",
+    ".diff-panel-shell{display:flex;flex-direction:column;width:100%;height:100%;overflow:hidden}",
     ".diff-panel-header{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap;padding:6px 10px;background:var(--vscode-editorGroupHeader-tabsBackground);border-bottom:1px solid var(--vscode-editorGroup-border,#ccc)}",
     ".diff-panel-actions{display:flex;align-items:center;gap:8px}",
     ".diff-panel-container{display:flex;flex:1;min-height:0;overflow:hidden}",
-    ".diff-panel-pane{flex:1;overflow:auto;min-width:0}",
+    ".diff-panel-pane{display:flex;flex:1;flex-direction:column;overflow:hidden;min-width:0}",
     ".diff-panel-pane+.diff-panel-pane{border-left:1px solid var(--vscode-editorGroup-border,#ccc)}",
     ".diff-panel-label{padding:0;font-size:12px;color:var(--vscode-descriptionForeground);background:var(--vscode-editorWidget-background,#f3f5f4);border-bottom:1px solid var(--vscode-editorGroup-border,#ccc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
     ".diff-panel-label .diff-ref-label{padding:4px 12px}",
+    ".diff-panel-pane>#base-root,.diff-panel-pane>#head-root{flex:1;min-height:0;overflow:auto}",
     "</style>",
     "</head>",
-    "<body>",
+    bodyClass ? `<body class="${escapeHtml(bodyClass)}">` : "<body>",
     body,
     "</body>",
     "</html>"

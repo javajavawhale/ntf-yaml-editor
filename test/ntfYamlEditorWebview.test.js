@@ -191,6 +191,7 @@ test("webview renders a read-only cell diff overlay", () => {
   const requestParams = block(root, "LIST_MAP=requestParams");
   const projectName = requestParams.querySelector('[data-column="form.projectName"]');
 
+  assert.ok(root.querySelector(".app").classList.contains("diff-app"));
   assert.equal(root.querySelector('[data-action="save"]'), null);
   assert.equal(root.querySelector('[data-action="add-sheet"]'), null);
   assert.equal(requestParams.querySelector('[data-action="add-row"]'), null);

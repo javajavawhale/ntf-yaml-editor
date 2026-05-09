@@ -48,6 +48,9 @@
 
       const app = document.createElement("div");
       app.className = "app";
+      if (readOnly && diffReport) {
+        app.classList.add("diff-app");
+      }
       const aside = document.createElement("aside");
       const main = document.createElement("main");
       app.append(aside, main);

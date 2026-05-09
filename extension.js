@@ -458,6 +458,13 @@ function renderHtmlDiffPanel(webview, report, options = {}) {
       '<span id="diff-ref-error" class="diff-panel-error"></span>'
     ].join("")
     : "";
+  const panelHeaderHtml = includeHeaderControls
+    ? `<div class="diff-panel-header">
+      <div class="diff-panel-actions">
+        ${actionsHtml}
+      </div>
+    </div>`
+    : "";
   const headerScript = includeHeaderControls ? `
     const baseRefInput = document.getElementById("diff-base-ref");
     const headRefInput = document.getElementById("diff-head-ref");
@@ -486,32 +493,30 @@ function renderHtmlDiffPanel(webview, report, options = {}) {
 ` : "";
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="diff-panel-html">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NTF YAML Cell Diff</title>
   <style nonce="${nonce}">
 ${editorCss}
-.diff-panel-shell{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.diff-panel-html,.diff-panel-body{width:100%;height:100%;margin:0;padding:0;overflow:hidden}
+.diff-panel-shell{display:flex;flex-direction:column;width:100%;height:100%;overflow:hidden}
 .diff-panel-header{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap;padding:6px 10px;background:var(--vscode-editorGroupHeader-tabsBackground);border-bottom:1px solid var(--vscode-editorGroup-border,#ccc)}
 .diff-panel-actions{display:flex;align-items:center;gap:8px}
 .diff-panel-error{color:var(--vscode-errorForeground,#c0392b);font-size:12px}
 .diff-ref-label{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--vscode-editor-font-family,monospace);color:var(--vscode-editor-foreground,#202124)}
 .diff-panel-container{display:flex;flex:1;min-height:0;overflow:hidden}
-.diff-panel-pane{flex:1;overflow:auto;min-width:0}
+.diff-panel-pane{display:flex;flex:1;flex-direction:column;overflow:hidden;min-width:0}
 .diff-panel-pane+.diff-panel-pane{border-left:1px solid var(--vscode-editorGroup-border,#ccc)}
 .diff-panel-label{padding:0;font-size:12px;color:var(--vscode-descriptionForeground);background:var(--vscode-editorWidget-background,#f3f5f4);border-bottom:1px solid var(--vscode-editorGroup-border,#ccc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .diff-panel-label .diff-ref-label{padding:4px 12px}
+.diff-panel-pane>#base-root,.diff-panel-pane>#head-root{flex:1;min-height:0;overflow:auto}
   </style>
 </head>
-<body>
+<body class="diff-panel-body">
   <div class="diff-panel-shell">
-    <div class="diff-panel-header">
-      <div class="diff-panel-actions">
-        ${actionsHtml}
-      </div>
-    </div>
+    ${panelHeaderHtml}
     <div class="diff-panel-container">
       <div class="diff-panel-pane">
         <div class="diff-panel-label">${baseRefHeaderHtml}</div>
@@ -578,16 +583,19 @@ function renderHtml(webview, initialText, options = {}) {
     : "";
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="${options.diffReport ? "scm-diff-html" : ""}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NTF YAML Editor</title>
   <style nonce="${nonce}">
 ${editorCss}
+.scm-diff-html,.scm-diff-body{width:100%;height:100%;margin:0;padding:0;overflow:hidden}
+.scm-diff-body{display:flex;flex-direction:column}
+.scm-diff-body>#root{flex:1;min-height:0;overflow:hidden}
   </style>
 </head>
-<body>
+<body class="${options.diffReport ? "scm-diff-body" : ""}">
   ${scmHeader}
   <div id="root"></div>
   <script nonce="${nonce}">
