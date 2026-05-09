@@ -1,146 +1,44 @@
-# NTF YAML Editor PoC
+# readme
 
-Nablarch NTF 用 YAML を表形式で編集する VS Code 拡張の PoC。
+// TODO: 暫定版
 
-## 前提
+## これはなに
 
-- Node.js 22 系で確認。
-- VS Code 1.85.0 以上。
-- 初回の E2E テストでは `@vscode/test-electron` が `.vscode-test/` にテスト用 VS Code を取得する。
+NTFでテストデータをyamlにしていい感じに開発できるようにすることを目指す、javajavawhaleの個人プロジェクトです。
 
-## 使い方
+- yamlテストデータの閲覧・編集を支援するVSCode拡張：PoC実装済
+- Excelテストデータをyaml化するマイグレーションスクリプト：未実装
+- 静的解析等のCLIツールチェイン：未実装
 
-1. VS Code で `vscode-ntf-yaml-editor` フォルダを開く。
-2. `F5` で Extension Development Host を起動する。
-3. `sample.yaml` などの YAML ファイルを通常どおり開く。
-4. セルを編集し、`Save YAML` を押す。
+yamlのフォーマットは、[yaml化したnablarch公式のサンプルリポジトリ](https://github.com/javajavawhale/nablarch-example-batch-ntf-yaml)に準じます。
 
-`.yaml` は既定で `NTF YAML Table Editor` として開く。YAML を通常のテキストエディタで開いている場合は、補助経路として `NTF YAML: Open as Table` を実行する。
+## 導入方法
 
-## CLI ツールチェイン
+//TODO: vsix配布・導入手順
 
-この PoC は VS Code エディタだけでなく、Excel から YAML へ移行し、変換後の YAML を静的解析する CLI も含む。
+## 背景
 
-`xlsx` を YAML に変換する。
+[Nablarch Testing Framework](https://nablarch.github.io/docs/LATEST/doc/development_tools/testing_framework/index.html)では、テストデータをExcelファイルに記載しますが、AIコーディングエージェントが普及してきた昨今、AIフレンドリーなフォーマット（yamlとします）への移行の機運が高まっています。一方、yamlでは人間の担当者向けの可読性が落ちます。
 
-```sh
-node ./bin/ntf-yaml.js convert path/to/TestData.xlsx -o path/to/TestData.yaml
-```
+このVSCode拡張では、yamlのテストデータの閲覧・編集を支援する機能を提供することで、
 
-旧形式の `xls` も同じ入口で変換する。
+- Excelのメリット：人間が直感的にテストデータを操作・確認できる
+- yamlのメリット：AIコーディングエージェントが扱いやすい
 
-```sh
-node ./bin/ntf-yaml.js convert path/to/TestData.xls -o path/to/TestData.yaml
-```
+の両立を目指します。
 
-変換直後に lint まで実行する。
+## 機能概要
 
-```sh
-node ./bin/ntf-yaml.js convert path/to/TestData.xlsx -o path/to/TestData.yaml --lint
-```
+### yamlテストデータエディタ
 
-既存 YAML を静的解析する。
+#### エディタの開き方
 
-```sh
-node ./bin/ntf-yaml.js lint path/to/TestData.yaml
-```
+デフォルトで
+	閲覧
+	編集
 
-YAML を共通モデル経由で再整形する。
+2つのバージョンのテストデータの差分表示
+	VSCodeのソース管理、エクスプローラーから表示します
+	htmlとしてレポートを書き出せます。レビュープロセスの中で、修正の証跡とする用途を想定しています
 
-```sh
-node ./bin/ntf-yaml.js format --write path/to/TestData.yaml
-```
 
-2 つの Git ref 間の NTF YAML 変更を、セル差分 HTML レポートとして生成する。
-
-```sh
-node ./bin/ntf-yaml.js diff --base HEAD~1 --head HEAD -o ntf-yaml-diff.html
-```
-
-VS Code からは `NTF YAML: Generate Cell Diff Report` でも同じレポートを生成できる。
-
-`xls` 変換は Python の `xlrd` を利用する。環境に `xlrd` がない場合は先にインストールする。
-単体テストで実 `.xls` fixture 生成まで確認する場合は Python の `xlwt` も必要。
-
-## 現在の対応範囲
-
-- トップレベルキーをシートとして表示する。
-- シート直下の `LIST_MAP`, `SETUP_TABLE`, `EXPECTED_TABLE` 系ブロックを表形式で編集する。
-- `SETUP_VARIABLE`, `EXPECTED_VARIABLE` 系ブロックを RawRows 表として表示・編集する。
-- シート追加、シート名変更、シート削除に対応する。
-- `LIST_MAP`, `SETUP_TABLE`, `EXPECTED_TABLE`, `SETUP_VARIABLE`, `EXPECTED_VARIABLE` ブロック追加に対応する。
-- ブロック名変更、ブロック削除に対応する。
-- 行追加、行移動、行削除、列追加、列移動、列削除、YAML 保存に対応する。
-- `"[no]"` のような YAML 上で注意が必要なキーを保存時にクォートする。
-- `~` と `""` を区別する。
-- Problems に NTF YAML の静的解析結果を表示する。
-- CLI から `xlsx` / `xls` を YAML に変換する。
-- CLI から `lint` / `format` を実行する。
-- CLI と VS Code から、明示した Git ref 同士のセル差分 HTML レポートを生成する。
-
-コメント保持、固定長ファイルブロックの専用編集、Excel への逆変換は未対応。
-
-## 開発
-
-依存関係を入れる。
-
-```sh
-npm install
-```
-
-単体テストのみ実行する。
-
-```sh
-npm run test:unit
-```
-
-VS Code Extension Host を使う E2E テストのみ実行する。
-
-```sh
-npm run test:e2e
-```
-
-単体テストと E2E テストをまとめて実行する。
-
-```sh
-npm test
-```
-
-WSL や sandbox 環境では Electron 起動に制限がかかる場合がある。その場合は sandbox 外で `npm run test:e2e` または `npm test` を実行する。
-
-## 配布
-
-当面は Marketplace 公開ではなく、VSIX ファイルで配布する。
-
-VSIX を作成する。
-
-```sh
-npm run package:vsix
-```
-
-出力先:
-
-```text
-dist/ntf-yaml-editor-0.0.1.vsix
-```
-
-配布先の VS Code でインストールする。
-
-```sh
-code --install-extension dist/ntf-yaml-editor-0.0.1.vsix
-```
-
-Windows 側の VS Code に入れる場合は、生成された `.vsix` を Windows から参照できる場所に置き、VS Code の `Extensions: Install from VSIX...` から選択してもよい。
-
-Marketplace 公開へ進める場合は、次を追加で決める。
-
-- 正式な publisher ID
-- README の利用者向け整備
-- LICENSE
-- CHANGELOG
-- アイコン
-- バージョン運用
-
-## テスト観点
-
-詳細は `docs/test-cases.md` を参照。
