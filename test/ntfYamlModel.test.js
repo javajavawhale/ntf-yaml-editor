@@ -774,6 +774,127 @@ test("ref diff report accepts working tree on the left side", () => {
   assert.equal(report.summary.cells.changed, 1);
 });
 
+test("ref diff report treats '~' as the git index and displays it as 'index'", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ntf-yaml-index-ref-diff-"));
+  git(dir, ["init"]);
+  git(dir, ["config", "user.email", "ntf-yaml@example.test"]);
+  git(dir, ["config", "user.name", "NTF YAML Test"]);
+  const file = path.join(dir, "case.ntf.yaml");
+  const committedText = [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"committed\"",
+    ""
+  ].join("\n");
+  fs.writeFileSync(file, committedText);
+  git(dir, ["add", "case.ntf.yaml"]);
+  git(dir, ["commit", "-m", "initial"]);
+
+  // Stage a modification (different from committed)
+  const stagedText = committedText.replace("committed", "staged");
+  fs.writeFileSync(file, stagedText);
+  git(dir, ["add", "case.ntf.yaml"]);
+
+  // Also modify working tree (different from staged)
+  const worktreeText = committedText.replace("committed", "worktree");
+  fs.writeFileSync(file, worktreeText);
+
+  // "~" should read from the staging area and display as "index"
+  const report = createRefDiffReport({
+    repositoryPath: dir,
+    relativePath: "case.ntf.yaml",
+    baseRef: "~",
+    headRef: "working tree"
+  });
+
+  assert.equal(report.baseRef, "index");
+  assert.equal(report.headRef, "working tree");
+  assert.match(report.baseText, /staged/);
+  assert.match(report.headText, /worktree/);
+  assert.equal(report.summary.cells.changed, 1);
+});
+
+test("ref diff report treats 'index' (display label) as the git index for re-querying", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ntf-yaml-index-label-diff-"));
+  git(dir, ["init"]);
+  git(dir, ["config", "user.email", "ntf-yaml@example.test"]);
+  git(dir, ["config", "user.name", "NTF YAML Test"]);
+  const file = path.join(dir, "case.ntf.yaml");
+  const committedText = [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"committed\"",
+    ""
+  ].join("\n");
+  fs.writeFileSync(file, committedText);
+  git(dir, ["add", "case.ntf.yaml"]);
+  git(dir, ["commit", "-m", "initial"]);
+
+  const stagedText = committedText.replace("committed", "staged");
+  fs.writeFileSync(file, stagedText);
+  git(dir, ["add", "case.ntf.yaml"]);
+
+  const worktreeText = committedText.replace("committed", "worktree");
+  fs.writeFileSync(file, worktreeText);
+
+  // "index" (the display label returned by a previous createRefDiffReport with "~")
+  // must also read from the staging area
+  const report = createRefDiffReport({
+    repositoryPath: dir,
+    relativePath: "case.ntf.yaml",
+    baseRef: "index",
+    headRef: "working tree"
+  });
+
+  assert.equal(report.baseRef, "index");
+  assert.equal(report.headRef, "working tree");
+  assert.match(report.baseText, /staged/);
+  assert.match(report.headText, /worktree/);
+  assert.equal(report.summary.cells.changed, 1);
+});
+
+test("document diff report uses '~' git URI ref and displays it as 'index' when staged", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ntf-yaml-git-uri-index-diff-"));
+  git(dir, ["init"]);
+  git(dir, ["config", "user.email", "ntf-yaml@example.test"]);
+  git(dir, ["config", "user.name", "NTF YAML Test"]);
+  const file = path.join(dir, "case.ntf.yaml");
+  const committedText = [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"committed\"",
+    ""
+  ].join("\n");
+  fs.writeFileSync(file, committedText);
+  git(dir, ["add", "case.ntf.yaml"]);
+  git(dir, ["commit", "-m", "initial"]);
+
+  const stagedText = committedText.replace("committed", "staged");
+  fs.writeFileSync(file, stagedText);
+  git(dir, ["add", "case.ntf.yaml"]);
+
+  const worktreeText = committedText.replace("committed", "worktree");
+  fs.writeFileSync(file, worktreeText);
+
+  // VSCode's git extension passes ref="~" for the index side of the diff
+  const query = encodeURIComponent(JSON.stringify({ path: file, ref: "~" }));
+  const report = createDocumentDiffReport({
+    uri: { scheme: "git", fsPath: file, query },
+    text: stagedText,
+    workspaceFolder: dir,
+    repositoryPath: dir
+  });
+
+  assert.equal(report.baseRef, "index");
+  assert.equal(report.headRef, "working tree");
+  assert.match(report.baseText, /staged/);
+  assert.match(report.headText, /worktree/);
+  assert.equal(report.summary.cells.changed, 1);
+});
+
 test("cell diff detects middle-row deletion and insertion without misidentifying as changed", () => {
   // Regression: before LCS, removing a middle row shifted subsequent rows by index,
   // causing the row after the deleted one to show as "changed" instead of "unchanged".
