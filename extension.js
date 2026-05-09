@@ -2,8 +2,8 @@ const vscode = require("vscode");
 const fs = require("fs");
 const path = require("path");
 const { analyzeYaml, parseYaml, serializeYaml } = require("./lib/ntfYamlModel");
-const { diffGitRefs, renderHtmlReport } = require("./lib/ntfYamlDiff");
-const { createDocumentDiffReport, createReportFromResource } = require("./lib/ntfYamlGitDiffContext");
+const { diffGitRefs, renderSummaryHtmlReport } = require("./lib/ntfYamlDiff");
+const { createDocumentDiffReport, createRefDiffReport, createReportFromResource, diffWorkingTreeAllFiles } = require("./lib/ntfYamlGitDiffContext");
 
 function activate(context) {
   const diagnostics = vscode.languages.createDiagnosticCollection("ntf-yaml");
@@ -60,7 +60,7 @@ function activate(context) {
       try {
         const report = diffGitRefs({ baseRef, headRef, cwd: folder.uri.fsPath });
         const outputPath = path.resolve(folder.uri.fsPath, outputName);
-        fs.writeFileSync(outputPath, renderHtmlReport(report));
+        fs.writeFileSync(outputPath, renderSummaryHtmlReport(report));
         const document = await vscode.workspace.openTextDocument(vscode.Uri.file(outputPath));
         await vscode.window.showTextDocument(document, { preview: false });
         vscode.window.showInformationMessage(`NTF YAML diff report written: ${outputName}`);
@@ -73,12 +73,12 @@ function activate(context) {
   context.subscriptions.push(
     vscode.commands.registerCommand("ntfYaml.openCellDiff", async (...resources) => {
       try {
-        const report = await createCellDiffReportFromCommand(resources);
-        if (!report) {
+        const result = await createCellDiffReportFromCommand(resources);
+        if (!result) {
           vscode.window.showInformationMessage("No NTF YAML cell diff is available for the selected resource.");
           return;
         }
-        openCellDiffPanel(context, report);
+        openCellDiffPanel(context, result.report, result.uri, result.repositoryPath);
       } catch (error) {
         vscode.window.showErrorMessage(`NTF YAML cell diff failed: ${error.message}`);
       }
@@ -231,16 +231,20 @@ async function createCellDiffReportFromCommand(resources) {
   const uri = candidates.find(isYamlUri) || vscode.window.activeTextEditor?.document?.uri;
   if (!uri || !isYamlUri(uri)) return null;
   const repositoryPath = await gitRepositoryPathFor(uri);
+  let report;
   if (uri.scheme === "git") {
     const document = await vscode.workspace.openTextDocument(uri);
-    return createDocumentDiffReport({
+    report = createDocumentDiffReport({
       uri,
       text: document.getText(),
       workspaceFolder: repositoryPath,
       repositoryPath
     });
+  } else {
+    report = createReportFromResource(uri, { workspaceFolder: repositoryPath, repositoryPath });
   }
-  return createReportFromResource(uri, { workspaceFolder: repositoryPath, repositoryPath });
+  if (!report) return null;
+  return { report, uri, repositoryPath };
 }
 
 function collectResourceUris(items) {
@@ -327,26 +331,137 @@ function isInsideUri(uri, rootUri) {
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
-function openCellDiffPanel(context, report) {
+function openCellDiffPanel(context, report, fileUri, repositoryPath) {
   const panel = vscode.window.createWebviewPanel(
     "ntfYaml.cellDiff",
     "NTF YAML Cell Diff",
     vscode.ViewColumn.Active,
     { enableScripts: true, retainContextWhenHidden: true }
   );
+
+  let currentReport = report;
+
+  panel.webview.onDidReceiveMessage(async message => {
+    if (message.type === "changeDiffRefs") {
+      try {
+        const repoPath = repositoryPath || currentReport.repositoryPath;
+        const relPath = currentReport.files[0]?.path || "";
+        const newReport = createRefDiffReport({
+          repositoryPath: repoPath,
+          relativePath: relPath,
+          baseRef: message.baseRef || "HEAD",
+          headRef: message.headRef || "working tree"
+        });
+        if (!newReport) {
+          panel.webview.postMessage({ type: "diffRefError", message: "diff refs could not be resolved" });
+          return;
+        }
+        currentReport = newReport;
+        panel.webview.html = renderHtmlDiffPanel(panel.webview, currentReport);
+      } catch (err) {
+        panel.webview.postMessage({ type: "diffRefError", message: err.message });
+      }
+    } else if (message.type === "exportHtml") {
+      const relPath = currentReport.files[0]?.path || "diff";
+      const defaultName = relPath.replace(/[\\/]/g, "_") + "-diff.html";
+      const saveUri = await vscode.window.showSaveDialog({
+        defaultUri: vscode.Uri.file(path.join(currentReport.repositoryPath || ".", defaultName)),
+        filters: { HTML: ["html"] }
+      });
+      if (saveUri) {
+        fs.writeFileSync(saveUri.fsPath, renderStandaloneHtmlDiffPanel(currentReport));
+        vscode.window.showInformationMessage(`NTF YAML diff exported: ${path.basename(saveUri.fsPath)}`);
+      }
+    } else if (message.type === "exportAllHtml") {
+      const folderUris = await vscode.window.showOpenDialog({
+        canSelectFolders: true,
+        canSelectFiles: false,
+        canSelectMany: false,
+        openLabel: "HTML出力先フォルダを選択"
+      });
+      if (!folderUris?.[0]) return;
+      const outDir = folderUris[0].fsPath;
+      const repoPath = repositoryPath || currentReport.repositoryPath;
+      const baseRef = currentReport.baseRef || "HEAD";
+      const headRef = currentReport.headRef || "working tree";
+      try {
+        const reports = diffWorkingTreeAllFiles({ repositoryPath: repoPath, baseRef, headRef });
+        let written = 0;
+        for (const r of reports) {
+          if (!r.files[0]) continue;
+          const fileName = (r.files[0].path || "diff").replace(/[\\/]/g, "_") + "-diff.html";
+          fs.writeFileSync(path.join(outDir, fileName), renderStandaloneHtmlDiffPanel(r));
+          written++;
+        }
+        vscode.window.showInformationMessage(`NTF YAML diff: ${written}件のHTMLを出力しました: ${outDir}`);
+      } catch (err) {
+        vscode.window.showErrorMessage(`NTF YAML Export All failed: ${err.message}`);
+      }
+    }
+  }, undefined, context.subscriptions);
+
   panel.webview.html = renderHtmlDiffPanel(panel.webview, report);
 }
 
-function renderHtmlDiffPanel(webview, report) {
+function renderHtmlDiffPanel(webview, report, options = {}) {
   const nonce = getNonce();
   const baseState = JSON.stringify(report.baseText || "").replace(/</g, "\\u003c");
   const headState = JSON.stringify(report.headText || "").replace(/</g, "\\u003c");
   const diffReportState = JSON.stringify(report).replace(/</g, "\\u003c");
+  const includeHeaderControls = options.allowDiffControls !== false;
   const modelScript = fs.readFileSync(path.join(__dirname, "lib", "ntfYamlModel.js"), "utf8");
   const webviewScript = fs.readFileSync(path.join(__dirname, "media", "ntfYamlEditorWebview.js"), "utf8");
   const editorCss = fs.readFileSync(path.join(__dirname, "media", "ntfYamlEditor.css"), "utf8");
   const baseRef = report.baseRef || "base";
   const headRef = report.headRef || "head";
+  const baseRefValue = escapeHtmlAttribute(baseRef);
+  const headRefValue = escapeHtmlAttribute(headRef);
+  const refControlsHtml = includeHeaderControls
+    ? [
+      '<label for="diff-base-ref">Left ref</label>',
+      `<input id="diff-base-ref" class="diff-ref-input" type="text" value="${baseRefValue}">`,
+      '<label for="diff-head-ref">Right ref</label>',
+      `<input id="diff-head-ref" class="diff-ref-input" type="text" value="${headRefValue}">`
+    ].join("")
+    : [
+      "<span>Left ref</span>",
+      `<span class="diff-ref-label">${baseRefValue}</span>`,
+      "<span>Right ref</span>",
+      `<span class="diff-ref-label">${headRefValue}</span>`
+    ].join("");
+  const actionsHtml = includeHeaderControls
+    ? [
+      '<button id="diff-export-html" class="diff-control-btn secondary">Export HTML</button>',
+      '<button id="diff-export-all" class="diff-control-btn secondary" title="変更のある全YAMLファイルを1ファイル1HTMLで出力">Export All</button>',
+      '<span id="diff-ref-error" class="diff-panel-error"></span>'
+    ].join("")
+    : "";
+  const headerScript = includeHeaderControls ? `
+    const baseRefInput = document.getElementById("diff-base-ref");
+    const headRefInput = document.getElementById("diff-head-ref");
+    const refError = document.getElementById("diff-ref-error");
+    let refTimer = 0;
+    function scheduleRefChange() {
+      clearTimeout(refTimer);
+      refError.textContent = "";
+      refTimer = setTimeout(() => {
+        vscode.postMessage({
+          type: "changeDiffRefs",
+          baseRef: baseRefInput.value.trim(),
+          headRef: headRefInput.value.trim()
+        });
+      }, 500);
+    }
+    baseRefInput.addEventListener("input", scheduleRefChange);
+    headRefInput.addEventListener("input", scheduleRefChange);
+    document.getElementById("diff-export-html").addEventListener("click", () => vscode.postMessage({ type: "exportHtml" }));
+    document.getElementById("diff-export-all").addEventListener("click", () => vscode.postMessage({ type: "exportAllHtml" }));
+    window.addEventListener("message", event => {
+      if (event.data.type === "diffRefError") {
+        refError.textContent = event.data.message || "unknown error";
+      }
+    });
+` : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -356,34 +471,52 @@ function renderHtmlDiffPanel(webview, report) {
   <title>NTF YAML Cell Diff</title>
   <style nonce="${nonce}">
 ${editorCss}
-.diff-panel-container{display:flex;height:100vh;overflow:hidden}
+.diff-panel-shell{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.diff-panel-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:6px 10px;background:var(--vscode-editorGroupHeader-tabsBackground);border-bottom:1px solid var(--vscode-editorGroup-border,#ccc)}
+.diff-panel-refs{display:grid;grid-template-columns:auto minmax(120px,240px) auto minmax(120px,240px);align-items:center;gap:6px;font-size:12px;color:var(--vscode-descriptionForeground)}
+.diff-panel-actions{display:flex;align-items:center;gap:8px}
+.diff-panel-error{color:var(--vscode-errorForeground,#c0392b);font-size:12px}
+.diff-ref-label{font-family:var(--vscode-editor-font-family,monospace);color:var(--vscode-editor-foreground,#202124)}
+.diff-panel-container{display:flex;flex:1;min-height:0;overflow:hidden}
 .diff-panel-pane{flex:1;overflow:auto;min-width:0}
 .diff-panel-pane+.diff-panel-pane{border-left:1px solid var(--vscode-editorGroup-border,#ccc)}
-.diff-panel-label{padding:4px 12px;font-size:12px;color:var(--vscode-descriptionForeground);background:var(--vscode-editorGroupHeader-tabsBackground);border-bottom:1px solid var(--vscode-editorGroup-border,#ccc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.diff-panel-label{padding:4px 12px;font-size:12px;color:var(--vscode-descriptionForeground);background:var(--vscode-editorWidget-background,#f3f5f4);border-bottom:1px solid var(--vscode-editorGroup-border,#ccc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   </style>
 </head>
 <body>
-  <div class="diff-panel-container">
-    <div class="diff-panel-pane">
-      <div class="diff-panel-label">${baseRef}</div>
-      <div id="base-root"></div>
+  <div class="diff-panel-shell">
+    <div class="diff-panel-header">
+      <div class="diff-panel-refs">
+        ${refControlsHtml}
+      </div>
+      <div class="diff-panel-actions">
+        ${actionsHtml}
+      </div>
     </div>
-    <div class="diff-panel-pane">
-      <div class="diff-panel-label">${headRef}</div>
-      <div id="head-root"></div>
+    <div class="diff-panel-container">
+      <div class="diff-panel-pane">
+        <div class="diff-panel-label">${baseRefValue}</div>
+        <div id="base-root"></div>
+      </div>
+      <div class="diff-panel-pane">
+        <div class="diff-panel-label">${headRefValue}</div>
+        <div id="head-root"></div>
+      </div>
     </div>
   </div>
   <script nonce="${nonce}">
     ${modelScript}
     ${webviewScript}
-    const vscode = acquireVsCodeApi();
+    const vscode = typeof acquireVsCodeApi === "function" ? acquireVsCodeApi() : { postMessage() {} };
     const diffReport = ${diffReportState};
+    ${headerScript}
     globalThis.NtfYamlEditorWebview.createNtfYamlEditorApp({
       root: document.getElementById("base-root"),
       initialText: ${baseState},
       initialDiffReport: diffReport,
       readOnly: true,
       diffSide: "base",
+      allowDiffControls: false,
       model: globalThis.NtfYamlModel,
       vscode,
       window
@@ -394,6 +527,7 @@ ${editorCss}
       initialDiffReport: diffReport,
       readOnly: true,
       diffSide: "head",
+      allowDiffControls: false,
       model: globalThis.NtfYamlModel,
       vscode,
       window
@@ -401,6 +535,10 @@ ${editorCss}
   </script>
 </body>
 </html>`;
+}
+
+function renderStandaloneHtmlDiffPanel(report) {
+  return renderHtmlDiffPanel(undefined, report, { allowDiffControls: false });
 }
 
 function renderHtml(webview, initialText, options = {}) {
@@ -449,6 +587,14 @@ function getNonce() {
     text += possible.charAt(Math.floor(Math.random() * possible.length));
   }
   return text;
+}
+
+function escapeHtmlAttribute(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 module.exports = { activate };

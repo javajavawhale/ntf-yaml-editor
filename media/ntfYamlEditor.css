@@ -291,6 +291,22 @@ input[readonly] {
     cursor: default;
 }
 
+.diff-ref-input {
+    font-size: 12px;
+    padding: 2px 6px;
+    width: 120px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--vscode-input-background, #fff);
+    color: var(--vscode-input-foreground, #202124);
+}
+
+.diff-control-btn {
+    font-size: 12px;
+    padding: 2px 10px;
+    cursor: pointer;
+}
+
 .diff-legend {
     display: flex;
     gap: 12px;

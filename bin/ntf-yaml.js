@@ -10,7 +10,7 @@ const {
 } = require("../lib/ntfYamlModel");
 const {
   diffGitRefs,
-  writeHtmlReport
+  writeSummaryHtmlReport
 } = require("../lib/ntfYamlDiff");
 
 function main(argv) {
@@ -49,7 +49,7 @@ function diff(args) {
     headRef: options.headRef,
     cwd: process.cwd()
   });
-  writeHtmlReport(report, options.output);
+  writeSummaryHtmlReport(report, options.output);
   console.log(`ntf-yaml diff: wrote ${options.output}`);
   return 0;
 }

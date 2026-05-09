@@ -21,10 +21,11 @@ const {
 } = require("../bin/ntf-yaml");
 const {
   createDiffReport,
-  renderHtmlReport
+  renderSummaryHtmlReport
 } = require("../lib/ntfYamlDiff");
 const {
   createDocumentDiffReport,
+  createRefDiffReport,
   parseGitQuery
 } = require("../lib/ntfYamlGitDiffContext");
 
@@ -565,7 +566,7 @@ test("cell diff report highlights changed table cells and changed rows", () => {
   assert.equal(report.summary.cells.changed, 1);
   assert.equal(report.summary.cells.added, 1);
 
-  const html = renderHtmlReport(report);
+  const html = renderSummaryHtmlReport(report);
   assert.match(html, /NTF YAML Cell Diff/);
   assert.match(html, /before/);
   assert.match(html, /after/);
@@ -703,6 +704,73 @@ test("document diff report compares git URI text against the working tree file",
   assert.deepEqual(parseGitQuery(query), { path: file, ref: "HEAD" });
   assert.equal(report.baseRef, "HEAD");
   assert.equal(report.headRef, "working tree");
+  assert.equal(report.summary.cells.changed, 1);
+});
+
+test("ref diff report compares a file between arbitrary git refs", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ntf-yaml-ref-diff-"));
+  git(dir, ["init"]);
+  git(dir, ["config", "user.email", "ntf-yaml@example.test"]);
+  git(dir, ["config", "user.name", "NTF YAML Test"]);
+  const file = path.join(dir, "case.ntf.yaml");
+  fs.writeFileSync(file, [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"before\"",
+    ""
+  ].join("\n"));
+  git(dir, ["add", "case.ntf.yaml"]);
+  git(dir, ["commit", "-m", "base"]);
+  const baseSha = git(dir, ["rev-parse", "--short", "HEAD"]).trim();
+
+  fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("before", "after"));
+  git(dir, ["add", "case.ntf.yaml"]);
+  git(dir, ["commit", "-m", "head"]);
+  const headSha = git(dir, ["rev-parse", "--short", "HEAD"]).trim();
+
+  const report = createRefDiffReport({
+    repositoryPath: dir,
+    relativePath: "case.ntf.yaml",
+    baseRef: baseSha,
+    headRef: headSha
+  });
+
+  assert.equal(report.baseRef, baseSha);
+  assert.equal(report.headRef, headSha);
+  assert.equal(report.summary.cells.changed, 1);
+});
+
+test("ref diff report accepts working tree on the left side", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ntf-yaml-left-working-tree-diff-"));
+  git(dir, ["init"]);
+  git(dir, ["config", "user.email", "ntf-yaml@example.test"]);
+  git(dir, ["config", "user.name", "NTF YAML Test"]);
+  const file = path.join(dir, "case.ntf.yaml");
+  fs.writeFileSync(file, [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"before\"",
+    ""
+  ].join("\n"));
+  git(dir, ["add", "case.ntf.yaml"]);
+  git(dir, ["commit", "-m", "base"]);
+  const commitSha = git(dir, ["rev-parse", "--short", "HEAD"]).trim();
+
+  fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("before", "after"));
+
+  const report = createRefDiffReport({
+    repositoryPath: dir,
+    relativePath: "case.ntf.yaml",
+    baseRef: "working tree",
+    headRef: commitSha
+  });
+
+  assert.equal(report.baseRef, "working tree");
+  assert.equal(report.headRef, commitSha);
+  assert.match(report.baseText, /after/);
+  assert.match(report.headText, /before/);
   assert.equal(report.summary.cells.changed, 1);
 });
 

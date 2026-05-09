@@ -17,6 +17,7 @@ function createHarness(initialText = sampleYaml(), options = {}) {
     initialDiffReport: options.initialDiffReport,
     readOnly: options.readOnly,
     diffSide: options.diffSide,
+    allowDiffControls: options.allowDiffControls,
     model,
     vscode: {
       postMessage(message) {
@@ -170,6 +171,35 @@ test("webview renders a read-only cell diff overlay", () => {
   assert.ok(projectName.closest("tr").classList.contains("diff-row-changed"));
   assert.equal(projectName.title, "before: プロジェクト０００");
   assert.deepEqual(messages, []);
+});
+
+test("webview hides diff controls when requested for exported HTML", () => {
+  const initialDiffReport = {
+    baseRef: "HEAD",
+    headRef: "working tree",
+    files: [{
+      path: "case.ntf.yaml",
+      sheets: [{
+        name: "case1",
+        status: "changed",
+        blocks: [{
+          name: "LIST_MAP=requestParams",
+          status: "changed",
+          rows: []
+        }]
+      }]
+    }]
+  };
+
+  const { root } = createHarness(sampleYaml(), {
+    initialDiffReport,
+    readOnly: true,
+    diffSide: "head",
+    allowDiffControls: false
+  });
+
+  assert.equal(root.querySelector(".diff-controls"), null);
+  assert.ok(root.querySelector(".diff-legend"));
 });
 
 test("webview only renders added and deleted sheets and blocks on the side where they exist", () => {
@@ -612,4 +642,3 @@ test("webview does not highlight deleted rows on head side (headIndex is null)",
   assert.ok(!tr.classList.contains("diff-row-deleted"));
   assert.ok(!tr.classList.contains("diff-row-changed"));
 });
-
