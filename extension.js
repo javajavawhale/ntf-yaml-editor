@@ -172,6 +172,7 @@ class NtfYamlEditorProvider {
   constructor(context) {
     this.context = context;
     this.editors = new Set();
+    this.sidebarWidth = 240;
     context.subscriptions.push(
       vscode.workspace.onDidChangeTextDocument(event => this.updateRelatedEditors(event.document.uri)),
       vscode.workspace.onDidSaveTextDocument(document => this.updateRelatedEditors(document.uri))
@@ -189,7 +190,8 @@ class NtfYamlEditorProvider {
       initialText,
       diffReport,
       readOnly: document.uri.scheme !== "file",
-      diffSide
+      diffSide,
+      sidebarWidth: this.sidebarWidth
     });
 
     const updateWebview = () => {
@@ -203,11 +205,19 @@ class NtfYamlEditorProvider {
       });
     };
 
-    const editor = { document, updateWebview };
+    const editor = {
+      document,
+      updateWebview,
+      setSidebarWidth: width => webviewPanel.webview.postMessage({ type: "setSidebarWidth", width })
+    };
     this.editors.add(editor);
     webviewPanel.onDidDispose(() => this.editors.delete(editor));
 
     webviewPanel.webview.onDidReceiveMessage(async message => {
+      if (message.type === "sidebarResize") {
+        this.updateSidebarWidth(message.width);
+        return;
+      }
       if (message.type !== "save" || document.uri.scheme !== "file") {
         return;
       }
@@ -220,6 +230,15 @@ class NtfYamlEditorProvider {
       await vscode.workspace.applyEdit(edit);
       await document.save();
     });
+  }
+
+  updateSidebarWidth(width) {
+    const nextWidth = Math.max(140, Math.min(420, Math.round(Number(width))));
+    if (!Number.isFinite(nextWidth)) return;
+    this.sidebarWidth = nextWidth;
+    for (const editor of this.editors) {
+      editor.setSidebarWidth(nextWidth);
+    }
   }
 
   updateRelatedEditors(uri) {
@@ -238,8 +257,8 @@ class NtfYamlEditorProvider {
 
 async function createCellDiffReportFromCommand(resources) {
   const candidates = collectResourceUris(resources);
-  const uri = candidates.find(isYamlUri) || vscode.window.activeTextEditor?.document?.uri;
-  if (!uri || !isYamlUri(uri)) return null;
+  const uri = candidates.find(isNtfYamlUri) || vscode.window.activeTextEditor?.document?.uri;
+  if (!uri || !isNtfYamlUri(uri)) return null;
   const repositoryPath = await gitRepositoryPathFor(uri);
   let report;
   if (uri.scheme === "git") {
@@ -279,10 +298,10 @@ function collectResourceUrisInto(item, result) {
   }
 }
 
-function isYamlUri(uri) {
+function isNtfYamlUri(uri) {
   const fsPath = uri?.fsPath || uri?.path || "";
   const lower = fsPath.toLowerCase();
-  return lower.endsWith(".yaml") || lower.endsWith(".yml");
+  return lower.endsWith(".ntf.yaml") || lower.endsWith(".ntf.yml");
 }
 
 function backingFilePath(uri) {
@@ -547,6 +566,7 @@ function renderHtml(webview, initialText, options = {}) {
   const initialDiffReport = JSON.stringify(options.diffReport || null).replace(/</g, "\\u003c");
   const initialReadOnly = options.readOnly ? "true" : "false";
   const initialDiffSide = JSON.stringify(options.diffSide || (options.readOnly ? "base" : "head"));
+  const initialSidebarWidth = JSON.stringify(options.sidebarWidth || 240);
   const modelScript = fs.readFileSync(path.join(__dirname, "lib", "ntfYamlModel.js"), "utf8");
   const webviewScript = fs.readFileSync(path.join(__dirname, "media", "ntfYamlEditorWebview.js"), "utf8");
   const editorCss = fs.readFileSync(path.join(__dirname, "media", "ntfYamlEditor.css"), "utf8");
@@ -580,6 +600,7 @@ ${editorCss}
       initialDiffReport: ${initialDiffReport},
       readOnly: ${initialReadOnly},
       diffSide: ${initialDiffSide},
+      sidebarWidth: ${initialSidebarWidth},
       model: globalThis.NtfYamlModel,
       vscode,
       window

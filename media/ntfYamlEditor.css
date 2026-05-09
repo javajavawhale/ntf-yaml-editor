@@ -21,15 +21,33 @@ body {
 
 .app {
     display: grid;
-    grid-template-columns: 240px 1fr;
+    grid-template-columns: var(--ntf-sidebar-width, 240px) minmax(0, 1fr);
     min-height: 100vh;
 }
 
 aside {
+    position: relative;
     border-right: 1px solid var(--line);
     background: #eef1ef;
     padding: 14px;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.sidebar-resizer {
+    position: absolute;
+    top: 0;
+    right: -5px;
+    bottom: 0;
+    width: 10px;
+    cursor: col-resize;
+    background: transparent;
+    z-index: 10;
+}
+
+body.resizing-sidebar {
+    cursor: col-resize;
+    user-select: none;
 }
 
 main {

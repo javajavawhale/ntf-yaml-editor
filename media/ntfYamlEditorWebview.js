@@ -19,6 +19,9 @@
     let activeSheetId = "";
     ensureIds(state);
     activeSheetId = state.sheets[0]?._id ?? "";
+    if (options.sidebarWidth) {
+      setSidebarWidth(options.sidebarWidth);
+    }
 
     function handleMessage(event) {
       if (event.data.type === "update") {
@@ -30,6 +33,8 @@
           ?? state.sheets[0]?._id
           ?? "";
         render();
+      } else if (event.data.type === "setSidebarWidth") {
+        setSidebarWidth(event.data.width);
       }
     }
 
@@ -46,6 +51,7 @@
       const aside = document.createElement("aside");
       const main = document.createElement("main");
       app.append(aside, main);
+      attachSidebarResize(aside);
 
       const title = document.createElement("h1");
       title.textContent = "NTF YAML";
@@ -96,6 +102,54 @@
       }
 
       root.append(app);
+    }
+
+    function attachSidebarResize(aside) {
+      const resizer = document.createElement("div");
+      resizer.className = "sidebar-resizer";
+      resizer.setAttribute("role", "separator");
+      resizer.setAttribute("aria-orientation", "vertical");
+      resizer.title = "Resize sheet list";
+      let startX = 0;
+      let startWidth = 0;
+
+      function onPointerMove(event) {
+        const nextWidth = clampSidebarWidth(startWidth + event.clientX - startX);
+        setSidebarWidth(nextWidth);
+        vscode.postMessage({ type: "sidebarResize", width: nextWidth });
+      }
+
+      function onPointerUp() {
+        document.body.classList.remove("resizing-sidebar");
+        viewWindow.removeEventListener("pointermove", onPointerMove);
+        viewWindow.removeEventListener("pointerup", onPointerUp);
+      }
+
+      resizer.addEventListener("pointerdown", event => {
+        event.preventDefault();
+        startX = event.clientX;
+        startWidth = aside.getBoundingClientRect().width || getSidebarWidth();
+        document.body.classList.add("resizing-sidebar");
+        viewWindow.addEventListener("pointermove", onPointerMove);
+        viewWindow.addEventListener("pointerup", onPointerUp);
+      });
+
+      aside.append(resizer);
+    }
+
+    function getSidebarWidth() {
+      const value = viewWindow.getComputedStyle(document.documentElement).getPropertyValue("--ntf-sidebar-width");
+      const parsed = Number.parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : 240;
+    }
+
+    function clampSidebarWidth(value) {
+      return Math.max(140, Math.min(420, Math.round(value)));
+    }
+
+    function setSidebarWidth(value) {
+      const width = clampSidebarWidth(Number(value));
+      document.documentElement.style.setProperty("--ntf-sidebar-width", `${width}px`);
     }
 
     function renderSaveControl() {

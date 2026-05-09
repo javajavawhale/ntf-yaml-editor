@@ -63,30 +63,6 @@
       }
     ],
     "menus": {
-      "scm/resourceGroup/context": [
-        {
-          "command": "ntfYaml.openCellDiff",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
-          "group": "navigation"
-        },
-        {
-          "command": "ntfYaml.openCellDiff",
-          "when": "scmProvider == git && scmResourceGroup == index",
-          "group": "navigation"
-        }
-      ],
-      "scm/resourceFolder/context": [
-        {
-          "command": "ntfYaml.openCellDiff",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
-          "group": "navigation"
-        },
-        {
-          "command": "ntfYaml.openCellDiff",
-          "when": "scmProvider == git && scmResourceGroup == index",
-          "group": "navigation"
-        }
-      ],
       "scm/resourceState/context": [
         {
           "command": "ntfYaml.openCellDiff",
@@ -97,13 +73,30 @@
           "command": "ntfYaml.openCellDiff",
           "when": "scmProvider == git && scmResourceGroup == index",
           "group": "navigation"
+        },
+        {
+          "command": "ntfYaml.openCellDiff",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "navigation"
+        },
+        {
+          "command": "ntfYaml.openCellDiff",
+          "when": "scmProvider == git && scmResourceGroup == merge",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "ntfYaml.openCellDiff",
+          "when": "resourceFilename =~ /\\.ntf\\.ya?ml$/",
+          "group": "navigation@9"
         }
       ],
       "editor/title": [
         {
           "command": "ntfYaml.openCellDiff",
-          "when": "resourceFilename =~ /\\.ya?ml$/",
-          "group": "navigation@9"
+          "when": "resourceFilename =~ /\\.ntf\\.ya?ml$/",
+          "group": "1_modification@9"
         }
       ]
     }

@@ -872,3 +872,30 @@ test("CLI diff args require explicit base and head refs", () => {
   });
   assert.equal(runCli(["diff", "--base", "HEAD~1"]), 2);
 });
+
+test("package contributes cell diff to SCM resources and NTF YAML file menus", () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(extensionRoot, "package.json"), "utf8"));
+  const menus = pkg.contributes.menus;
+  const cellDiffCommand = "ntfYaml.openCellDiff";
+  const ntfYamlPattern = "resourceFilename =~ /\\.ntf\\.ya?ml$/";
+
+  const scmEntries = menus["scm/resourceState/context"].filter(item => item.command === cellDiffCommand);
+  assert.equal(scmEntries.length, 4);
+  assert.ok(scmEntries.every(item => item.when.includes("scmProvider == git")));
+  assert.ok(scmEntries.every(item => !item.when.includes("resourceFilename")));
+  assert.ok(scmEntries.every(item => !item.when.includes("resource =~")));
+  assert.deepEqual(
+    scmEntries.map(item => item.when.match(/scmResourceGroup == (\w+)/)?.[1]).sort(),
+    ["index", "merge", "untracked", "workingTree"]
+  );
+
+  assert.equal(menus["scm/resourceGroup/context"], undefined);
+  assert.equal(menus["scm/resourceFolder/context"], undefined);
+
+  const explorerEntry = menus["explorer/context"].find(item => item.command === cellDiffCommand);
+  assert.equal(explorerEntry.when, ntfYamlPattern);
+
+  const editorTitleEntry = menus["editor/title"].find(item => item.command === cellDiffCommand);
+  assert.equal(editorTitleEntry.when, ntfYamlPattern);
+  assert.equal(editorTitleEntry.group, "1_modification@9");
+});

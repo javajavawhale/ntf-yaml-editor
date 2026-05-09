@@ -85,6 +85,10 @@ function dragDrop(dom, from, to) {
   }
 }
 
+function pointerEvent(dom, type, clientX) {
+  return new dom.window.MouseEvent(type, { bubbles: true, cancelable: true, clientX });
+}
+
 function save(root) {
   root.querySelector('[data-action="save"]').click();
 }
@@ -104,6 +108,36 @@ test("webview renders sheets and switches active sheet", () => {
   assert.equal(app.getActiveSheet(), "case2");
   assert.equal(sheetName(root), "case2");
   assert.ok(block(root, "LIST_MAP=testShots"));
+});
+
+test("webview resizes the sheet list without adding visible divider markup", () => {
+  const { dom, root, messages } = createHarness();
+  const resizer = root.querySelector(".sidebar-resizer");
+  assert.ok(resizer, "sidebar resize handle should exist");
+  assert.equal(resizer.textContent, "");
+
+  resizer.dispatchEvent(pointerEvent(dom, "pointerdown", 240));
+  dom.window.dispatchEvent(pointerEvent(dom, "pointermove", 300));
+  dom.window.dispatchEvent(pointerEvent(dom, "pointerup", 300));
+
+  assert.equal(
+    dom.window.document.documentElement.style.getPropertyValue("--ntf-sidebar-width"),
+    "300px"
+  );
+  assert.deepEqual(messages.at(-1), { type: "sidebarResize", width: 300 });
+});
+
+test("webview applies sidebar resize messages from another pane", () => {
+  const { dom } = createHarness();
+
+  dom.window.dispatchEvent(new dom.window.MessageEvent("message", {
+    data: { type: "setSidebarWidth", width: 180 }
+  }));
+
+  assert.equal(
+    dom.window.document.documentElement.style.getPropertyValue("--ntf-sidebar-width"),
+    "180px"
+  );
 });
 
 test("webview edits a table cell and sends serialized YAML on save", () => {
