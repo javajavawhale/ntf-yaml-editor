@@ -68,3 +68,14 @@ S33 vscode-ntf-yaml-editor への差分表示機能追加 — grill-me ヒアリ
 
 Access 1505k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>
+
+## Project Terminology
+
+Use `docs/glossary.md` as the terminology source of truth when discussing,
+refactoring, naming files, or naming code concepts in this project.
+
+In particular:
+
+- `Model`, `Sheet`, `Block`, `Row`, and `Cell` refer to the NTF YAML internal structure.
+- `Cell Diff`, `SCM Diff`, `Standalone HTML Report`, and `Normal Editor` are distinct views and must not be conflated.
+- `Canonical Form` is the shared output target for converter output, editor save, and CLI format.

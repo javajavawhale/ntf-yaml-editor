@@ -17,6 +17,7 @@
     const diffSide = options.diffSide != null ? options.diffSide : (readOnly ? "base" : "head");
     let nextId = 1;
     let activeSheetId = "";
+    let activeUnifiedSheetName = "";
     ensureIds(state);
     activeSheetId = state.sheets[0]?._id ?? "";
     if (options.sidebarWidth) {
@@ -43,6 +44,10 @@
     }
 
     function render() {
+      if (diffSide === "unified" && diffReport) {
+        renderUnifiedView();
+        return;
+      }
       const sheet = activeSheet();
       root.innerHTML = "";
 
@@ -903,6 +908,172 @@
 
     function isNtfFileDirective(name) {
       return ntfFileDirectives.has(String(name ?? ""));
+    }
+
+    function renderUnifiedView() {
+      const diffFile = diffReport?.files?.[0];
+      root.innerHTML = "";
+
+      const app = document.createElement("div");
+      app.className = "app diff-app unified-view";
+      const aside = document.createElement("aside");
+      const main = document.createElement("main");
+      app.append(aside, main);
+      attachSidebarResize(aside);
+
+      const title = document.createElement("h1");
+      title.textContent = "NTF YAML";
+      aside.append(title);
+
+      const diffSheets = diffFile?.sheets || [];
+      if (!activeUnifiedSheetName || !diffSheets.find(s => s.name === activeUnifiedSheetName)) {
+        activeUnifiedSheetName = diffSheets[0]?.name ?? "";
+      }
+
+      for (const diffSheet of diffSheets) {
+        const isActive = diffSheet.name === activeUnifiedSheetName;
+        const itemWrapper = document.createElement("div");
+        itemWrapper.className = "sheet-item";
+        if (isActive) {
+          const container = document.createElement("div");
+          container.className = "sheet active";
+          container.dataset.sheetName = diffSheet.name;
+          applyDiffClass(container, diffSheet.status, "diff-sheet");
+          const input = document.createElement("input");
+          input.dataset.role = "sheet-name";
+          input.value = diffSheet.name;
+          input.readOnly = true;
+          container.append(input);
+          itemWrapper.append(container);
+        } else {
+          const btn = document.createElement("button");
+          btn.className = "sheet";
+          btn.dataset.sheetName = diffSheet.name;
+          applyDiffClass(btn, diffSheet.status, "diff-sheet");
+          btn.textContent = diffSheet.name || "(unnamed sheet)";
+          btn.onclick = () => { activeUnifiedSheetName = diffSheet.name; renderUnifiedView(); };
+          itemWrapper.append(btn);
+        }
+        aside.append(itemWrapper);
+      }
+
+      const activeDiffSheet = diffSheets.find(s => s.name === activeUnifiedSheetName);
+      if (!activeDiffSheet) {
+        const empty = document.createElement("p");
+        empty.textContent = "No sheets found.";
+        main.append(empty);
+      } else {
+        main.append(renderDiffLegend());
+        const sheetHeader = document.createElement("div");
+        sheetHeader.className = "sheet-header";
+        applyDiffClass(sheetHeader, activeDiffSheet.status, "diff-sheet");
+        const h2 = document.createElement("h2");
+        h2.textContent = activeDiffSheet.name || "(unnamed sheet)";
+        sheetHeader.append(h2);
+        main.append(sheetHeader);
+        for (const diffBlock of activeDiffSheet.blocks || []) {
+          main.append(renderUnifiedBlock(diffBlock));
+        }
+      }
+
+      root.append(app);
+    }
+
+    function renderUnifiedBlock(diffBlock) {
+      const wrapper = document.createElement("section");
+      wrapper.className = "block";
+      wrapper.dataset.blockName = diffBlock.name;
+      applyDiffClass(wrapper, diffBlock.status, "diff-block");
+
+      const header = document.createElement("div");
+      header.className = "block-header";
+      const nameInput = document.createElement("input");
+      nameInput.className = "block-name";
+      nameInput.dataset.role = "block-name";
+      nameInput.value = diffBlock.name;
+      nameInput.readOnly = true;
+      header.append(nameInput);
+      wrapper.append(header);
+
+      const cols = (diffBlock.columns || []).map(c => c.key);
+      const colLabels = Object.fromEntries((diffBlock.columns || []).map(c => [c.key, c.label]));
+
+      const scroll = document.createElement("div");
+      scroll.className = "table-scroll";
+      const table = document.createElement("table");
+
+      const thead = document.createElement("thead");
+      const headRow = document.createElement("tr");
+      const actionHead = document.createElement("th");
+      actionHead.className = "row-actions-cell table-header-cell";
+      headRow.append(actionHead);
+      for (const col of cols) {
+        const th = document.createElement("th");
+        th.className = "table-header-cell";
+        const thInner = document.createElement("div");
+        thInner.className = "th-inner";
+        const thContent = document.createElement("div");
+        thContent.className = "th-content";
+        const thInput = document.createElement("input");
+        thInput.dataset.role = "column-name";
+        thInput.value = colLabels[col] || col;
+        thInput.readOnly = true;
+        thContent.append(thInput);
+        thInner.append(thContent);
+        th.append(thInner);
+        headRow.append(th);
+      }
+      thead.append(headRow);
+      table.append(thead);
+
+      const tbody = document.createElement("tbody");
+      for (const diffRow of diffBlock.rows || []) {
+        const tr = document.createElement("tr");
+        applyDiffClass(tr, diffRow.status, "diff-row");
+        const actionTd = document.createElement("td");
+        actionTd.className = "row-actions-cell";
+        const inner = document.createElement("div");
+        inner.className = "row-actions-inner";
+        actionTd.append(inner);
+        tr.append(actionTd);
+        for (const col of cols) {
+          const diffCell = diffRow.cells?.find(c => c.column === col) || null;
+          const td = document.createElement("td");
+          applyDiffClass(td, diffCell?.status, "diff-cell");
+          setDiffStatus(td, diffCell?.status);
+          if (diffCell?.status === "changed") {
+            const wrapper = document.createElement("div");
+            wrapper.className = "cell-unified-diff";
+            const before = document.createElement("del");
+            before.className = "cell-before";
+            before.textContent = valueText(diffCell.before);
+            const afterRow = document.createElement("div");
+            afterRow.className = "cell-after-row";
+            const sep = document.createElement("span");
+            sep.className = "cell-sep";
+            sep.textContent = "→";
+            const after = document.createElement("span");
+            after.className = "cell-after";
+            after.textContent = valueText(diffCell.after ?? diffCell.before);
+            afterRow.append(sep, after);
+            wrapper.append(before, afterRow);
+            td.append(wrapper);
+          } else {
+            const input = document.createElement("input");
+            input.dataset.column = col;
+            const isDeleted = diffRow.status === "deleted";
+            input.value = valueText(isDeleted ? diffCell?.before : (diffCell?.after ?? diffCell?.before));
+            input.readOnly = true;
+            td.append(input);
+          }
+          tr.append(td);
+        }
+        tbody.append(tr);
+      }
+      table.append(tbody);
+      scroll.append(table);
+      wrapper.append(scroll);
+      return wrapper;
     }
 
     render();

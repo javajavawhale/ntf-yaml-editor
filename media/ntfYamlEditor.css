@@ -26,12 +26,10 @@ body {
 }
 
 .app.diff-app {
-    height: 100%;
-    min-height: 0;
+    min-height: 100%;
 }
 
-.app.diff-app > aside,
-.app.diff-app > main {
+.app.diff-app>aside {
     min-height: 0;
 }
 
@@ -62,7 +60,6 @@ body.resizing-sidebar {
 
 main {
     padding: 16px;
-    overflow: auto;
 }
 
 h1,
@@ -226,7 +223,6 @@ button.compact {
 .table-scroll {
     overflow-x: auto;
     width: 100%;
-    max-height: 70vh;
 }
 
 table {
@@ -339,12 +335,39 @@ input[readonly] {
     outline-offset: -1px;
 }
 
+.scm-diff-html,
+.scm-diff-body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+.scm-diff-body {
+    display: flex;
+    flex-direction: column;
+}
+
+.scm-diff-body>#root {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+
 .scm-diff-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    flex-shrink: 0;
     background: var(--vscode-editorWidget-background, #f3f5f4);
     border-bottom: 1px solid var(--vscode-editorGroup-border, var(--line));
 }
 
 .scm-diff-header .diff-ref-input {
+    flex: 1;
+    min-width: 0;
     cursor: default;
 }
 
@@ -443,6 +466,56 @@ input[readonly] {
 .diff-cell-changed {
     background: #fff0b8;
     box-shadow: inset 0 0 0 2px #d8a700;
+}
+
+.cell-unified-diff {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 2px 6px;
+    min-height: 32px;
+    gap: 1px;
+}
+
+.cell-before {
+    text-decoration: line-through;
+    color: var(--vscode-gitDecoration-deletedResourceForeground, #c0392b);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0.75;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.cell-after-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+
+.cell-sep {
+    flex-shrink: 0;
+    color: var(--vscode-descriptionForeground, #888);
+    font-size: 11px;
+}
+
+.cell-after {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 11px;
+    line-height: 1.4;
+    min-width: 0;
+    flex: 1;
+}
+
+.unified-view .diff-row-deleted td input {
+    text-decoration: line-through;
+    color: var(--vscode-gitDecoration-deletedResourceForeground, #c0392b);
+    opacity: 0.75;
 }
 
 pre {

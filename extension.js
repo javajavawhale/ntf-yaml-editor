@@ -181,14 +181,22 @@ class NtfYamlEditorProvider {
 
   async resolveCustomTextEditor(document, webviewPanel) {
     webviewPanel.webview.options = { enableScripts: true };
-    const diffReport = createEditorDiffReport(document);
     const diffSide = document.uri.scheme === "git" ? "base" : "head";
+    const diffReport = createEditorDiffReport(document);
     const initialText = diffReport
-      ? diffSide === "base" ? diffReport.baseText : diffReport.headText
+      ? (diffSide === "base" ? diffReport.baseText : diffReport.headText)
       : document.getText();
+    // file:// の場合、同じファイルの git:// ペアが既に開いていれば SCM diff 右ペイン
+    const isScmDiffHead = diffSide === "head" && [...this.editors].some(editor => {
+      if (editor.document.uri.scheme !== "git") return false;
+      const gitPath = parseGitQuery(editor.document.uri.query)?.path;
+      return gitPath && path.resolve(gitPath) === path.resolve(document.uri.fsPath);
+    });
+    const webviewDiffReport = (diffSide === "base" || isScmDiffHead) ? diffReport : null;
     webviewPanel.webview.html = renderHtml(webviewPanel.webview, document.getText(), {
       initialText,
       diffReport,
+      webviewDiffReport,
       readOnly: document.uri.scheme !== "file",
       diffSide,
       sidebarWidth: this.sidebarWidth
@@ -199,9 +207,9 @@ class NtfYamlEditorProvider {
       webviewPanel.webview.postMessage({
         type: "update",
         text: nextDiffReport
-          ? diffSide === "base" ? nextDiffReport.baseText : nextDiffReport.headText
+          ? (diffSide === "base" ? nextDiffReport.baseText : nextDiffReport.headText)
           : document.getText(),
-        diffReport: nextDiffReport
+        diffReport: (diffSide === "base" || isScmDiffHead) ? nextDiffReport : null
       });
     };
 
@@ -370,6 +378,37 @@ function openCellDiffPanel(context, report, fileUri, repositoryPath) {
 
   let currentReport = report;
 
+  function refreshPanel() {
+    try {
+      const repoPath = repositoryPath || currentReport.repositoryPath;
+      const relPath = currentReport.files[0]?.path || "";
+      const newReport = createRefDiffReport({
+        repositoryPath: repoPath,
+        relativePath: relPath,
+        baseRef: currentReport.baseRef || "HEAD",
+        headRef: currentReport.headRef || "working tree"
+      });
+      if (newReport) {
+        currentReport = newReport;
+        panel.webview.html = renderHtmlDiffPanel(panel.webview, currentReport);
+      }
+    } catch { }
+  }
+
+  const watchedPath = fileUri
+    ? (fileUri.scheme === "git"
+      ? (parseGitQuery(fileUri.query).path || fileUri.fsPath)
+      : fileUri.fsPath)
+    : "";
+  const saveWatcher = vscode.workspace.onDidSaveTextDocument(doc => {
+    const docPath = doc.uri.scheme === "file" ? doc.uri.fsPath
+      : doc.uri.scheme === "git" ? (parseGitQuery(doc.uri.query).path || doc.uri.fsPath) : "";
+    if (docPath && watchedPath && path.resolve(docPath) === path.resolve(watchedPath)) {
+      refreshPanel();
+    }
+  });
+  panel.onDidDispose(() => saveWatcher.dispose());
+
   panel.webview.onDidReceiveMessage(async message => {
     if (message.type === "changeDiffRefs") {
       try {
@@ -446,33 +485,44 @@ function renderHtmlDiffPanel(webview, report, options = {}) {
   const baseRefValue = escapeHtmlAttribute(baseRef);
   const headRefValue = escapeHtmlAttribute(headRef);
   const baseRefHeaderHtml = includeHeaderControls
-    ? `<input id="diff-base-ref" class="diff-ref-input" type="text" value="${baseRefValue}" aria-label="Left ref" title="Left ref">`
+    ? `<input id="diff-base-ref" class="diff-ref-input" type="text" value="${baseRefValue}" aria-label="Base ref" title="Base ref">`
     : `<span class="diff-ref-label">${baseRefValue}</span>`;
   const headRefHeaderHtml = includeHeaderControls
-    ? `<input id="diff-head-ref" class="diff-ref-input" type="text" value="${headRefValue}" aria-label="Right ref" title="Right ref">`
+    ? `<input id="diff-head-ref" class="diff-ref-input" type="text" value="${headRefValue}" aria-label="Head ref" title="Head ref">`
     : `<span class="diff-ref-label">${headRefValue}</span>`;
+  const unifiedRefBarHtml = includeHeaderControls
+    ? `<div class="unified-ref-bar"><input id="diff-unified-base-ref" class="diff-ref-input" type="text" value="${baseRefValue}" aria-label="Base ref" title="Base ref"><span class="unified-ref-arrow">→</span><input id="diff-unified-head-ref" class="diff-ref-input" type="text" value="${headRefValue}" aria-label="Head ref" title="Head ref"></div>`
+    : `<div class="unified-ref-bar"><span class="diff-ref-label" style="padding:4px 12px">${baseRefValue}</span><span class="unified-ref-arrow">→</span><span class="diff-ref-label" style="padding:4px 12px">${headRefValue}</span></div>`;
+  const layoutToggleHtml = '<div class="layout-toggle-group">'
+    + '<button id="toggle-horizontal" class="diff-control-btn secondary layout-btn-active" title="横分割">横</button>'
+    + '<button id="toggle-vertical" class="diff-control-btn secondary" title="縦分割">縦</button>'
+    + '<button id="toggle-unified" class="diff-control-btn secondary" title="1枚表示">1枚</button>'
+    + '</div>';
   const actionsHtml = includeHeaderControls
     ? [
+      layoutToggleHtml,
       '<button id="diff-export-html" class="diff-control-btn secondary">Export HTML</button>',
       '<button id="diff-export-all" class="diff-control-btn secondary" title="変更のある全YAMLファイルを1ファイル1HTMLで出力">Export All</button>',
       '<span id="diff-ref-error" class="diff-panel-error"></span>'
     ].join("")
-    : "";
-  const panelHeaderHtml = includeHeaderControls
-    ? `<div class="diff-panel-header">
+    : layoutToggleHtml;
+  const panelHeaderHtml = `<div class="diff-panel-header">
       <div class="diff-panel-actions">
         ${actionsHtml}
       </div>
-    </div>`
-    : "";
-  const headerScript = includeHeaderControls ? `
+    </div>`;
+  const headerScript = (includeHeaderControls ? `
     const baseRefInput = document.getElementById("diff-base-ref");
     const headRefInput = document.getElementById("diff-head-ref");
+    const unifiedBaseRefInput = document.getElementById("diff-unified-base-ref");
+    const unifiedHeadRefInput = document.getElementById("diff-unified-head-ref");
     const refError = document.getElementById("diff-ref-error");
     let refTimer = 0;
     function scheduleRefChange() {
       clearTimeout(refTimer);
       refError.textContent = "";
+      unifiedBaseRefInput.value = baseRefInput.value;
+      unifiedHeadRefInput.value = headRefInput.value;
       refTimer = setTimeout(() => {
         vscode.postMessage({
           type: "changeDiffRefs",
@@ -481,8 +531,23 @@ function renderHtmlDiffPanel(webview, report, options = {}) {
         });
       }, 500);
     }
+    function scheduleRefChangeFromUnified() {
+      clearTimeout(refTimer);
+      refError.textContent = "";
+      baseRefInput.value = unifiedBaseRefInput.value;
+      headRefInput.value = unifiedHeadRefInput.value;
+      refTimer = setTimeout(() => {
+        vscode.postMessage({
+          type: "changeDiffRefs",
+          baseRef: unifiedBaseRefInput.value.trim(),
+          headRef: unifiedHeadRefInput.value.trim()
+        });
+      }, 500);
+    }
     baseRefInput.addEventListener("input", scheduleRefChange);
     headRefInput.addEventListener("input", scheduleRefChange);
+    unifiedBaseRefInput.addEventListener("input", scheduleRefChangeFromUnified);
+    unifiedHeadRefInput.addEventListener("input", scheduleRefChangeFromUnified);
     document.getElementById("diff-export-html").addEventListener("click", () => vscode.postMessage({ type: "exportHtml" }));
     document.getElementById("diff-export-all").addEventListener("click", () => vscode.postMessage({ type: "exportAllHtml" }));
     window.addEventListener("message", event => {
@@ -490,7 +555,20 @@ function renderHtmlDiffPanel(webview, report, options = {}) {
         refError.textContent = event.data.message || "unknown error";
       }
     });
-` : "";
+` : "") + `
+    function setLayout(mode) {
+      document.getElementById("unified-panel").style.display = mode === "unified" ? "" : "none";
+      var container = document.getElementById("diff-panel-container");
+      container.style.display = mode === "unified" ? "none" : "";
+      container.classList.toggle("split-column", mode === "vertical");
+      ["horizontal", "vertical", "unified"].forEach(function(m) {
+        document.getElementById("toggle-" + m).classList.toggle("layout-btn-active", m === mode);
+      });
+    }
+    document.getElementById("toggle-horizontal").addEventListener("click", function() { setLayout("horizontal"); });
+    document.getElementById("toggle-vertical").addEventListener("click", function() { setLayout("vertical"); });
+    document.getElementById("toggle-unified").addEventListener("click", function() { setLayout("unified"); });
+`;
 
   return `<!DOCTYPE html>
 <html lang="en" class="diff-panel-html">
@@ -507,17 +585,28 @@ ${editorCss}
 .diff-panel-error{color:var(--vscode-errorForeground,#c0392b);font-size:12px}
 .diff-ref-label{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--vscode-editor-font-family,monospace);color:var(--vscode-editor-foreground,#202124)}
 .diff-panel-container{display:flex;flex:1;min-height:0;overflow:hidden}
+.diff-panel-container.split-column{flex-direction:column}
 .diff-panel-pane{display:flex;flex:1;flex-direction:column;overflow:hidden;min-width:0}
 .diff-panel-pane+.diff-panel-pane{border-left:1px solid var(--vscode-editorGroup-border,#ccc)}
+.diff-panel-container.split-column .diff-panel-pane+.diff-panel-pane{border-left:none;border-top:1px solid var(--vscode-editorGroup-border,#ccc)}
 .diff-panel-label{padding:0;font-size:12px;color:var(--vscode-descriptionForeground);background:var(--vscode-editorWidget-background,#f3f5f4);border-bottom:1px solid var(--vscode-editorGroup-border,#ccc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .diff-panel-label .diff-ref-label{padding:4px 12px}
-.diff-panel-pane>#base-root,.diff-panel-pane>#head-root{flex:1;min-height:0;overflow:auto}
+.diff-panel-pane>#base-root,.diff-panel-pane>#head-root,.unified-panel>#unified-root{flex:1;min-height:0;overflow:auto}
+.unified-panel{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+.unified-ref-bar{display:flex;align-items:center;background:var(--vscode-editorWidget-background,#f3f5f4);border-bottom:1px solid var(--vscode-editorGroup-border,#ccc);font-size:12px}
+.unified-ref-bar .diff-ref-input{flex:1;min-width:0}
+.unified-ref-bar .diff-ref-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--vscode-editor-font-family,monospace);color:var(--vscode-editor-foreground,#202124)}
+.unified-ref-arrow{padding:0 8px;color:var(--vscode-descriptionForeground);flex-shrink:0}
+.layout-toggle-group{display:flex;gap:0}
+.layout-toggle-group .diff-control-btn+.diff-control-btn{border-left:none}
+.layout-btn-active{background:var(--vscode-button-background,#0078d4)!important;color:var(--vscode-button-foreground,#fff)!important;border-color:var(--vscode-button-background,#0078d4)!important}
   </style>
 </head>
 <body class="diff-panel-body">
   <div class="diff-panel-shell">
     ${panelHeaderHtml}
-    <div class="diff-panel-container">
+    <div id="unified-panel" class="unified-panel" style="display:none">${unifiedRefBarHtml}<div id="unified-root"></div></div>
+    <div id="diff-panel-container" class="diff-panel-container">
       <div class="diff-panel-pane">
         <div class="diff-panel-label">${baseRefHeaderHtml}</div>
         <div id="base-root"></div>
@@ -556,6 +645,17 @@ ${editorCss}
       vscode,
       window
     });
+    globalThis.NtfYamlEditorWebview.createNtfYamlEditorApp({
+      root: document.getElementById("unified-root"),
+      initialText: ${headState},
+      initialDiffReport: diffReport,
+      readOnly: true,
+      diffSide: "unified",
+      allowDiffControls: false,
+      model: globalThis.NtfYamlModel,
+      vscode,
+      window
+    });
   </script>
 </body>
 </html>`;
@@ -568,7 +668,9 @@ function renderStandaloneHtmlDiffPanel(report) {
 function renderHtml(webview, initialText, options = {}) {
   const nonce = getNonce();
   const initialState = JSON.stringify(options.initialText ?? initialText).replace(/</g, "\\u003c");
-  const initialDiffReport = JSON.stringify(options.diffReport || null).replace(/</g, "\\u003c");
+  // webviewDiffReport: webview JS に渡す着色用（undefined の場合は diffReport を使う）
+  const webviewDiffReport = options.webviewDiffReport !== undefined ? options.webviewDiffReport : (options.diffReport || null);
+  const initialDiffReport = JSON.stringify(webviewDiffReport).replace(/</g, "\\u003c");
   const initialReadOnly = options.readOnly ? "true" : "false";
   const initialDiffSide = JSON.stringify(options.diffSide || (options.readOnly ? "base" : "head"));
   const initialSidebarWidth = JSON.stringify(options.sidebarWidth || 240);
@@ -590,9 +692,7 @@ function renderHtml(webview, initialText, options = {}) {
   <title>NTF YAML Editor</title>
   <style nonce="${nonce}">
 ${editorCss}
-.scm-diff-html,.scm-diff-body{width:100%;height:100%;margin:0;padding:0;overflow:hidden}
-.scm-diff-body{display:flex;flex-direction:column}
-.scm-diff-body>#root{flex:1;min-height:0;overflow:hidden}
+
   </style>
 </head>
 <body class="${options.diffReport ? "scm-diff-body" : ""}">

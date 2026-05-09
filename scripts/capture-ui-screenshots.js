@@ -27,6 +27,9 @@ const baseText = [
   "    - no: \"1\"",
   "      name: \"before\"",
   "      note: \"same\"",
+  "    - no: \"0\"",
+  "      name: \"deleted row\"",
+  "      note: \"base only\"",
   "  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows",
   "    - [ \"001\", \"Tokyo\", ~ ]",
   ""
@@ -73,13 +76,16 @@ const pages = [
       initialText: baseText,
       diffReport,
       readOnly: true,
-      diffSide: "base",
-      scmRef: diffReport.baseRef
+      diffSide: "base"
     })
   },
   {
     name: "cell-diff",
     html: renderCellDiffHtml(diffReport, { controls: true })
+  },
+  {
+    name: "cell-diff-unified",
+    html: renderCellDiffHtml(diffReport, { controls: true, initialLayout: "unified" })
   },
   {
     name: "export-html",
@@ -96,8 +102,11 @@ for (const page of pages) {
 }
 
 function renderAppHtml(options) {
-  const scmHeader = options.scmRef
-    ? `<div class="scm-diff-header"><input class="diff-ref-input" type="text" value="${escapeHtml(options.scmRef)}" readonly aria-label="Git ref" title="Git ref"></div>`
+  const scmRef = options.diffReport
+    ? (options.diffSide === "head" ? options.diffReport.headRef : options.diffReport.baseRef)
+    : "";
+  const scmHeader = options.diffReport && scmRef
+    ? `<div class="scm-diff-header"><input class="diff-ref-input" type="text" value="${escapeHtml(scmRef)}" readonly aria-label="Git ref" title="Git ref"></div>`
     : "";
   return htmlDocument(options.title, `
     ${scmHeader}
@@ -123,24 +132,31 @@ function renderAppHtml(options) {
 
 function renderCellDiffHtml(report, options) {
   const baseHeader = options.controls
-    ? `<input id="diff-base-ref" class="diff-ref-input" type="text" value="${escapeHtml(report.baseRef)}" aria-label="Left ref" title="Left ref">`
+    ? `<input id="diff-base-ref" class="diff-ref-input" type="text" value="${escapeHtml(report.baseRef)}" aria-label="Base ref" title="Base ref">`
     : `<span class="diff-ref-label">${escapeHtml(report.baseRef)}</span>`;
   const headHeader = options.controls
-    ? `<input id="diff-head-ref" class="diff-ref-input" type="text" value="${escapeHtml(report.headRef)}" aria-label="Right ref" title="Right ref">`
+    ? `<input id="diff-head-ref" class="diff-ref-input" type="text" value="${escapeHtml(report.headRef)}" aria-label="Head ref" title="Head ref">`
     : `<span class="diff-ref-label">${escapeHtml(report.headRef)}</span>`;
+  const unifiedRefBar = options.controls
+    ? `<div class="unified-ref-bar"><input id="diff-unified-base-ref" class="diff-ref-input" type="text" value="${escapeHtml(report.baseRef)}" aria-label="Base ref" title="Base ref"><span class="unified-ref-arrow">→</span><input id="diff-unified-head-ref" class="diff-ref-input" type="text" value="${escapeHtml(report.headRef)}" aria-label="Head ref" title="Head ref"></div>`
+    : `<div class="unified-ref-bar"><span class="diff-ref-label" style="padding:4px 12px">${escapeHtml(report.baseRef)}</span><span class="unified-ref-arrow">→</span><span class="diff-ref-label" style="padding:4px 12px">${escapeHtml(report.headRef)}</span></div>`;
+  const layoutToggle = '<div class="layout-toggle-group">'
+    + '<button id="toggle-horizontal" class="diff-control-btn secondary layout-btn-active" title="横分割">横</button>'
+    + '<button id="toggle-vertical" class="diff-control-btn secondary" title="縦分割">縦</button>'
+    + '<button id="toggle-unified" class="diff-control-btn secondary" title="1枚表示">1枚</button>'
+    + '</div>';
   const actions = options.controls
-    ? '<button class="diff-control-btn secondary">Export HTML</button><button class="diff-control-btn secondary">Export All</button>'
-    : "";
-  const panelHeader = options.controls
-    ? `<div class="diff-panel-header">
+    ? `${layoutToggle}<button class="diff-control-btn secondary">Export HTML</button><button class="diff-control-btn secondary">Export All</button>`
+    : layoutToggle;
+  const panelHeader = `<div class="diff-panel-header">
         <div class="diff-panel-actions">${actions}</div>
-      </div>`
-    : "";
+      </div>`;
 
   return htmlDocument("NTF YAML Cell Diff", `
     <div class="diff-panel-shell">
       ${panelHeader}
-      <div class="diff-panel-container">
+      <div id="unified-panel" class="unified-panel" style="display:none">${unifiedRefBar}<div id="unified-root"></div></div>
+      <div id="diff-panel-container" class="diff-panel-container">
         <div class="diff-panel-pane">
           <div class="diff-panel-label">${baseHeader}</div>
           <div id="base-root"></div>
@@ -174,6 +190,29 @@ function renderCellDiffHtml(report, options) {
         vscode: acquireVsCodeApi(),
         window
       });
+      globalThis.NtfYamlEditorWebview.createNtfYamlEditorApp({
+        root: document.getElementById("unified-root"),
+        initialText: ${json(report.headText)},
+        initialDiffReport: diffReport,
+        readOnly: true,
+        diffSide: "unified",
+        model: globalThis.NtfYamlModel,
+        vscode: acquireVsCodeApi(),
+        window
+      });
+      document.getElementById("toggle-horizontal").addEventListener("click", function() { setLayout("horizontal"); });
+      document.getElementById("toggle-vertical").addEventListener("click", function() { setLayout("vertical"); });
+      document.getElementById("toggle-unified").addEventListener("click", function() { setLayout("unified"); });
+      function setLayout(mode) {
+        document.getElementById("unified-panel").style.display = mode === "unified" ? "" : "none";
+        var container = document.getElementById("diff-panel-container");
+        container.style.display = mode === "unified" ? "none" : "";
+        container.classList.toggle("split-column", mode === "vertical");
+        ["horizontal", "vertical", "unified"].forEach(function(m) {
+          document.getElementById("toggle-" + m).classList.toggle("layout-btn-active", m === mode);
+        });
+      }
+      setLayout(${json(options.initialLayout || "horizontal")});
     </script>
   `, { htmlClass: "diff-panel-html", bodyClass: "diff-panel-body" });
 }
@@ -190,19 +229,26 @@ function htmlDocument(title, body, options = {}) {
     `<title>${escapeHtml(title)}</title>`,
     "<style>",
     editorCss,
-    ".scm-diff-html,.scm-diff-body{width:100%;height:100%;margin:0;padding:0;overflow:hidden}",
-    ".scm-diff-body{display:flex;flex-direction:column}",
-    ".scm-diff-body>#root{flex:1;min-height:0;overflow:hidden}",
     ".diff-panel-html,.diff-panel-body{width:100%;height:100%;margin:0;padding:0;overflow:hidden}",
     ".diff-panel-shell{display:flex;flex-direction:column;width:100%;height:100%;overflow:hidden}",
     ".diff-panel-header{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap;padding:6px 10px;background:var(--vscode-editorGroupHeader-tabsBackground);border-bottom:1px solid var(--vscode-editorGroup-border,#ccc)}",
     ".diff-panel-actions{display:flex;align-items:center;gap:8px}",
     ".diff-panel-container{display:flex;flex:1;min-height:0;overflow:hidden}",
+    ".diff-panel-container.split-column{flex-direction:column}",
     ".diff-panel-pane{display:flex;flex:1;flex-direction:column;overflow:hidden;min-width:0}",
     ".diff-panel-pane+.diff-panel-pane{border-left:1px solid var(--vscode-editorGroup-border,#ccc)}",
+    ".diff-panel-container.split-column .diff-panel-pane+.diff-panel-pane{border-left:none;border-top:1px solid var(--vscode-editorGroup-border,#ccc)}",
     ".diff-panel-label{padding:0;font-size:12px;color:var(--vscode-descriptionForeground);background:var(--vscode-editorWidget-background,#f3f5f4);border-bottom:1px solid var(--vscode-editorGroup-border,#ccc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
     ".diff-panel-label .diff-ref-label{padding:4px 12px}",
-    ".diff-panel-pane>#base-root,.diff-panel-pane>#head-root{flex:1;min-height:0;overflow:auto}",
+    ".diff-panel-pane>#base-root,.diff-panel-pane>#head-root,.unified-panel>#unified-root{flex:1;min-height:0;overflow:auto}",
+    ".unified-panel{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}",
+    ".unified-ref-bar{display:flex;align-items:center;background:var(--vscode-editorWidget-background,#f3f5f4);border-bottom:1px solid var(--vscode-editorGroup-border,#ccc);font-size:12px}",
+    ".unified-ref-bar .diff-ref-input{flex:1;min-width:0}",
+    ".unified-ref-bar .diff-ref-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--vscode-editor-font-family,monospace);color:var(--vscode-editor-foreground,#202124)}",
+    ".unified-ref-arrow{padding:0 8px;color:var(--vscode-descriptionForeground);flex-shrink:0}",
+    ".layout-toggle-group{display:flex;gap:0}",
+    ".layout-toggle-group .diff-control-btn+.diff-control-btn{border-left:none}",
+    ".layout-btn-active{background:var(--vscode-button-background,#0078d4)!important;color:var(--vscode-button-foreground,#fff)!important;border-color:var(--vscode-button-background,#0078d4)!important}",
     "</style>",
     "</head>",
     bodyClass ? `<body class="${escapeHtml(bodyClass)}">` : "<body>",
