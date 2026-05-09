@@ -293,12 +293,31 @@ input[readonly] {
 
 .diff-ref-input {
     font-size: 12px;
-    padding: 2px 6px;
-    width: 120px;
-    border: 1px solid var(--line);
-    border-radius: 3px;
+    padding: 4px 12px;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--vscode-editor-foreground, #202124);
+    font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.diff-ref-input:focus {
     background: var(--vscode-input-background, #fff);
     color: var(--vscode-input-foreground, #202124);
+    outline: 1px solid var(--vscode-focusBorder, var(--accent));
+    outline-offset: -1px;
+}
+
+.scm-diff-header {
+    background: var(--vscode-editorWidget-background, #f3f5f4);
+    border-bottom: 1px solid var(--vscode-editorGroup-border, var(--line));
+}
+
+.scm-diff-header .diff-ref-input {
+    cursor: default;
 }
 
 .diff-control-btn {

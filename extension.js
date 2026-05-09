@@ -180,16 +180,26 @@ class NtfYamlEditorProvider {
 
   async resolveCustomTextEditor(document, webviewPanel) {
     webviewPanel.webview.options = { enableScripts: true };
+    const diffReport = createEditorDiffReport(document);
+    const diffSide = document.uri.scheme === "git" ? "base" : "head";
+    const initialText = diffReport
+      ? diffSide === "base" ? diffReport.baseText : diffReport.headText
+      : document.getText();
     webviewPanel.webview.html = renderHtml(webviewPanel.webview, document.getText(), {
-      diffReport: createEditorDiffReport(document),
-      readOnly: document.uri.scheme !== "file"
+      initialText,
+      diffReport,
+      readOnly: document.uri.scheme !== "file",
+      diffSide
     });
 
     const updateWebview = () => {
+      const nextDiffReport = createEditorDiffReport(document);
       webviewPanel.webview.postMessage({
         type: "update",
-        text: document.getText(),
-        diffReport: createEditorDiffReport(document)
+        text: nextDiffReport
+          ? diffSide === "base" ? nextDiffReport.baseText : nextDiffReport.headText
+          : document.getText(),
+        diffReport: nextDiffReport
       });
     };
 
@@ -416,19 +426,12 @@ function renderHtmlDiffPanel(webview, report, options = {}) {
   const headRef = report.headRef || "head";
   const baseRefValue = escapeHtmlAttribute(baseRef);
   const headRefValue = escapeHtmlAttribute(headRef);
-  const refControlsHtml = includeHeaderControls
-    ? [
-      '<label for="diff-base-ref">Left ref</label>',
-      `<input id="diff-base-ref" class="diff-ref-input" type="text" value="${baseRefValue}">`,
-      '<label for="diff-head-ref">Right ref</label>',
-      `<input id="diff-head-ref" class="diff-ref-input" type="text" value="${headRefValue}">`
-    ].join("")
-    : [
-      "<span>Left ref</span>",
-      `<span class="diff-ref-label">${baseRefValue}</span>`,
-      "<span>Right ref</span>",
-      `<span class="diff-ref-label">${headRefValue}</span>`
-    ].join("");
+  const baseRefHeaderHtml = includeHeaderControls
+    ? `<input id="diff-base-ref" class="diff-ref-input" type="text" value="${baseRefValue}" aria-label="Left ref" title="Left ref">`
+    : `<span class="diff-ref-label">${baseRefValue}</span>`;
+  const headRefHeaderHtml = includeHeaderControls
+    ? `<input id="diff-head-ref" class="diff-ref-input" type="text" value="${headRefValue}" aria-label="Right ref" title="Right ref">`
+    : `<span class="diff-ref-label">${headRefValue}</span>`;
   const actionsHtml = includeHeaderControls
     ? [
       '<button id="diff-export-html" class="diff-control-btn secondary">Export HTML</button>',
@@ -472,34 +475,31 @@ function renderHtmlDiffPanel(webview, report, options = {}) {
   <style nonce="${nonce}">
 ${editorCss}
 .diff-panel-shell{display:flex;flex-direction:column;height:100vh;overflow:hidden}
-.diff-panel-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:6px 10px;background:var(--vscode-editorGroupHeader-tabsBackground);border-bottom:1px solid var(--vscode-editorGroup-border,#ccc)}
-.diff-panel-refs{display:grid;grid-template-columns:auto minmax(120px,240px) auto minmax(120px,240px);align-items:center;gap:6px;font-size:12px;color:var(--vscode-descriptionForeground)}
+.diff-panel-header{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap;padding:6px 10px;background:var(--vscode-editorGroupHeader-tabsBackground);border-bottom:1px solid var(--vscode-editorGroup-border,#ccc)}
 .diff-panel-actions{display:flex;align-items:center;gap:8px}
 .diff-panel-error{color:var(--vscode-errorForeground,#c0392b);font-size:12px}
-.diff-ref-label{font-family:var(--vscode-editor-font-family,monospace);color:var(--vscode-editor-foreground,#202124)}
+.diff-ref-label{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--vscode-editor-font-family,monospace);color:var(--vscode-editor-foreground,#202124)}
 .diff-panel-container{display:flex;flex:1;min-height:0;overflow:hidden}
 .diff-panel-pane{flex:1;overflow:auto;min-width:0}
 .diff-panel-pane+.diff-panel-pane{border-left:1px solid var(--vscode-editorGroup-border,#ccc)}
-.diff-panel-label{padding:4px 12px;font-size:12px;color:var(--vscode-descriptionForeground);background:var(--vscode-editorWidget-background,#f3f5f4);border-bottom:1px solid var(--vscode-editorGroup-border,#ccc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.diff-panel-label{padding:0;font-size:12px;color:var(--vscode-descriptionForeground);background:var(--vscode-editorWidget-background,#f3f5f4);border-bottom:1px solid var(--vscode-editorGroup-border,#ccc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.diff-panel-label .diff-ref-label{padding:4px 12px}
   </style>
 </head>
 <body>
   <div class="diff-panel-shell">
     <div class="diff-panel-header">
-      <div class="diff-panel-refs">
-        ${refControlsHtml}
-      </div>
       <div class="diff-panel-actions">
         ${actionsHtml}
       </div>
     </div>
     <div class="diff-panel-container">
       <div class="diff-panel-pane">
-        <div class="diff-panel-label">${baseRefValue}</div>
+        <div class="diff-panel-label">${baseRefHeaderHtml}</div>
         <div id="base-root"></div>
       </div>
       <div class="diff-panel-pane">
-        <div class="diff-panel-label">${headRefValue}</div>
+        <div class="diff-panel-label">${headRefHeaderHtml}</div>
         <div id="head-root"></div>
       </div>
     </div>
@@ -543,12 +543,19 @@ function renderStandaloneHtmlDiffPanel(report) {
 
 function renderHtml(webview, initialText, options = {}) {
   const nonce = getNonce();
-  const initialState = JSON.stringify(initialText).replace(/</g, "\\u003c");
+  const initialState = JSON.stringify(options.initialText ?? initialText).replace(/</g, "\\u003c");
   const initialDiffReport = JSON.stringify(options.diffReport || null).replace(/</g, "\\u003c");
   const initialReadOnly = options.readOnly ? "true" : "false";
+  const initialDiffSide = JSON.stringify(options.diffSide || (options.readOnly ? "base" : "head"));
   const modelScript = fs.readFileSync(path.join(__dirname, "lib", "ntfYamlModel.js"), "utf8");
   const webviewScript = fs.readFileSync(path.join(__dirname, "media", "ntfYamlEditorWebview.js"), "utf8");
   const editorCss = fs.readFileSync(path.join(__dirname, "media", "ntfYamlEditor.css"), "utf8");
+  const scmRef = options.diffReport
+    ? (options.diffSide === "head" ? options.diffReport.headRef : options.diffReport.baseRef)
+    : "";
+  const scmHeader = options.diffReport && scmRef
+    ? `<div class="scm-diff-header"><input class="diff-ref-input" type="text" value="${escapeHtmlAttribute(scmRef)}" readonly aria-label="Git ref" title="Git ref"></div>`
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -561,6 +568,7 @@ ${editorCss}
   </style>
 </head>
 <body>
+  ${scmHeader}
   <div id="root"></div>
   <script nonce="${nonce}">
     ${modelScript}
@@ -571,6 +579,7 @@ ${editorCss}
       initialText: ${initialState},
       initialDiffReport: ${initialDiffReport},
       readOnly: ${initialReadOnly},
+      diffSide: ${initialDiffSide},
       model: globalThis.NtfYamlModel,
       vscode,
       window

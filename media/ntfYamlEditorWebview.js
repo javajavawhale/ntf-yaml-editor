@@ -10,6 +10,7 @@
     const model = options.model;
     const vscode = options.vscode;
     const document = root.ownerDocument;
+    const viewWindow = options.window || document.defaultView;
     let state = model.parseYaml(options.initialText || "");
     let diffReport = options.initialDiffReport || null;
     const readOnly = Boolean(options.readOnly);
