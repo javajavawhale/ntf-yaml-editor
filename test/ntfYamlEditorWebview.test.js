@@ -3,6 +3,7 @@ const test = require("node:test");
 const { JSDOM } = require("jsdom");
 
 const model = require("../lib/ntfYamlModel");
+const { createDiffReport } = require("../lib/ntfYamlDiff");
 const { createNtfYamlEditorApp } = require("../media/ntfYamlEditorWebview");
 
 function createHarness(initialText = sampleYaml(), options = {}) {
@@ -447,6 +448,7 @@ test("webview adds sheets and LIST_MAP blocks", () => {
   const sheetInput = root.querySelector('[data-role="sheet-name"]');
   sheetInput.value = "case3";
   sheetInput.dispatchEvent(changeEvent(dom));
+  root.querySelector('[data-role="new-block-kind"]').value = "LIST_MAP";
   root.querySelector('[data-action="add-block"]').click();
   let listMap = block(root, "LIST_MAP=");
   const blockInput = listMap.querySelector('[data-role="block-name"]');
@@ -461,6 +463,14 @@ test("webview adds sheets and LIST_MAP blocks", () => {
   assert.match(messages[0].text, /case3:/);
   assert.match(messages[0].text, /LIST_MAP=items: #ListMap/);
   assert.match(messages[0].text, /    - no: "1"/);
+});
+
+test("webview offers all supported NTF block prefixes when adding a block", () => {
+  const { root } = createHarness();
+
+  const options = Array.from(root.querySelector('[data-role="new-block-kind"]').options).map(option => option.value);
+
+  assert.deepEqual(options, model.blockPrefixes);
 });
 
 test("webview renders RawRows without column numbers and highlights structural cells", () => {
@@ -512,6 +522,24 @@ test("webview only treats NTF file generation directives as RawRows metadata", (
   assert.equal(rawRows.querySelector('[data-raw-row="2"][data-raw-column="0"]').closest("tr").classList.contains("raw-metadata-row"), false);
   assert.equal(rawRows.querySelector('[data-raw-row="3"][data-raw-column="0"]').closest("tr").classList.contains("raw-metadata-row"), false);
   assert.equal(rawRows.querySelector('[data-raw-row="4"][data-raw-column="0"]').closest("tr").classList.contains("raw-metadata-row"), false);
+});
+
+test("webview does not style ordinary RawRows first-column values as key cells", () => {
+  const { root } = createHarness([
+    "case1:",
+    "  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows",
+    "    - [ \"id\", \"city\" ]",
+    "    - [ \"001\", \"Tokyo\" ]",
+    "    - [ \"002\", \"Kyoto\" ]",
+    "    - [ \"003\", \"Nara\" ]",
+    ""
+  ].join("\n"));
+  const rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
+
+  for (let row = 0; row < 4; row++) {
+    assert.equal(rawRows.querySelector(`[data-raw-row="${row}"][data-raw-column="0"]`).closest("td").classList.contains("raw-key-cell"), false);
+    assert.equal(rawRows.querySelector(`[data-raw-row="${row}"][data-raw-column="0"]`).closest("tr").className, "");
+  }
 });
 
 test("webview reorders sheets, blocks, rows, and columns with drag and drop", () => {
@@ -641,6 +669,28 @@ test("webview highlights diff on head side using headIndex", () => {
   assert.equal(projectName.title, "before: プロジェクト０００");
 });
 
+test("webview highlights SCM diff base and head panes against their own document rows", () => {
+  const baseText = [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"before\"",
+    ""
+  ].join("\n");
+  const headText = baseText.replace("before", "after");
+  const initialDiffReport = createDiffReport({ path: "case.ntf.yaml", baseText, headText });
+
+  const baseHarness = createHarness(baseText, { initialDiffReport, readOnly: true, diffSide: "base" });
+  const baseName = block(baseHarness.root, "LIST_MAP=requestParams").querySelector('[data-column="name"]');
+  assert.equal(baseName.value, "before");
+  assert.ok(baseName.closest("td").classList.contains("diff-cell-changed"));
+
+  const headHarness = createHarness(headText, { initialDiffReport, readOnly: false, diffSide: "head" });
+  const headName = block(headHarness.root, "LIST_MAP=requestParams").querySelector('[data-column="name"]');
+  assert.equal(headName.value, "after");
+  assert.ok(headName.closest("td").classList.contains("diff-cell-changed"));
+});
+
 test("webview does not highlight deleted rows on head side (headIndex is null)", () => {
   // deleted rows have headIndex=null and must not match any head row
   const initialDiffReport = {
@@ -676,4 +726,107 @@ test("webview does not highlight deleted rows on head side (headIndex is null)",
   assert.ok(tr);
   assert.ok(!tr.classList.contains("diff-row-deleted"));
   assert.ok(!tr.classList.contains("diff-row-changed"));
+});
+
+test("webview renders deleted RawRows only on base and unified diff sides", () => {
+  const baseText = [
+    "case1:",
+    "  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows",
+    "    - [ \"id\", \"city\" ]",
+    "    - [ \"001\", \"Tokyo\" ]",
+    "    - [ \"002\", \"Osaka\" ]",
+    "    - [ \"003\", \"Nara\" ]",
+    ""
+  ].join("\n");
+  const headText = [
+    "case1:",
+    "  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows",
+    "    - [ \"id\", \"city\" ]",
+    "    - [ \"001\", \"Tokyo\" ]",
+    "    - [ \"003\", \"Nara\" ]",
+    ""
+  ].join("\n");
+  const initialDiffReport = createDiffReport({ path: "case.ntf.yaml", baseText, headText });
+
+  const baseHarness = createHarness(baseText, { initialDiffReport, readOnly: true, diffSide: "base" });
+  const baseRows = block(baseHarness.root, "EXPECTED_VARIABLE=./tmp/result.csv");
+  const osaka = baseRows.querySelector('[data-raw-row="2"][data-raw-column="1"]');
+  assert.equal(osaka.value, "Osaka");
+  assert.ok(osaka.closest("tr").classList.contains("diff-row-deleted"));
+  assert.equal(osaka.closest("td").dataset.diffStatus, "deleted");
+
+  const headHarness = createHarness(headText, { initialDiffReport, readOnly: true, diffSide: "head" });
+  const headRows = block(headHarness.root, "EXPECTED_VARIABLE=./tmp/result.csv");
+  assert.ok(!Array.from(headRows.querySelectorAll("input")).some(input => input.value === "Osaka"));
+  assert.equal(headRows.querySelector(".diff-row-deleted"), null);
+
+  const unifiedHarness = createHarness(headText, { initialDiffReport, readOnly: true, diffSide: "unified" });
+  const unifiedRows = block(unifiedHarness.root, "EXPECTED_VARIABLE=./tmp/result.csv");
+  const deletedRow = unifiedRows.querySelector(".diff-row-deleted");
+  assert.ok(deletedRow, "unified view should include deleted RawRows context");
+  assert.ok(Array.from(deletedRow.querySelectorAll("input")).some(input => input.value === "Osaka"));
+});
+
+test("webview does not mark unchanged RawRows cells as changed inside changed rows", () => {
+  const baseText = [
+    "case1:",
+    "  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows",
+    "    - [ \"id\", \"city\" ]",
+    "    - [ \"001\", \"Tokyo\" ]",
+    "    - [ \"002\", \"Osaka\" ]",
+    ""
+  ].join("\n");
+  const headText = [
+    "case1:",
+    "  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows",
+    "    - [ \"id\", \"city\" ]",
+    "    - [ \"001\", \"Tokyo\" ]",
+    "    - [ \"002\", \"Kyoto\" ]",
+    "    - [ \"003\", \"Nara\" ]",
+    ""
+  ].join("\n");
+  const initialDiffReport = createDiffReport({ path: "case.ntf.yaml", baseText, headText });
+
+  const { root } = createHarness(headText, { initialDiffReport, readOnly: true, diffSide: "head" });
+  const rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
+
+  const city = rawRows.querySelector('[data-raw-row="0"][data-raw-column="1"]').closest("td");
+  const tokyo = rawRows.querySelector('[data-raw-row="1"][data-raw-column="1"]').closest("td");
+  const id002 = rawRows.querySelector('[data-raw-row="2"][data-raw-column="0"]').closest("td");
+  const kyoto = rawRows.querySelector('[data-raw-row="2"][data-raw-column="1"]').closest("td");
+
+  assert.equal(city.dataset.diffStatus, undefined);
+  assert.equal(tokyo.dataset.diffStatus, undefined);
+  assert.equal(id002.dataset.diffStatus, undefined);
+  assert.equal(kyoto.dataset.diffStatus, "changed");
+});
+
+test("webview unified view includes unchanged RawRows context rows", () => {
+  const baseText = [
+    "case1:",
+    "  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows",
+    "    - [ \"id\", \"city\" ]",
+    "    - [ \"001\", \"Tokyo\" ]",
+    "    - [ \"002\", \"Osaka\" ]",
+    ""
+  ].join("\n");
+  const headText = [
+    "case1:",
+    "  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows",
+    "    - [ \"id\", \"city\" ]",
+    "    - [ \"001\", \"Tokyo\" ]",
+    "    - [ \"002\", \"Kyoto\" ]",
+    "    - [ \"003\", \"Nara\" ]",
+    ""
+  ].join("\n");
+  const initialDiffReport = createDiffReport({ path: "case.ntf.yaml", baseText, headText });
+
+  const { root } = createHarness(headText, { initialDiffReport, readOnly: true, diffSide: "unified" });
+  const rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
+  const values = Array.from(rawRows.querySelectorAll("tbody input")).map(input => input.value);
+
+  assert.deepEqual(values.slice(0, 4), ["id", "city", "001", "Tokyo"]);
+  assert.match(rawRows.textContent, /Osaka/);
+  assert.match(rawRows.textContent, /Kyoto/);
+  assert.deepEqual(values.slice(-2), ["003", "Nara"]);
 });

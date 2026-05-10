@@ -18,6 +18,8 @@ if (!chromium) {
 fs.mkdirSync(htmlDir, { recursive: true });
 
 const modelScript = fs.readFileSync(path.join(root, "lib", "ntfYamlModel.js"), "utf8");
+const helperScript = fs.readFileSync(path.join(root, "media", "ntfYamlEditorHelpers.js"), "utf8");
+const diffHelperScript = fs.readFileSync(path.join(root, "media", "ntfYamlEditorDiffHelpers.js"), "utf8");
 const webviewScript = fs.readFileSync(path.join(root, "media", "ntfYamlEditorWebview.js"), "utf8");
 const editorCss = fs.readFileSync(path.join(root, "media", "ntfYamlEditor.css"), "utf8");
 
@@ -49,12 +51,40 @@ const headText = [
   ""
 ].join("\n");
 
+const rawRowsBaseText = [
+  "case1:",
+  "  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows",
+  "    - [ \"id\", \"city\" ]",
+  "    - [ \"001\", \"Tokyo\" ]",
+  "    - [ \"002\", \"Osaka\" ]",
+  ""
+].join("\n");
+
+const rawRowsHeadText = [
+  "case1:",
+  "  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows",
+  "    - [ \"id\", \"city\" ]",
+  "    - [ \"001\", \"Tokyo\" ]",
+  "    - [ \"002\", \"Kyoto\" ]",
+  "    - [ \"003\", \"Nara\" ]",
+  ""
+].join("\n");
+
 const diffReport = createDiffReport({
   path: "case.ntf.yaml",
   baseRef: "HEAD",
   headRef: "working tree",
   baseText,
   headText,
+  repositoryPath: root
+});
+
+const rawRowsDiffReport = createDiffReport({
+  path: "rawrows.ntf.yaml",
+  baseRef: "HEAD",
+  headRef: "working tree",
+  baseText: rawRowsBaseText,
+  headText: rawRowsHeadText,
   repositoryPath: root
 });
 
@@ -67,7 +97,22 @@ const pages = [
       diffReport: null,
       readOnly: false,
       diffSide: "head"
-    })
+    }),
+    checks: {
+      visible: [
+        "#root .app",
+        ".side-toolbar [data-action='save']",
+        "[data-action='add-row']",
+        "[data-action='add-column']",
+        ".rawrows-table",
+        ".row-actions-cell",
+        "[title='Delete row']",
+        "[title='Delete column']",
+        "[title='Delete raw row']",
+        "[title='Delete raw column']"
+      ],
+      hidden: [".diff-legend", ".scm-diff-header"]
+    }
   },
   {
     name: "scm-base",
@@ -77,27 +122,113 @@ const pages = [
       diffReport,
       readOnly: true,
       diffSide: "base"
-    })
+    }),
+    checks: {
+      visible: [
+        ".scm-diff-header",
+        "#root .app.diff-app",
+        ".diff-legend",
+        ".diff-cell-changed"
+      ],
+      hidden: [
+        "[data-action='save']",
+        "[data-action='add-row']",
+        "[data-action='add-column']"
+      ]
+    }
   },
   {
     name: "cell-diff",
-    html: renderCellDiffHtml(diffReport, { controls: true })
+    html: renderCellDiffHtml(diffReport, { controls: true }),
+    checks: {
+      visible: [
+        ".diff-panel-shell",
+        ".diff-panel-container",
+        ".diff-panel-pane",
+        "#base-root .app.diff-app",
+        "#head-root .app.diff-app",
+        "#toggle-horizontal.layout-btn-active",
+        "#diff-base-ref",
+        "#diff-head-ref",
+        "#base-root .diff-cell-changed",
+        "#head-root .diff-cell-changed"
+      ],
+      hidden: ["#unified-panel", "#unified-root .app"]
+    }
   },
   {
     name: "cell-diff-unified",
-    html: renderCellDiffHtml(diffReport, { controls: true, initialLayout: "unified" })
+    html: renderCellDiffHtml(diffReport, { controls: true, initialLayout: "unified" }),
+    checks: {
+      visible: [
+        "#unified-panel",
+        "#unified-root .app.diff-app.unified-view",
+        "#toggle-unified.layout-btn-active",
+        ".cell-unified-diff",
+        ".diff-cell-changed"
+      ],
+      hidden: [".diff-panel-container"]
+    }
   },
   {
     name: "export-html",
-    html: renderCellDiffHtml(diffReport, { controls: false })
+    html: renderCellDiffHtml(diffReport, { controls: false }),
+    checks: {
+      visible: [
+        ".diff-panel-shell",
+        ".diff-panel-container",
+        ".layout-toggle-group",
+        "#diff-panel-container .diff-ref-label",
+        "#base-root .app.diff-app",
+        "#head-root .app.diff-app"
+      ],
+      hidden: [
+        "#diff-base-ref",
+        "#diff-head-ref"
+      ],
+      textAbsent: ["Export HTML", "Export All"]
+    }
+  },
+  {
+    name: "rawrows-cell-diff",
+    html: renderCellDiffHtml(rawRowsDiffReport, { controls: true }),
+    checks: {
+      visible: [
+        ".diff-panel-shell",
+        "#base-root .rawrows-table",
+        "#head-root .rawrows-table",
+        "#head-root .diff-cell-changed",
+        "#head-root .diff-row-added"
+      ],
+      textPresent: ["Osaka", "Kyoto", "Nara"]
+    }
+  },
+  {
+    name: "rawrows-cell-diff-unified",
+    html: renderCellDiffHtml(rawRowsDiffReport, { controls: true, initialLayout: "unified" }),
+    checks: {
+      visible: [
+        "#unified-panel",
+        "#unified-root .app.diff-app.unified-view",
+        "#unified-root .block"
+      ],
+      exists: [
+        "#unified-root [data-column]",
+        "#unified-root .diff-cell-changed",
+        "#unified-root .diff-row-added"
+      ],
+      hidden: [".diff-panel-container"],
+      textPresent: ["Osaka", "Kyoto", "Nara"]
+    }
   }
 ];
 
 for (const page of pages) {
   const htmlPath = path.join(htmlDir, `${page.name}.html`);
   const pngPath = path.join(outDir, `${page.name}.png`);
-  fs.writeFileSync(htmlPath, page.html, "utf8");
+  fs.writeFileSync(htmlPath, injectUiRegressionScript(page.html, page.checks), "utf8");
   screenshot(htmlPath, pngPath);
+  validatePage(htmlPath, page.checks);
   console.log(`wrote ${path.relative(root, pngPath)}`);
 }
 
@@ -262,8 +393,76 @@ function runtimeScript() {
   return [
     "window.acquireVsCodeApi = window.acquireVsCodeApi || function() { return { postMessage() {} }; };",
     modelScript,
+    helperScript,
+    diffHelperScript,
     webviewScript
   ].join("\n");
+}
+
+function injectUiRegressionScript(html, checks) {
+  const script = `
+<script>
+(function() {
+  const checks = ${json(checks || {})};
+  function visible(selector) {
+    const element = document.querySelector(selector);
+    if (!element) return false;
+    const style = window.getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.display !== "none"
+      && style.visibility !== "hidden"
+      && rect.width > 0
+      && rect.height > 0;
+  }
+  function hidden(selector) {
+    const element = document.querySelector(selector);
+    if (!element) return true;
+    const style = window.getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.display === "none"
+      || style.visibility === "hidden"
+      || rect.width === 0
+      || rect.height === 0;
+  }
+  function report() {
+    const failures = [];
+    const visibleTextRoot = document.body.cloneNode(true);
+    visibleTextRoot.querySelectorAll("script,style,#ui-regression-result").forEach(function(element) {
+      element.remove();
+    });
+    const inputValues = Array.from(document.querySelectorAll("input,textarea"))
+      .map(function(element) { return element.value || ""; })
+      .join("\\n");
+    const visibleText = visibleTextRoot.textContent + "\\n" + inputValues;
+    for (const selector of checks.visible || []) {
+      if (!visible(selector)) failures.push("expected visible: " + selector);
+    }
+    for (const selector of checks.exists || []) {
+      if (!document.querySelector(selector)) failures.push("expected present: " + selector);
+    }
+    for (const selector of checks.hidden || []) {
+      if (!hidden(selector)) failures.push("expected hidden or absent: " + selector);
+    }
+    for (const text of checks.textPresent || []) {
+      if (!visibleText.includes(text)) failures.push("expected text: " + text);
+    }
+    for (const text of checks.textAbsent || []) {
+      if (visibleText.includes(text)) failures.push("unexpected text: " + text);
+    }
+    const marker = document.createElement("pre");
+    marker.id = "ui-regression-result";
+    marker.hidden = true;
+    marker.textContent = failures.length ? "FAIL\\n" + failures.join("\\n") : "PASS";
+    document.body.append(marker);
+  }
+  if (document.readyState === "complete") {
+    setTimeout(report, 0);
+  } else {
+    window.addEventListener("load", function() { setTimeout(report, 0); });
+  }
+})();
+</script>`;
+  return html.replace("</body>", `${script}\n</body>`);
 }
 
 function screenshot(htmlPath, pngPath) {
@@ -277,6 +476,26 @@ function screenshot(htmlPath, pngPath) {
   ], { encoding: "utf8" });
   if (result.status !== 0) {
     throw new Error(result.stderr || result.stdout || `Chromium exited with ${result.status}`);
+  }
+}
+
+function validatePage(htmlPath, checks) {
+  const result = spawnSync(chromium, [
+    "--headless",
+    "--disable-gpu",
+    "--no-sandbox",
+    "--window-size=1365,900",
+    "--virtual-time-budget=1000",
+    "--dump-dom",
+    pathToFileUrl(htmlPath)
+  ], { encoding: "utf8" });
+  if (result.status !== 0) {
+    throw new Error(result.stderr || result.stdout || `Chromium exited with ${result.status}`);
+  }
+  const match = result.stdout.match(/<pre id="ui-regression-result"[^>]*>([\s\S]*?)<\/pre>/);
+  const text = match ? unescapeHtml(match[1]) : "";
+  if (!text.startsWith("PASS")) {
+    throw new Error(`UI regression check failed for ${path.basename(htmlPath)}:\n${text || result.stdout.slice(-2000)}`);
   }
 }
 
@@ -301,4 +520,12 @@ function escapeHtml(value) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function unescapeHtml(value) {
+  return String(value)
+    .replace(/&quot;/g, "\"")
+    .replace(/&gt;/g, ">")
+    .replace(/&lt;/g, "<")
+    .replace(/&amp;/g, "&");
 }

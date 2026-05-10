@@ -1,90 +1,254 @@
-# NTF YAML Editor テストケース
+# NTF YAML Editor Test Policy
 
-手動で確認する UX 観点のテストケースは `docs/manual-test-plan.md` に記載する。
+This document defines the current automated test types and expectation style for the NTF YAML Editor.
+Manual UX scenarios are maintained separately in `docs/manual-test-plan.md`.
 
-## 自動テストの網羅範囲
+## Test Types
 
-実行方法:
+Use the test type that matches the behavior boundary being changed.
+
+### Unit Tests
+
+Command:
+
+```sh
+npm run test:unit
+```
+
+Runner:
+
+- `node --test test/*.test.js`
+
+Current files:
+
+- `test/ntfYamlModel.test.js`
+- `test/ntfYamlEditorWebview.test.js`
+- `test/ntfYamlExtensionUtils.test.js`
+
+`test:unit` contains several subtypes:
+
+- Model tests for parse, serialize, canonical form, diagnostics, and block classification.
+- Cell Diff tests for `Diff Report` structure, row/cell status, Base/Head values, and Git ref text resolution.
+- CLI tests for `lint`, `format`, `convert`, and `diff` argument/exit-code behavior.
+- Webview DOM tests using jsdom for browser-side rendering, editing, messages, and diff highlighting.
+- Extension utility tests for URI collection, Git URI query parsing, backing file path resolution, and diagnostic line lookup.
+
+Unit tests should be the default place for new coverage. Prefer them whenever the behavior can be checked without launching VS Code or Chromium.
+
+### UI Screenshot Tests
+
+Command:
+
+```sh
+npm run test:ui
+```
+
+Runner:
+
+- `node scripts/capture-ui-screenshots.js`
+
+Scope:
+
+- Generated editor HTML.
+- SCM Diff base-pane HTML.
+- Cell Diff Panel split layout.
+- Cell Diff Panel unified layout.
+- Standalone HTML Report controls/no-controls behavior.
+- Raw Rows Cell Diff display.
+
+These tests use Chromium and assert a UI contract through selectors and text checks:
+
+- `visible`
+- `hidden`
+- `exists`
+- `textPresent`
+- `textAbsent`
+
+They also write screenshots and generated HTML under `test-artifacts/ui-screenshots/`.
+Treat them as layout and rendering smoke tests, not pixel-diff tests.
+
+### E2E Tests
+
+Command:
+
+```sh
+npm run test:e2e
+```
+
+Runner:
+
+- `@vscode/test-electron`
+- `test/e2e/runTest.js`
+- `test/e2e/suite/ntfYamlEditor.e2e.js`
+
+Scope:
+
+- Extension activation.
+- User-facing command registration.
+- Custom editor opening through VS Code.
+- Cell Diff Panel opening through VS Code command execution.
+- VS Code diagnostics publication.
+- Extension save path round-trip for representative fixtures.
+- Exported standalone Cell Diff HTML through extension-only E2E helper commands.
+
+Use E2E tests only for VS Code integration behavior that cannot be proven well with unit or jsdom tests.
+Do not put fine-grained model, diff, DOM, or CLI branching here.
+
+### Full Automated Test
+
+Command:
 
 ```sh
 npm test
 ```
 
-### Unit Tests
+Current sequence:
 
-`npm run test:unit` で確認する。
+```sh
+npm run test:unit && npm run test:ui && npm run test:e2e
+```
 
-- `LIST_MAP`、`SETUP_TABLE`、`EXPECTED_TABLE`、`SETUP_VARIABLE`、`EXPECTED_VARIABLE` の block 分類。
-- table row と、`"[no]"` のような quote が必要な特殊 key の parse。
-- YAML が key を別の意味に解釈しないよう、特殊 key を quote して serialize すること。
-- 空 table column 定義で使う YAML null sentinel cell、つまり `~` の保持。
-- 空文字 `""` と YAML null `~` の区別。
-- row がない空 table block の保持。
-- 日本語、長文、comma、quote、backslash を含む table cell の保持。
-- `SETUP_VARIABLE` / `EXPECTED_VARIABLE` の RawRows block の parse と serialize。
-- 未対応の fixed-length block を raw text として保持すること。
-- `test/fixtures/ntf-samples/` 配下の vendoring 済み NTF sample fixture を読み込み、web、batch、REST、form YAML の主要 editor target を確認すること。
-- よくある構造問題の解析。具体的には、`testShots` 必須 column 不足、番号付き参照 block 不足、RawRows の row 幅不一致。
-- CLI lint の exit code。error があれば non-zero、warning のみなら zero。
-- CLI convert の `xlsx` 動作。テスト内で生成した workbook fixture を YAML に変換し、そのまま lint する。
-- CLI convert の `xls` dispatch。`.xls` input が `xlrd` ベースの converter に渡ること。
-- 実 `.xls` の CLI convert。Python `xlwt` が利用できる場合、生成した BIFF `.xls` fixture を `xlrd` converter で変換し、そのまま lint する。
+This is the full local regression gate for the extension.
 
-### Webview DOM Tests
+### Performance Benchmark
 
-`npm run test:unit` で jsdom を使って確認する。
+Command:
 
-- sheet button の描画と active sheet の切り替え。
-- table cell の編集と、保存 message 経由で serialized YAML が送られること。
-- table row の追加。
-- button click と Enter key による table column の追加。
-- cell value を保持したまま table column 名を変更すること。
-- RawRows cell の編集と、`~` null sentinel の保持。
-- document update message を受けた再描画。active sheet が残っている場合は維持し、消えた場合は fallback すること。
-- 未対応 block を raw text として表示すること。
+```sh
+npm run perf:diff
+```
 
-### E2E Tests
+Runner:
 
-`npm run test:e2e` で `@vscode/test-electron` を使って確認する。
+- `node scripts/perf-diff-report.js`
 
-- 実際の VS Code Extension Host を、この extension を読み込んだ状態で起動する。
-- `local.ntf-yaml-editor` を activate できること。
-- `ntfYaml.openAsTable` command が登録されていること。
-- 生成された Webview HTML に、table editor control と RawRows rendering code が含まれること。
-- YAML file を通常 open したときに `ntfYaml.editor` custom editor で開けること。
-- 明示的な補助経路として、active text editor から `NTF YAML: Open as Table` で table editor を開けること。
-- 不正な `LIST_MAP=testShots` block に対して VS Code Problems diagnostics を出せること。
-- vendoring 済み sample fixture を extension save path で round-trip し、重要な YAML 形状が壊れないこと。
-- 移行済み web fixture を round-trip し、`~` null sentinel row が保持されること。
+Scope:
 
-E2E runner は `.vscode-test/` 配下にテスト用 VS Code build を取得する。この環境では、VS Code/Electron の起動に filesystem/network sandbox 外での実行が必要になる場合がある。
+- Large `createDiffReport()` input sizes.
+- Current benchmark scenarios include tail changes, middle deletion, and all-row changes.
 
-## 手動 Smoke Checklist
+This is not part of `npm test`.
+Use it as a decision aid when changing Cell Diff internals or when there is a specific performance concern.
+For the current PoC phase, 10,000 to 15,000 rows completing in the existing implementation is considered acceptable.
 
-自動テストが通った後に使う簡易確認。
+### Manual Tests
 
-詳細な手動テストは `docs/manual-test-plan.md` を使う。
+Document:
 
-1. `test/fixtures/ntf-samples/web-project-action-request.yaml` を通常どおり開き、`NTF YAML Table Editor` が自動で起動することを確認する。
-2. `confirmOfCreateNormal` を選択する。
-3. `LIST_MAP=testShots` と `LIST_MAP=requestParams` が table として表示されることを確認する。
-4. `"[no]"` column が通常の編集可能 column として表示されることを確認する。
-5. `EXPECTED_VARIABLE` を含む sheet を選び、row/cell table として表示されることを確認する。
-6. 編集せず保存し、`npm test` がまだ通ることを確認する。
-7. 最終確認として、必要に応じて sample repository 側の関連 Maven test を実行する。
+- `docs/manual-test-plan.md`
 
-## CLI Smoke Checklist
+Scope:
 
-1. `xlsx` file を変換する。
+- Visual UX checks that need human judgment.
+- Real VS Code workflows that are expensive or brittle to automate.
+- SCM interaction scenarios where manual observation is clearer than a narrow automated assertion.
 
-   ```sh
-   node ./bin/ntf-yaml.js convert path/to/TestData.xlsx -o /tmp/TestData.yaml --lint
-   ```
+Manual tests should not duplicate the full automated suite. They should focus on workflow confidence and visual sanity.
 
-2. 旧形式の `xls` file を変換する。
+## Expectation Style
 
-   ```sh
-   node ./bin/ntf-yaml.js convert path/to/TestData.xls -o /tmp/TestData.yaml --lint
-   ```
+Choose the narrowest expectation that protects the behavior without making unrelated refactors painful.
 
-3. 生成された YAML を VS Code で開き、Problems が CLI lint と同じ diagnostics を表示することを確認する。
+### Exact Structure
+
+Use `assert.deepEqual()` for stable internal contracts:
+
+- Parsed `Model` shape when the exact structure matters.
+- `Diff Report` sheets, blocks, rows, cells, `Diff Status`, and `headIndex`.
+- CLI argument parse results.
+- Lists of generated output filenames.
+
+Use this for model-aware data, not for generated HTML strings.
+
+### Single Values
+
+Use `assert.equal()` for scalar facts:
+
+- Exit codes.
+- `baseRef`, `headRef`, `repositoryPath`, and file paths.
+- Active sheet name.
+- Boolean outcomes exposed as one value.
+- DOM property values such as `readOnly` or input values.
+
+### Important YAML Fragments
+
+Use `assert.match()` or `assert.doesNotMatch()` for generated YAML when the test only cares about a meaningful fragment:
+
+- A required block header remains present.
+- A special key such as `"[no]"` is quoted.
+- A `~` null sentinel is preserved.
+- A renamed column appears and the old column does not.
+
+Do not assert a whole YAML string unless the test is explicitly about canonical form or save-path round-trip.
+
+### Canonical Form
+
+For canonical YAML behavior, prefer these expectations:
+
+- `serializeYaml(parseYaml(original))` produces a stable canonical string after one pass.
+- `serializeYaml(parseYaml(canonical)) === canonical`.
+- Representative fixtures keep required sheets, blocks, rows, and important cells.
+
+Full string equality is appropriate when validating extension save path output against canonical serialization.
+
+### Diagnostics
+
+Diagnostics expectations should check behavior, not formatting noise:
+
+- Severity when it is part of the contract.
+- Message substring for the issue type.
+- Path tokens when the diagnostic location matters.
+- Exit code for CLI lint.
+
+VS Code diagnostic range lookup is best-effort. Tests should not overfit exact ranges except for the utility function that owns the lookup rule.
+
+### HTML And Webview Output
+
+Do not compare full generated HTML.
+
+Use targeted expectations:
+
+- DOM selectors for controls and rendered regions.
+- Important IDs such as `diff-base-ref`, `toggle-unified`, or `root`.
+- Important classes such as `diff-cell-changed`, `diff-row-deleted`, or `rawrows-table`.
+- Important text only when it is part of the user-visible contract.
+
+For webview unit tests, prefer jsdom interactions over HTML string assertions.
+For E2E helper commands that return HTML, assert only critical fragments.
+
+### UI Screenshot Checks
+
+The UI screenshot runner asserts semantic rendering, not pixel-perfect output.
+
+Use:
+
+- `visible` for elements that must be visible to the user.
+- `hidden` for elements that must not be visible.
+- `exists` for elements that may not be visible but must be present in the DOM.
+- `textPresent` for required rendered text.
+- `textAbsent` for controls or labels that must be stripped from exported HTML.
+
+Avoid using screenshot tests for model logic or serializer behavior.
+
+### E2E Expectations
+
+E2E tests should assert coarse integration outcomes:
+
+- Extension exists and activates.
+- Commands are registered.
+- A VS Code tab opens with the expected custom editor or panel label.
+- Diagnostics appear in VS Code for an invalid document.
+- A saved file equals canonical serialization.
+- Exported files exist and contain key content.
+
+Avoid asserting detailed DOM behavior in E2E when jsdom or UI screenshot tests can cover it faster and with clearer failures.
+
+### Optional Dependencies
+
+When a test depends on an optional local tool or module, it may skip explicitly.
+
+Current example:
+
+- Real `.xls` conversion is skipped when Python `xlwt` is unavailable.
+
+The skip condition must be visible in the test definition and must not hide core behavior that can be tested with a dependency injection or mock.

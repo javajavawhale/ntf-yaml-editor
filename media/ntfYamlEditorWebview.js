@@ -1,10 +1,16 @@
 (function(root, factory) {
   if (typeof module === "object" && module.exports) {
-    module.exports = factory();
+    module.exports = factory(
+      require("./ntfYamlEditorHelpers"),
+      require("./ntfYamlEditorDiffHelpers")
+    );
   } else {
-    root.NtfYamlEditorWebview = factory();
+    root.NtfYamlEditorWebview = factory(
+      root.NtfYamlEditorHelpers,
+      root.NtfYamlEditorDiffHelpers
+    );
   }
-})(typeof globalThis !== "undefined" ? globalThis : this, function() {
+})(typeof globalThis !== "undefined" ? globalThis : this, function(helper, diffHelper) {
   function createNtfYamlEditorApp(options) {
     const root = options.root;
     const model = options.model;
@@ -238,7 +244,7 @@
       form.className = "add-block-form";
       const kind = document.createElement("select");
       kind.dataset.role = "new-block-kind";
-      for (const value of ["LIST_MAP", "SETUP_TABLE", "EXPECTED_TABLE", "SETUP_VARIABLE", "EXPECTED_VARIABLE"]) {
+      for (const value of model.blockPrefixes || ["LIST_MAP", "SETUP_TABLE", "EXPECTED_TABLE", "SETUP_VARIABLE", "EXPECTED_VARIABLE"]) {
         const option = document.createElement("option");
         option.value = value;
         option.textContent = value;
@@ -249,11 +255,11 @@
       button.dataset.action = "add-block";
       button.textContent = "Add Block";
       const add = () => {
-        const name = uniqueName(kind.value + "=", sheet.blocks.map(block => block.name));
+        const name = helper.uniqueName(kind.value + "=", sheet.blocks.map(block => block.name));
         sheet.blocks.push(withId({
           name,
           kind: model.inferKind(name),
-          rows: model.isRawRowsBlock(name) ? [[""]] : [{}],
+          rows: model.isRawRowsBlock(name) ? [[""]] : model.isTableBlock(name) ? [{}] : [],
           columnOrder: model.isTableBlock(name) ? ["no"] : [],
           raw: ""
         }));
@@ -307,7 +313,7 @@
         addColumn.dataset.action = "add-column";
         addColumn.textContent = "Add Column";
         addColumn.onclick = () => {
-          const col = uniqueName("col", model.columns(block));
+          const col = helper.uniqueName("col", model.columns(block));
           for (const row of block.rows) { row[col] = ""; }
           if (block.rows.length === 0) { block.rows.push({ [col]: "" }); }
           addColumnName(block, col);
@@ -324,7 +330,7 @@
         addRow.dataset.action = "add-row";
         addRow.textContent = "Add Row";
         addRow.onclick = () => {
-          const width = rawWidth(block);
+          const width = helper.rawWidth(block);
           block.rows.push(Array.from({ length: Math.max(width, 1) }, () => ""));
           render();
         };
@@ -377,7 +383,7 @@
         if (!readOnly) {
           attachIndexDragSort(th, () => model.columns(block).length, cols.indexOf(col), (from, to) => {
             const order = model.columns(block);
-            moveItem(order, from, to);
+            helper.moveItem(order, from, to);
             block.columnOrder = order;
             render();
           });
@@ -468,7 +474,7 @@
         th.className = "table-header-cell";
         th.draggable = !readOnly;
         if (!readOnly) {
-          attachIndexDragSort(th, () => rawWidth(block), i, (from, to) => moveRawColumnTo(block, from, to));
+          attachIndexDragSort(th, () => helper.rawWidth(block), i, (from, to) => moveRawColumnTo(block, from, to));
         }
         const thInner = document.createElement("div");
         thInner.className = "th-inner";
@@ -487,7 +493,7 @@
       const sectionState = { name: "", continuationCount: 0 };
       block.rows.forEach(function(row, ri) {
         const tr = document.createElement("tr");
-        const rowView = rawRowView(row, sectionState);
+        const rowView = helper.rawRowView(row, sectionState);
         tr.className = rowView.className;
         const diffRow = findDiffRow(diffBlock, String(ri));
         applyDiffClass(tr, diffRow?.status, "diff-row");
@@ -512,14 +518,14 @@
           const diffCell = findDiffCell(diffRow, String(ci));
           applyDiffClass(td, diffCell?.status, "diff-cell");
           setDiffStatus(td, diffCell?.status);
-          if (ci === 0) {
+          if (ci === 0 && rowView.keyLike) {
             td.className = "raw-key-cell";
             applyDiffClass(td, diffCell?.status, "diff-cell");
             setDiffStatus(td, diffCell?.status);
-            if (rowView.lockFirstCell) {
-              tr.append(td);
-              continue;
-            }
+          }
+          if (ci === 0 && rowView.lockFirstCell) {
+            tr.append(td);
+            continue;
           }
           if (rowView.headerLike) {
             td.classList.add("table-header-cell");
@@ -592,7 +598,7 @@
         render();
         return;
       }
-      sheet.name = uniqueName(next, state.sheets.filter(item => item !== sheet).map(item => item.name));
+      sheet.name = helper.uniqueName(next, state.sheets.filter(item => item !== sheet).map(item => item.name));
       activeSheetId = sheet._id;
       render();
     }
@@ -603,7 +609,7 @@
         render();
         return;
       }
-      block.name = uniqueName(next, sheet.blocks.filter(item => item !== block).map(item => item.name));
+      block.name = helper.uniqueName(next, sheet.blocks.filter(item => item !== block).map(item => item.name));
       block.kind = model.inferKind(block.name);
       if (model.isRawRowsBlock(block.name)) {
         const cols = model.columns(block);
@@ -633,32 +639,12 @@
         return;
       }
       for (const row of block.rows) {
-        replaceRowKey(row, from, next);
+        helper.replaceRowKey(row, from, next);
       }
       if (Array.isArray(block.columnOrder)) {
         block.columnOrder = block.columnOrder.map(name => name === from ? next : name);
       }
       render();
-    }
-
-    function replaceRowKey(row, from, to) {
-      const nextRow = {};
-      let replaced = false;
-      for (const name of Object.keys(row)) {
-        if (name === from) {
-          nextRow[to] = row[from] ?? "";
-          replaced = true;
-        } else {
-          nextRow[name] = row[name];
-        }
-      }
-      if (!replaced) {
-        nextRow[to] = "";
-      }
-      for (const name of Object.keys(row)) {
-        delete row[name];
-      }
-      Object.assign(row, nextRow);
     }
 
     function deleteRow(block, index) {
@@ -676,10 +662,6 @@
       render();
     }
 
-    function rawWidth(block) {
-      return block.rows.reduce((max, row) => Math.max(max, row.length), 0);
-    }
-
     function deleteRawColumn(block, index) {
       for (const row of block.rows) {
         row.splice(index, 1);
@@ -688,7 +670,7 @@
     }
 
     function moveRawColumnTo(block, from, to) {
-      const width = rawWidth(block);
+      const width = helper.rawWidth(block);
       if (from < 0 || to < 0 || from >= width || to >= width || from === to) {
         return;
       }
@@ -707,18 +689,6 @@
       if (!block.columnOrder.includes(name)) {
         block.columnOrder.push(name);
       }
-    }
-
-    function uniqueName(base, existing) {
-      const used = new Set(existing);
-      if (!used.has(base)) {
-        return base;
-      }
-      let index = 2;
-      while (used.has(base + index)) {
-        index++;
-      }
-      return base + index;
     }
 
     function ensureIds(modelState) {
@@ -745,45 +715,35 @@
 
     function findDiffBlock(sheetName, blockName) {
       const file = diffReport?.files?.[0];
-      const sheet = findDiffSheet(sheetName);
-      return sheet?.blocks?.find(item => item.name === blockName) || null;
+      return diffHelper.findDiffBlock(diffReport, sheetName, blockName);
     }
 
     function findDiffSheet(sheetName) {
-      const file = diffReport?.files?.[0];
-      return file?.sheets?.find(item => item.name === sheetName) || null;
+      return diffHelper.findDiffSheet(diffReport, sheetName);
     }
 
     function findDiffRow(block, key) {
-      if (!block?.rows) return null;
-      if (diffSide === "base") {
-        return block.rows.find(item => item.key === key) || null;
-      }
-      return block.rows.find(item => item.headIndex !== null && item.headIndex !== undefined && String(item.headIndex) === key) || null;
+      return diffHelper.findDiffRow(block, key, diffSide);
     }
 
     function findDiffCell(row, column) {
-      return row?.cells?.find(item => item.column === column) || null;
+      return diffHelper.findDiffCell(row, column);
     }
 
     function tableRowKey(row, index) {
-      return String(index);
+      return diffHelper.tableRowKey(row, index);
     }
 
     function applyDiffClass(element, status, prefix) {
-      if (status && status !== "unchanged") {
-        element.classList.add(prefix + "-" + status);
-      }
+      diffHelper.applyDiffClass(element, status, prefix);
     }
 
     function setDiffStatus(element, status) {
-      if (status && status !== "unchanged") {
-        element.dataset.diffStatus = status;
-      }
+      diffHelper.setDiffStatus(element, status);
     }
 
     function valueText(value) {
-      return value === null ? "~" : String(value ?? "");
+      return diffHelper.valueText(value);
     }
 
     function renderDiffLegend() {
@@ -825,7 +785,7 @@
         element.classList.remove("drop-target");
         const from = Number(event.dataTransfer?.getData("text/plain"));
         const to = items.indexOf(item);
-        moveItem(items, from, to);
+        helper.moveItem(items, from, to);
         if (afterMove) afterMove();
         render();
       });
@@ -857,57 +817,6 @@
           move(from, index);
         }
       });
-    }
-
-    function moveItem(items, from, to) {
-      if (from < 0 || to < 0 || from >= items.length || to >= items.length || from === to) {
-        return;
-      }
-      const [item] = items.splice(from, 1);
-      items.splice(to, 0, item);
-    }
-
-    function rawRowView(row, sectionState) {
-      const first = String(row[0] ?? "");
-      if (isNtfFileDirective(first)) {
-        sectionState.name = "";
-        sectionState.continuationCount = 0;
-        return { className: "raw-metadata-row" };
-      }
-      if (/^(header|data|end)$/.test(first)) {
-        sectionState.name = first;
-        sectionState.continuationCount = 0;
-        return { className: "raw-section-header-row", headerLike: true };
-      }
-      if (!first && sectionState.name) {
-        sectionState.continuationCount++;
-        return {
-          className: sectionState.continuationCount === 1 ? "raw-type-row" : "raw-value-row",
-          headerLike: sectionState.continuationCount === 1,
-          lockFirstCell: true
-        };
-      }
-      sectionState.name = "";
-      sectionState.continuationCount = 0;
-      return { className: "" };
-    }
-
-    const ntfFileDirectives = new Set([
-      "text-encoding",
-      "record-separator",
-      "field-separator",
-      "quoting-delimiter",
-      "positive-zone-sign-nibble",
-      "negative-zone-sign-nibble",
-      "positive-pack-sign-nibble",
-      "negative-pack-sign-nibble",
-      "required-decimal-point",
-      "fixed-sign-position",
-      "required-plus-sign"
-    ]);
-
-    function isNtfFileDirective(name) {
-      return ntfFileDirectives.has(String(name ?? ""));
     }
 
     function renderUnifiedView() {
@@ -1027,7 +936,7 @@
       table.append(thead);
 
       const tbody = document.createElement("tbody");
-      for (const diffRow of diffBlock.rows || []) {
+      for (const diffRow of unifiedRowsForBlock(diffBlock, cols)) {
         const tr = document.createElement("tr");
         applyDiffClass(tr, diffRow.status, "diff-row");
         const actionTd = document.createElement("td");
@@ -1074,6 +983,14 @@
       scroll.append(table);
       wrapper.append(scroll);
       return wrapper;
+    }
+
+    function unifiedRowsForBlock(diffBlock, cols) {
+      const headBlock = state.sheets
+        .find(sheet => sheet.name === activeUnifiedSheetName)
+        ?.blocks
+        ?.find(block => block.name === diffBlock.name);
+      return diffHelper.unifiedRowsForBlock(diffBlock, headBlock?.rows, cols);
     }
 
     render();

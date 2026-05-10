@@ -238,6 +238,10 @@ td {
     vertical-align: top;
 }
 
+td {
+    background: var(--panel);
+}
+
 th {
     position: sticky;
     top: 0;
@@ -249,7 +253,12 @@ th {
     font-weight: 700;
 }
 
-td input,
+td input {
+    display: block;
+    width: 100%;
+    min-width: 100%;
+}
+
 th input {
     width: auto;
     field-sizing: content;
@@ -452,7 +461,7 @@ input[readonly] {
 }
 
 .diff-row-changed {
-    background: #fffbea;
+    box-shadow: inset 4px 0 0 #d8a700;
 }
 
 .diff-cell-added {

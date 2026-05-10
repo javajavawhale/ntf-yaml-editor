@@ -10,8 +10,11 @@ const {
   analyzeYaml,
   parseYaml,
   serializeYaml,
+  inferKind,
   isRawRowsBlock,
-  isTableBlock
+  isTableBlock,
+  isKnownRawBlock,
+  blockPrefixes
 } = require("../lib/ntfYamlModel");
 const {
   convert,
@@ -26,6 +29,7 @@ const {
 const {
   createDocumentDiffReport,
   createRefDiffReport,
+  diffWorkingTreeAllFiles,
   parseGitQuery
 } = require("../lib/ntfYamlGitDiffContext");
 
@@ -179,8 +183,47 @@ test("classifies editable table and raw-row blocks", () => {
   assert.equal(isTableBlock("LIST_MAP=testShots"), true);
   assert.equal(isTableBlock("SETUP_TABLE[1]=PROJECT"), true);
   assert.equal(isTableBlock("EXPECTED_TABLE=PROJECT"), true);
+  assert.equal(isTableBlock("EXPECTED_COMPLETE_TABLE=PROJECT"), true);
   assert.equal(isRawRowsBlock("SETUP_VARIABLE[1]=work/input.csv"), true);
   assert.equal(isRawRowsBlock("EXPECTED_VARIABLE=./tmp/result.csv"), true);
+});
+
+test("classifies all supported NTF block prefixes", () => {
+  assert.deepEqual(blockPrefixes, [
+    "SETUP_TABLE",
+    "EXPECTED_TABLE",
+    "EXPECTED_COMPLETE_TABLE",
+    "LIST_MAP",
+    "SETUP_VARIABLE",
+    "EXPECTED_VARIABLE",
+    "SETUP_FIXED",
+    "EXPECTED_FIXED",
+    "MESSAGE",
+    "EXPECTED_REQUEST_HEADER_MESSAGES",
+    "EXPECTED_REQUEST_BODY_MESSAGES",
+    "RESPONSE_HEADER_MESSAGES",
+    "RESPONSE_BODY_MESSAGES"
+  ]);
+
+  assert.equal(inferKind("SETUP_TABLE=PROJECT"), "ListMap");
+  assert.equal(inferKind("EXPECTED_COMPLETE_TABLE[1]=PROJECT"), "ListMap");
+  assert.equal(inferKind("SETUP_VARIABLE[1]=work/input.csv"), "RawRows");
+  assert.equal(inferKind("EXPECTED_VARIABLE=./tmp/result.csv"), "RawRows");
+
+  for (const name of [
+    "SETUP_FIXED[1]=work/input.dat",
+    "EXPECTED_FIXED[1]=./tmp/result.dat",
+    "EXPECTED_REQUEST_HEADER_MESSAGES=req01",
+    "EXPECTED_REQUEST_BODY_MESSAGES=req01",
+    "RESPONSE_HEADER_MESSAGES=req01",
+    "RESPONSE_BODY_MESSAGES=req01"
+  ]) {
+    assert.equal(isKnownRawBlock(name), true);
+    assert.equal(inferKind(name), "FixedLengthFile");
+  }
+
+  assert.equal(isKnownRawBlock("MESSAGE=2"), true);
+  assert.equal(inferKind("MESSAGE=2"), "Message");
 });
 
 test("parses sheet, table rows, and quoted special keys", () => {
@@ -357,6 +400,23 @@ test("loads representative sample fixtures and keeps key editor targets", () => 
   assert.ok(getBlock(model, "confirmOfCreateNormal", "LIST_MAP=testShots"));
   assert.ok(getBlock(model, "confirmOfCreateNormal", "LIST_MAP=requestParams"));
   assert.match(serialized, /"\[no\]": "1"/);
+});
+
+test("representative fixtures round-trip to a stable canonical model shape", () => {
+  for (const [name, file] of Object.entries(sampleFixtures)) {
+    const original = fs.readFileSync(file, "utf8");
+    const canonical = serializeYaml(parseYaml(original));
+    const reparsed = serializeYaml(parseYaml(canonical));
+    const model = parseYaml(canonical);
+
+    assert.equal(reparsed, canonical, `${name} should be canonical after one serialization`);
+    assert.ok(model.sheets.length > 0, `${name} should keep sheets`);
+    assert.ok(model.sheets.every(sheet => sheet.blocks.length > 0), `${name} should keep blocks on every sheet`);
+    assert.ok(
+      model.sheets.some(sheet => sheet.blocks.some(block => block.rows?.length || block.raw)),
+      `${name} should keep readable block content`
+    );
+  }
 });
 
 test("loads the migrated web fixture and preserves null sentinel rows", () => {
@@ -537,6 +597,42 @@ test("CLI convert converts real xls files through the xlrd converter", { skip: !
   assert.deepEqual(analyzeYaml(yaml), []);
 });
 
+test("CLI convert rejects unsupported files, missing converters, and converter failures", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ntf-yaml-convert-errors-"));
+  const missingScript = path.join(dir, "missing.py");
+
+  assert.equal(convert(["data.csv"], {
+    resolveTool() {
+      throw new Error("should not resolve converter for unsupported files");
+    },
+    runPython() {
+      throw new Error("should not run converter for unsupported files");
+    }
+  }), 2);
+
+  assert.equal(convert(["legacy.xls"], {
+    resolveTool() {
+      return missingScript;
+    },
+    runPython() {
+      throw new Error("should not run missing converter");
+    }
+  }), 2);
+
+  assert.equal(convert(["legacy.xls"], {
+    resolveTool() {
+      return __filename;
+    },
+    runPython() {
+      return {
+        status: 7,
+        stdout: "partial output\n",
+        stderr: "converter failed\n"
+      };
+    }
+  }), 7);
+});
+
 test("cell diff report highlights changed table cells and changed rows", () => {
   const report = createDiffReport({
     path: "test.ntf.yaml",
@@ -571,6 +667,154 @@ test("cell diff report highlights changed table cells and changed rows", () => {
   assert.match(html, /before/);
   assert.match(html, /after/);
   assert.match(html, /extra/);
+});
+
+test("cell diff report exposes exact table row and cell status details", () => {
+  const report = createDiffReport({
+    path: "test.ntf.yaml",
+    baseText: [
+      "case1:",
+      "  LIST_MAP=requestParams: #ListMap",
+      "    - no: \"1\"",
+      "      name: \"before\"",
+      ""
+    ].join("\n"),
+    headText: [
+      "case1:",
+      "  LIST_MAP=requestParams: #ListMap",
+      "    - no: \"1\"",
+      "      name: \"after\"",
+      "      extra: \"new\"",
+      ""
+    ].join("\n")
+  });
+
+  const block = report.files[0].sheets[0].blocks[0];
+
+  assert.deepEqual(block.columns, [
+    { key: "no", label: "no" },
+    { key: "name", label: "name" },
+    { key: "extra", label: "extra" }
+  ]);
+  assert.deepEqual(block.rows, [{
+    key: "0",
+    status: "changed",
+    headIndex: 0,
+    cells: [
+      { column: "no", status: "unchanged", before: "1", after: "1" },
+      { column: "name", status: "changed", before: "before", after: "after" },
+      { column: "extra", status: "added", before: undefined, after: "new" }
+    ]
+  }]);
+});
+
+test("cell diff report exposes RawRows columns and added row status", () => {
+  const report = createDiffReport({
+    path: "test.ntf.yaml",
+    baseText: [
+      "case1:",
+      "  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows",
+      "    - [ \"001\", \"Tokyo\" ]",
+      ""
+    ].join("\n"),
+    headText: [
+      "case1:",
+      "  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows",
+      "    - [ \"001\", \"Tokyo\" ]",
+      "    - [ \"002\", \"Osaka\" ]",
+      ""
+    ].join("\n")
+  });
+
+  const block = report.files[0].sheets[0].blocks[0];
+
+  assert.deepEqual(block.columns, [
+    { key: "0", label: "0" },
+    { key: "1", label: "1" }
+  ]);
+  assert.equal(block.rows.length, 1);
+  assert.equal(block.rows[0].status, "added");
+  assert.equal(block.rows[0].headIndex, 1);
+});
+
+test("cell diff report exposes exact RawRows cell values", () => {
+  const report = createDiffReport({
+    path: "test.ntf.yaml",
+    baseText: [
+      "case1:",
+      "  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows",
+      "    - [ \"001\", \"Tokyo\" ]",
+      "    - [ \"002\", \"Osaka\" ]",
+      ""
+    ].join("\n"),
+    headText: [
+      "case1:",
+      "  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows",
+      "    - [ \"001\", \"Tokyo\" ]",
+      "    - [ \"002\", \"Kyoto\" ]",
+      "    - [ \"003\", \"Nara\" ]",
+      ""
+    ].join("\n")
+  });
+
+  const block = report.files[0].sheets[0].blocks[0];
+
+  assert.deepEqual(block.rows, [
+    {
+      key: "1",
+      status: "changed",
+      headIndex: 1,
+      cells: [
+        { column: "0", status: "unchanged", before: "002", after: "002" },
+        { column: "1", status: "changed", before: "Osaka", after: "Kyoto" }
+      ]
+    },
+    {
+      key: "2",
+      status: "added",
+      headIndex: 2,
+      cells: [
+        { column: "0", status: "added", before: undefined, after: "003" },
+        { column: "1", status: "added", before: undefined, after: "Nara" }
+      ]
+    }
+  ]);
+});
+
+test("cell diff report exposes deleted RawRows cell values", () => {
+  const report = createDiffReport({
+    path: "test.ntf.yaml",
+    baseText: [
+      "case1:",
+      "  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows",
+      "    - [ \"id\", \"city\" ]",
+      "    - [ \"001\", \"Tokyo\" ]",
+      "    - [ \"002\", \"Osaka\" ]",
+      "    - [ \"003\", \"Nara\" ]",
+      ""
+    ].join("\n"),
+    headText: [
+      "case1:",
+      "  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows",
+      "    - [ \"id\", \"city\" ]",
+      "    - [ \"001\", \"Tokyo\" ]",
+      "    - [ \"003\", \"Nara\" ]",
+      ""
+    ].join("\n")
+  });
+
+  const block = report.files[0].sheets[0].blocks[0];
+  const deletedRow = block.rows.find(row => row.status === "deleted");
+
+  assert.deepEqual(deletedRow, {
+    key: "2",
+    status: "deleted",
+    headIndex: null,
+    cells: [
+      { column: "0", status: "deleted", before: "002", after: undefined },
+      { column: "1", status: "deleted", before: "Osaka", after: undefined }
+    ]
+  });
 });
 
 test("cell diff report preserves added and deleted sheet/block status", () => {
@@ -895,6 +1139,139 @@ test("document diff report uses '~' git URI ref and displays it as 'index' when 
   assert.equal(report.summary.cells.changed, 1);
 });
 
+test("working tree all-files diff reports modified, deleted, and untracked NTF YAML files", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ntf-yaml-all-files-diff-"));
+  git(dir, ["init"]);
+  git(dir, ["config", "user.email", "ntf-yaml@example.test"]);
+  git(dir, ["config", "user.name", "NTF YAML Test"]);
+
+  const modified = path.join(dir, "modified.ntf.yaml");
+  const deleted = path.join(dir, "deleted.ntf.yaml");
+  fs.writeFileSync(modified, [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"before\"",
+    ""
+  ].join("\n"));
+  fs.writeFileSync(deleted, [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"gone\"",
+    ""
+  ].join("\n"));
+  git(dir, ["add", "modified.ntf.yaml", "deleted.ntf.yaml"]);
+  git(dir, ["commit", "-m", "base"]);
+
+  fs.writeFileSync(modified, fs.readFileSync(modified, "utf8").replace("before", "after"));
+  fs.unlinkSync(deleted);
+  fs.writeFileSync(path.join(dir, "untracked.ntf.yaml"), [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"new\"",
+    ""
+  ].join("\n"));
+
+  const reports = diffWorkingTreeAllFiles({
+    repositoryPath: dir,
+    baseRef: "HEAD",
+    headRef: "working tree"
+  }).filter(Boolean);
+  const byPath = Object.fromEntries(reports.map(report => [report.files[0].path, report.files[0]]));
+
+  assert.deepEqual(Object.keys(byPath).sort(), [
+    "deleted.ntf.yaml",
+    "modified.ntf.yaml",
+    "untracked.ntf.yaml"
+  ]);
+  assert.equal(byPath["modified.ntf.yaml"].status, "changed");
+  assert.equal(byPath["deleted.ntf.yaml"].status, "deleted");
+  assert.equal(byPath["untracked.ntf.yaml"].status, "added");
+});
+
+test("working tree all-files diff preserves renamed NTF YAML paths and base content", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ntf-yaml-all-files-rename-diff-"));
+  git(dir, ["init"]);
+  git(dir, ["config", "user.email", "ntf-yaml@example.test"]);
+  git(dir, ["config", "user.name", "NTF YAML Test"]);
+
+  fs.writeFileSync(path.join(dir, "old.ntf.yaml"), [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"before\"",
+    ""
+  ].join("\n"));
+  git(dir, ["add", "old.ntf.yaml"]);
+  git(dir, ["commit", "-m", "base"]);
+
+  git(dir, ["mv", "old.ntf.yaml", "new.ntf.yaml"]);
+  fs.writeFileSync(path.join(dir, "new.ntf.yaml"), [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"after\"",
+    ""
+  ].join("\n"));
+
+  const reports = diffWorkingTreeAllFiles({
+    repositoryPath: dir,
+    baseRef: "HEAD",
+    headRef: "working tree"
+  }).filter(Boolean);
+  const report = reports.find(item => item.files[0].path === "new.ntf.yaml");
+
+  assert.ok(report, "renamed file should be reported at the new path");
+  assert.equal(report.files[0].oldPath, "old.ntf.yaml");
+  assert.equal(report.files[0].status, "changed");
+  assert.match(report.baseText, /before/);
+  assert.match(report.headText, /after/);
+});
+
+test("working tree all-files diff can compare HEAD against the git index without untracked files", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ntf-yaml-all-files-index-diff-"));
+  git(dir, ["init"]);
+  git(dir, ["config", "user.email", "ntf-yaml@example.test"]);
+  git(dir, ["config", "user.name", "NTF YAML Test"]);
+
+  const file = path.join(dir, "case.ntf.yaml");
+  fs.writeFileSync(file, [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"committed\"",
+    ""
+  ].join("\n"));
+  git(dir, ["add", "case.ntf.yaml"]);
+  git(dir, ["commit", "-m", "base"]);
+
+  fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("committed", "staged"));
+  git(dir, ["add", "case.ntf.yaml"]);
+  fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("staged", "worktree"));
+  fs.writeFileSync(path.join(dir, "untracked.ntf.yaml"), [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"untracked\"",
+    ""
+  ].join("\n"));
+
+  const reports = diffWorkingTreeAllFiles({
+    repositoryPath: dir,
+    baseRef: "HEAD",
+    headRef: "index"
+  }).filter(Boolean);
+  const byPath = Object.fromEntries(reports.map(report => [report.files[0].path, report]));
+
+  assert.deepEqual(Object.keys(byPath), ["case.ntf.yaml"]);
+  assert.equal(byPath["case.ntf.yaml"].headRef, "index");
+  assert.match(byPath["case.ntf.yaml"].baseText, /committed/);
+  assert.match(byPath["case.ntf.yaml"].headText, /staged/);
+  assert.doesNotMatch(byPath["case.ntf.yaml"].headText, /worktree/);
+});
+
 test("cell diff detects middle-row deletion and insertion without misidentifying as changed", () => {
   // Regression: before LCS, removing a middle row shifted subsequent rows by index,
   // causing the row after the deleted one to show as "changed" instead of "unchanged".
@@ -1019,4 +1396,24 @@ test("package contributes cell diff to SCM resources and NTF YAML file menus", (
   const editorTitleEntry = menus["editor/title"].find(item => item.command === cellDiffCommand);
   assert.equal(editorTitleEntry.when, ntfYamlPattern);
   assert.equal(editorTitleEntry.group, "1_modification@9");
+});
+
+test("package splits NTF YAML default editor from generic YAML optional editor", () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(extensionRoot, "package.json"), "utf8"));
+  const customEditors = pkg.contributes.customEditors;
+  const primary = customEditors.find(editor => editor.viewType === "ntfYaml.editor");
+  const generic = customEditors.find(editor => editor.viewType === "ntfYaml.editor.generic");
+
+  assert.ok(primary, "existing viewType should remain registered");
+  assert.equal(primary.displayName, "NTF YAML Table Editor");
+  assert.deepEqual(primary.selector, [{ filenamePattern: "*.ntf.yaml" }]);
+  assert.equal(primary.priority, "default");
+
+  assert.ok(generic, "generic YAML viewType should be registered");
+  assert.equal(generic.displayName, "NTF YAML Table Editor (Generic YAML)");
+  assert.deepEqual(generic.selector, [{ filenamePattern: "*.yaml" }]);
+  assert.equal(generic.priority, "option");
+
+  assert.ok(pkg.activationEvents.includes("onCustomEditor:ntfYaml.editor"));
+  assert.ok(pkg.activationEvents.includes("onCustomEditor:ntfYaml.editor.generic"));
 });

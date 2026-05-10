@@ -33,7 +33,17 @@ yamlのフォーマットは、[nablarch公式のサンプルリポジトリをy
 
 #### エディタの開き方
 
-拡張機能をインストールした状態で\*.ntf.yamlを開くとyamlテストデータエディタが立ち上がります。（\*.yamlにしたい場合は//TODO を参照）
+拡張機能をインストールした状態で\*.ntf.yamlを開くとyamlテストデータエディタが立ち上がります。
+一般の\*.yamlは標準のテキストエディタで開きます。一般の\*.yamlでもこのエディタを使いたい場合は、ファイルを右クリックし、`Reopen Editor With...` から `NTF YAML Table Editor (Generic YAML)` を選択してください。
+常に\*.yamlでこのエディタを使いたい場合は、settings.json に次の設定を追加できます。
+
+```json
+{
+  "workbench.editorAssociations": {
+    "*.yaml": "ntfYaml.editor.generic"
+  }
+}
+```
 
 各種データの追加・削除・編集ができます。
 

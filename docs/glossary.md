@@ -29,9 +29,9 @@ Use these names when discussing, refactoring, naming files, or naming code conce
 | Model | The internal data structure returned by `parseYaml()`, currently shaped as `{ sheets: [...] }`. |
 | Sheet | A top-level YAML key. It corresponds to an NTF Excel sheet. |
 | Block | A named data unit under a Sheet, such as `LIST_MAP=...`, `SETUP_TABLE[1]=...`, or `EXPECTED_VARIABLE[1]=...`. |
-| Table Block | A block represented as rows with named columns. This includes `LIST_MAP`, `SETUP_TABLE`, and `EXPECTED_TABLE`. |
+| Table Block | A block represented as rows with named columns. This includes `LIST_MAP`, `SETUP_TABLE`, `EXPECTED_TABLE`, and `EXPECTED_COMPLETE_TABLE`. |
 | Raw Rows Block | A block represented as array rows without named columns. This includes `SETUP_VARIABLE` and `EXPECTED_VARIABLE`. |
-| Raw Block | A block that the editor does not interpret as a table or raw rows. The content is preserved and displayed as raw text where possible. |
+| Raw Block | A block that the editor does not interpret as a table or raw rows. This includes `SETUP_FIXED`, `EXPECTED_FIXED`, `MESSAGE`, `EXPECTED_REQUEST_HEADER_MESSAGES`, `EXPECTED_REQUEST_BODY_MESSAGES`, `RESPONSE_HEADER_MESSAGES`, and `RESPONSE_BODY_MESSAGES`; the content is preserved and displayed as raw text where possible. |
 | Row | One row inside a block. In a Table Block it is an object; in a Raw Rows Block it is an array. |
 | Cell | A value at the intersection of a row and column. |
 | Column Order | The preferred column order for a Table Block. It affects table rendering and serialization. |
