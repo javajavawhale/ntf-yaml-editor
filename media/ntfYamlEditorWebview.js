@@ -364,16 +364,14 @@
       }
 
       const scroll = document.createElement("div");
-      scroll.className = "table-scroll";
+      scroll.className = readOnly ? "table-scroll" : "table-scroll table-scroll--with-row-actions";
+      const viewport = document.createElement("div");
+      viewport.className = "table-viewport";
       const table = document.createElement("table");
-      table.className = "ntf-table";
       table.className = "ntf-table";
       const cols = model.columns(block);
       const thead = document.createElement("thead");
       const headRow = document.createElement("tr");
-      const actionHead = document.createElement("th");
-      actionHead.className = "row-actions-cell";
-      headRow.append(actionHead);
       for (const col of cols) {
         const colIndex = cols.indexOf(col);
         const th = document.createElement("th");
@@ -418,16 +416,6 @@
         if (!readOnly) {
           attachDragSort(tr, block.rows, row);
         }
-        const actionTd = document.createElement("td");
-        actionTd.className = "row-actions-cell";
-        if (!readOnly) {
-          const rowActionBar = document.createElement("div");
-          rowActionBar.className = "row-action-bar";
-          rowActionBar.append(createDragHandle());
-          rowActionBar.append(smallButton(CLOSE_SVG, "Delete row", () => deleteRow(block, index), "action-bar-delete"));
-          actionTd.append(rowActionBar);
-        }
-        tr.append(actionTd);
         cols.forEach(col => {
           const td = document.createElement("td");
           const diffCell = findDiffCell(diffRow, col);
@@ -443,33 +431,34 @@
           input.oninput = () => {
             row[col] = input.value;
           };
+          if (!readOnly && col === cols[0]) {
+            appendRowActionBar(td, "Delete row", () => deleteRow(block, index));
+          }
           td.append(input);
           tr.append(td);
         });
         tbody.append(tr);
       });
       table.append(tbody);
-      if (!readOnly) {
-        attachTableFocus(table, headRow, input =>
-          Array.from(input.closest("tr").children).indexOf(input.closest("td")) - 1
-        );
-      }
-      scroll.append(table);
+      attachTableInteraction(table, headRow, input =>
+        Array.from(input.closest("tr").children).indexOf(input.closest("td"))
+      );
+      viewport.append(table);
+      scroll.append(viewport);
       wrapper.append(scroll);
       return wrapper;
     }
 
     function renderRawRowsTable(block, diffBlock) {
       const scroll = document.createElement("div");
-      scroll.className = "table-scroll";
+      scroll.className = readOnly ? "table-scroll" : "table-scroll table-scroll--with-row-actions";
+      const viewport = document.createElement("div");
+      viewport.className = "table-viewport";
       const table = document.createElement("table");
       table.className = "ntf-table rawrows-table";
       const maxCols = block.rows.reduce(function(m, r) { return Math.max(m, r.length); }, 0);
       const thead = document.createElement("thead");
       const headRow = document.createElement("tr");
-      const thIdx = document.createElement("th");
-      thIdx.className = "row-actions-cell";
-      headRow.append(thIdx);
       for (let i = 0; i < maxCols; i++) {
         const th = document.createElement("th");
         th.className = "table-header-cell";
@@ -499,16 +488,6 @@
         if (!readOnly) {
           attachDragSort(tr, block.rows, row);
         }
-        const tdIdx = document.createElement("td");
-        tdIdx.className = "row-actions-cell";
-        if (!readOnly) {
-          const rowActionBar = document.createElement("div");
-          rowActionBar.className = "row-action-bar";
-          rowActionBar.append(createDragHandle());
-          rowActionBar.append(smallButton(CLOSE_SVG, "Delete raw row", () => deleteRow(block, ri), "action-bar-delete"));
-          tdIdx.append(rowActionBar);
-        }
-        tr.append(tdIdx);
         for (let ci = 0; ci < row.length; ci++) {
           const td = document.createElement("td");
           const diffCell = findDiffCell(diffRow, String(ci));
@@ -518,6 +497,9 @@
             td.className = "raw-key-cell";
             applyDiffClass(td, diffCell?.status, "diff-cell");
             setDiffStatus(td, diffCell?.status);
+          }
+          if (!readOnly && ci === 0) {
+            appendRowActionBar(td, "Delete raw row", () => deleteRow(block, ri));
           }
           if (ci === 0 && rowView.lockFirstCell) {
             tr.append(td);
@@ -550,10 +532,9 @@
         tbody.append(tr);
       });
       table.append(tbody);
-      if (!readOnly) {
-        attachTableFocus(table, headRow, input => parseInt(input.dataset.rawColumn ?? "0"));
-      }
-      scroll.append(table);
+      attachTableInteraction(table, headRow, input => parseInt(input.dataset.rawColumn ?? "0"));
+      viewport.append(table);
+      scroll.append(viewport);
       return scroll;
     }
 
@@ -566,7 +547,8 @@
       return btn;
     }
 
-    const CLOSE_SVG = '<svg width="7" height="7" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    const CLOSE_SVG = '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+    const DRAG_HANDLE_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="5" cy="4" r="1.2" fill="currentColor"></circle><circle cx="11" cy="4" r="1.2" fill="currentColor"></circle><circle cx="5" cy="8" r="1.2" fill="currentColor"></circle><circle cx="11" cy="8" r="1.2" fill="currentColor"></circle><circle cx="5" cy="12" r="1.2" fill="currentColor"></circle><circle cx="11" cy="12" r="1.2" fill="currentColor"></circle></svg>';
 
     function smallButton(text, title, onclick, className) {
       const button = document.createElement("button");
@@ -586,29 +568,92 @@
       const handle = document.createElement("span");
       handle.className = "drag-handle" + (direction === "h" ? " drag-handle--h" : "");
       handle.setAttribute("aria-hidden", "true");
-      handle.textContent = "⣿";
+      handle.innerHTML = DRAG_HANDLE_SVG;
       return handle;
     }
 
-    function attachTableFocus(table, headRow, getColIndex) {
+    function appendRowActionBar(cell, deleteTitle, onDelete) {
+      const rowActionBar = document.createElement("div");
+      rowActionBar.className = "row-action-bar";
+      rowActionBar.append(createDragHandle());
+      rowActionBar.append(smallButton(CLOSE_SVG, deleteTitle, onDelete, "action-bar-delete"));
+      cell.append(rowActionBar);
+    }
+
+    function attachTableInteraction(table, headRow, getColIndex) {
       let blurTimer = null;
+      const headers = Array.from(headRow.querySelectorAll("th"));
+      const clearActiveColumn = () => {
+        headers.forEach(th => th.classList.remove("col-active"));
+      };
+      const clearFocusedGuides = () => {
+        table.querySelectorAll("tr.row-focused").forEach(r => r.classList.remove("row-focused"));
+        table.querySelectorAll("th.col-focused").forEach(h => h.classList.remove("col-focused"));
+      };
+      const hasFocusedCell = () =>
+        table.classList.contains("has-focused-cell")
+        || table.dataset.focusLocked === "true"
+        || table.matches(":focus-within")
+        || table.contains(document.activeElement) && document.activeElement?.matches?.("tbody td input");
+      const activateColumn = header => {
+        clearActiveColumn();
+        if (header) {
+          header.classList.add("col-active");
+        }
+      };
+      const activateColumnByIndex = index => {
+        activateColumn(headers[index] || null);
+      };
+
+      headers.forEach(header => {
+        header.addEventListener("mouseenter", () => {
+          if (hasFocusedCell()) return;
+          activateColumn(header);
+        });
+        header.addEventListener("focusin", () => activateColumn(header));
+      });
+      table.querySelectorAll("tbody td").forEach(cell => {
+        cell.addEventListener("mouseenter", () => {
+          if (hasFocusedCell()) return;
+          activateColumnByIndex(cell.cellIndex);
+        });
+        cell.addEventListener("focusin", () => activateColumnByIndex(cell.cellIndex));
+      });
+      table.addEventListener("mouseleave", clearActiveColumn);
       table.querySelectorAll("tbody td input").forEach(input => {
-        input.addEventListener("focus", () => {
+        const focusInput = () => {
           clearTimeout(blurTimer);
           const tr = input.closest("tr");
           const colIdx = getColIndex(input);
-          table.querySelectorAll("tr.row-focused").forEach(r => r.classList.remove("row-focused"));
-          table.querySelectorAll("th.col-focused").forEach(h => h.classList.remove("col-focused"));
+          table.classList.add("has-focused-cell");
+          table.dataset.focusLocked = "true";
+          clearFocusedGuides();
           tr.classList.add("row-focused");
-          const th = headRow.querySelector(`th[data-col-index="${colIdx}"]`);
+          const th = headers[colIdx] || headRow.querySelector(`th[data-col-index="${colIdx}"]`);
           if (th) th.classList.add("col-focused");
-        });
+          activateColumn(th);
+        };
+        input.addEventListener("pointerdown", focusInput);
+        input.addEventListener("mousedown", focusInput);
+        input.addEventListener("focus", focusInput);
         input.addEventListener("blur", () => {
           blurTimer = setTimeout(() => {
-            table.querySelectorAll("tr.row-focused").forEach(r => r.classList.remove("row-focused"));
-            table.querySelectorAll("th.col-focused").forEach(h => h.classList.remove("col-focused"));
+            if (table.contains(document.activeElement)) {
+              return;
+            }
+            table.classList.remove("has-focused-cell");
+            delete table.dataset.focusLocked;
+            clearFocusedGuides();
           }, 200);
         });
+      });
+      table.addEventListener("focusout", event => {
+        if (!table.contains(event.relatedTarget)) {
+          table.classList.remove("has-focused-cell");
+          delete table.dataset.focusLocked;
+          clearFocusedGuides();
+          clearActiveColumn();
+        }
       });
       table.querySelectorAll(".action-bar-delete").forEach(btn => {
         btn.addEventListener("mousedown", () => clearTimeout(blurTimer));
@@ -933,17 +978,18 @@
 
       const scroll = document.createElement("div");
       scroll.className = "table-scroll";
+      const viewport = document.createElement("div");
+      viewport.className = "table-viewport";
       const table = document.createElement("table");
       table.className = isRawRows ? "ntf-table rawrows-table" : "ntf-table";
 
       const thead = document.createElement("thead");
       const headRow = document.createElement("tr");
-      const actionHead = document.createElement("th");
-      actionHead.className = "row-actions-cell table-header-cell";
-      headRow.append(actionHead);
       for (const col of cols) {
+        const colIndex = cols.indexOf(col);
         const th = document.createElement("th");
         th.className = "table-header-cell";
+        th.dataset.colIndex = String(colIndex);
         const thInner = document.createElement("div");
         thInner.className = "th-inner";
         const thContent = document.createElement("div");
@@ -964,9 +1010,6 @@
       for (const diffRow of unifiedRowsForBlock(diffBlock, cols)) {
         const tr = document.createElement("tr");
         applyDiffClass(tr, diffRow.status, "diff-row");
-        const actionTd = document.createElement("td");
-        actionTd.className = "row-actions-cell";
-        tr.append(actionTd);
         for (const col of cols) {
           const diffCell = diffRow.cells?.find(c => c.column === col) || null;
           const td = document.createElement("td");
@@ -1006,7 +1049,11 @@
         tbody.append(tr);
       }
       table.append(tbody);
-      scroll.append(table);
+      attachTableInteraction(table, headRow, input =>
+        Array.from(input.closest("tr").children).indexOf(input.closest("td"))
+      );
+      viewport.append(table);
+      scroll.append(viewport);
       wrapper.append(scroll);
       return wrapper;
     }

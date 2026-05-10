@@ -6,12 +6,14 @@
     --line: #c9ced4;
     --accent: #006d77;
     --accent-strong: #00525a;
+    --accent-hover: #00525a;
     --warn: #8a4b00;
     --danger: #a33a2a;
     --danger-bg: #fff4f1;
     --table-header-bg: #e8ecea;
     --surface-muted: #f3f5f4;
-    --row-action-width: 22px;
+    --row-action-width: 18px;
+    --block-padding-x: 10px;
     --z-sticky-row-action: 3;
     --z-sticky-header: 10;
     --z-action-bar: 12;
@@ -256,15 +258,13 @@ body.resizing-sidebar {
     border: 1px solid var(--line);
     border-radius: 8px;
     margin: 0 0 16px;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .block-header {
     display: flex;
     gap: 8px;
-    padding: 10px 44px 10px 10px;
-    border-bottom: 1px solid var(--line);
-    background: var(--surface-muted);
+    padding: 10px calc(var(--block-padding-x) + 34px) 10px var(--block-padding-x);
     align-items: center;
     flex-wrap: wrap;
     position: relative;
@@ -282,8 +282,26 @@ body.resizing-sidebar {
 
 /* Editor Tables */
 .table-scroll {
-    overflow-x: auto;
+    position: relative;
+    overflow: visible;
     width: 100%;
+    box-sizing: border-box;
+    padding: 2px var(--block-padding-x) 12px;
+}
+
+.table-scroll--with-row-actions {
+    padding-left: var(--block-padding-x);
+}
+
+.table-viewport {
+    overflow-x: auto;
+    overflow-y: auto;
+    margin-top: -24px;
+    margin-left: calc(-1 * var(--row-action-width));
+    padding-top: 24px;
+    padding-left: var(--row-action-width);
+    width: calc(100% + var(--row-action-width));
+    box-sizing: border-box;
 }
 
 .ntf-table {
@@ -356,60 +374,71 @@ body.resizing-sidebar {
 }
 
 /* Row and Column Actions */
-.row-actions-cell {
-    width: var(--row-action-width);
-    min-width: var(--row-action-width);
-    max-width: var(--row-action-width);
-    background: #f7f8f7;
-    position: sticky;
-    left: 0;
-    z-index: var(--z-sticky-row-action);
-    white-space: nowrap;
-    padding: 0;
-    vertical-align: top;
-    overflow: visible;
-}
-
 .col-action-bar {
     display: none;
     align-items: center;
-    gap: 2px;
+    gap: 1px;
     position: absolute;
-    top: 0;
+    bottom: calc(100% - 1px);
     left: 50%;
     transform: translateX(-50%);
     z-index: var(--z-action-bar);
-    padding: 2px 4px;
-    border-radius: 0 0 4px 4px;
+    padding: 2px 3px;
+    border-radius: 5px 5px 0 0;
     background: var(--accent);
     white-space: nowrap;
-    /* bottom:100% は table-scroll の overflow-x:auto による暗黙的 overflow-y:auto でクリップされるため
-       th 内上端に配置する */
+    box-shadow: 0 -2px 6px rgb(0 0 0 / 18%);
 }
 
 .ntf-table th:hover .col-action-bar,
-.ntf-table th:focus-within .col-action-bar,
-th.col-focused .col-action-bar {
+.ntf-table th.col-active .col-action-bar,
+.ntf-table th.col-focused .col-action-bar {
     display: flex;
 }
 
-th.col-focused {
+.ntf-table.has-focused-cell th:not(.col-focused):not(.col-active):hover .col-action-bar {
+    display: none;
+}
+
+.ntf-table:focus-within th:not(.col-focused):hover .col-action-bar,
+.ntf-table:focus-within th.col-active:not(.col-focused):not(:focus-within) .col-action-bar,
+.ntf-table[data-focus-locked="true"] th:not(.col-focused):not(.col-active):hover .col-action-bar,
+.ntf-table[data-focus-locked="true"] th.col-active:not(.col-focused):not(:focus-within) .col-action-bar {
+    display: none;
+}
+
+.ntf-table th:hover,
+.ntf-table th.col-active,
+.ntf-table th.col-focused {
     box-shadow: inset 0 3px 0 var(--accent);
+}
+
+.ntf-table.has-focused-cell th:not(.col-focused):not(.col-active):hover {
+    box-shadow: none;
+}
+
+.ntf-table:focus-within th:not(.col-focused):hover,
+.ntf-table:focus-within th.col-active:not(.col-focused):not(:focus-within),
+.ntf-table[data-focus-locked="true"] th:not(.col-focused):not(.col-active):hover,
+.ntf-table[data-focus-locked="true"] th.col-active:not(.col-focused):not(:focus-within) {
+    box-shadow: none;
 }
 
 .row-action-bar {
     display: none;
     align-items: center;
     justify-content: center;
+    flex-direction: column;
     gap: 1px;
     position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
+    top: 50%;
+    right: calc(100% - 1px);
+    transform: translateY(-50%);
     z-index: var(--z-action-bar);
     width: var(--row-action-width);
+    min-width: var(--row-action-width);
     padding: 2px 0;
-    border-radius: 3px;
+    border-radius: 5px 0 0 5px;
     background: var(--accent);
 }
 
@@ -419,8 +448,37 @@ tr.row-focused .row-action-bar {
     display: flex;
 }
 
-tr.row-focused .row-actions-cell {
-    box-shadow: inset -3px 0 0 var(--accent);
+.ntf-table.has-focused-cell tr:not(.row-focused):hover .row-action-bar {
+    display: none;
+}
+
+.ntf-table:focus-within tr:not(.row-focused):hover .row-action-bar {
+    display: none;
+}
+
+.ntf-table[data-focus-locked="true"] tr:not(.row-focused):hover .row-action-bar {
+    display: none;
+}
+
+.ntf-table tbody td:first-child {
+    position: relative;
+}
+
+.ntf-table tr:hover > td:first-child,
+.ntf-table tr.row-focused > td:first-child {
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.ntf-table.has-focused-cell tr:not(.row-focused):hover > td:first-child {
+    box-shadow: none;
+}
+
+.ntf-table:focus-within tr:not(.row-focused):hover > td:first-child {
+    box-shadow: none;
+}
+
+.ntf-table[data-focus-locked="true"] tr:not(.row-focused):hover > td:first-child {
+    box-shadow: none;
 }
 
 .sheet-delete-button,
@@ -450,31 +508,56 @@ tr.row-focused .row-actions-cell {
     border-radius: 4px;
 }
 
-.action-bar-delete {
-    display: flex;
+.app button.action-bar-delete,
+.diff-panel-shell button.action-bar-delete {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 0;
-    min-height: 0;
-    padding: 1px 3px;
+    width: 14px;
+    height: 14px;
+    min-width: 14px;
+    min-height: 14px;
+    padding: 0;
+    box-sizing: border-box;
     border: 0;
     border-radius: 2px;
     background: transparent;
     color: white;
     font-weight: 700;
     line-height: 1;
+    cursor: pointer;
 }
 
-.action-bar-delete:hover {
+.app button.action-bar-delete:hover,
+.diff-panel-shell button.action-bar-delete:hover {
     background: var(--danger);
 }
 
 .col-action-bar .drag-handle,
 .row-action-bar .drag-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
     color: white;
     opacity: 1;
-    font-size: 11px;
-    padding: 1px 2px;
+    padding: 0;
+}
+
+.col-action-bar .drag-handle:hover,
+.row-action-bar .drag-handle:hover {
+    border-radius: 2px;
+    background: var(--accent-hover);
+}
+
+.app button.action-bar-delete svg,
+.diff-panel-shell button.action-bar-delete svg,
+.col-action-bar .drag-handle svg,
+.row-action-bar .drag-handle svg {
+    display: block;
+    width: 10px;
+    height: 10px;
 }
 
 /* Drag and Drop */
@@ -491,7 +574,7 @@ tr.row-focused .row-actions-cell {
 }
 
 .drag-handle--h {
-    transform: rotate(90deg);
+    transform: none;
 }
 
 .app [draggable="true"] {
@@ -877,11 +960,6 @@ tr.row-focused .row-actions-cell {
     border: 1px solid var(--line);
     background: var(--surface-muted);
     min-width: 0;
-}
-
-.rawrows-table .row-actions-cell {
-    border: 1px solid var(--line);
-    background: var(--surface-muted);
 }
 
 /* Raw Blocks */

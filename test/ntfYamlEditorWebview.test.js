@@ -385,11 +385,11 @@ test("webview adds and deletes RawRows rows and columns", () => {
   rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
   dragDrop(dom, rawRows.querySelectorAll("tbody tr")[1], rawRows.querySelectorAll("tbody tr")[0]);
   rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
-  dragDrop(dom, rawRows.querySelectorAll("thead th")[2], rawRows.querySelectorAll("thead th")[1]);
+  dragDrop(dom, rawRows.querySelectorAll("thead th")[2], rawRows.querySelectorAll("thead th")[0]);
   save(root);
 
   assert.match(messages[0].text, /EXPECTED_VARIABLE=\.\/tmp\/result\.csv: #RawRows/);
-  assert.match(messages[0].text, /    - \[ "", "", "" \]\n    - \[ "", "東京", "" \]/);
+  assert.match(messages[0].text, /    - \[ "", "", "" \]\n    - \[ "", "東京", ~ \]/);
 });
 
 
@@ -486,7 +486,7 @@ test("webview renders RawRows without column numbers and highlights structural c
   ].join("\n"));
   const rawRows = block(root, "SETUP_VARIABLE[1]=data.csv");
 
-  assert.ok(rawRows.querySelector("thead th:nth-child(2) [title='Delete raw column'], thead th:nth-child(2) button[title='Delete raw column']") || rawRows.querySelector("thead th:nth-child(2)").querySelector("button"));
+  assert.ok(rawRows.querySelector("thead th:nth-child(1) [title='Delete raw column'], thead th:nth-child(1) button[title='Delete raw column']") || rawRows.querySelector("thead th:nth-child(1)").querySelector("button"));
   assert.ok(rawRows.querySelector(".raw-metadata-row"));
   assert.ok(rawRows.querySelector(".raw-section-header-row"));
   assert.ok(rawRows.querySelector(".raw-key-cell"));
@@ -569,7 +569,7 @@ test("webview reorders sheets, blocks, rows, and columns with drag and drop", ()
   let first = block(root, "LIST_MAP=first");
   dragDrop(dom, first.querySelectorAll("tbody tr")[1], first.querySelectorAll("tbody tr")[0]);
   first = block(root, "LIST_MAP=first");
-  const headerCells = Array.from(first.querySelectorAll("thead th")).slice(1);
+  const headerCells = Array.from(first.querySelectorAll("thead th"));
   dragDrop(dom, headerCells[1], headerCells[0]);
   save(root);
 

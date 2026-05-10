@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NTF Table UI Dummy Block</title>
+  <style>
+    :root {
+      --bg: #f7f7f5;
+      --panel: #fff;
+      --text: #202124;
+      --muted: #626a73;
+      --line: #c9ced4;
+      --accent: #006d77;
+      --header: #e8ecea;
+      --danger: #a33a2a;
+      --accent-hover: #00525a;
+      --row-action-width: 18px;
+      --block-padding-x: 10px;
+    }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.5 sans-serif;
+    }
+
+    h1,
+    h2,
+    p {
+      margin: 0 0 12px;
+    }
+
+    .note {
+      max-width: 960px;
+      color: var(--muted);
+    }
+
+    .block {
+      margin: 20px 0 32px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      overflow: visible;
+    }
+
+    .block-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px var(--block-padding-x);
+    }
+
+    .block-name {
+      min-width: 280px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 6px 8px;
+      background: #fff;
+      font-weight: 700;
+    }
+
+    .block-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    button {
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+      background: var(--accent);
+      color: #fff;
+      padding: 4px 8px;
+      font: inherit;
+    }
+
+    .table-shell {
+      position: relative;
+      padding: 2px var(--block-padding-x) 12px;
+      overflow: visible;
+    }
+
+    .table-viewport {
+      overflow: auto;
+    }
+
+    .column-action-layer {
+      position: absolute;
+      inset: 0 var(--block-padding-x) auto var(--block-padding-x);
+      height: 0;
+      overflow: visible;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .table-shell.readonly {
+      padding: 2px var(--block-padding-x) 12px;
+    }
+
+    table.ntf-table {
+      border-collapse: collapse;
+      table-layout: auto;
+    }
+
+    .ntf-table th,
+    .ntf-table td {
+      min-width: 120px;
+      border: 1px solid var(--line);
+      padding: 0;
+      vertical-align: top;
+      background: #fff;
+    }
+
+    .ntf-table th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: var(--header);
+    }
+
+    .ntf-table input {
+      box-sizing: border-box;
+      display: block;
+      width: 100%;
+      min-height: 30px;
+      border: 0;
+      padding: 6px;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+    }
+
+    .col-action-popover {
+      display: none;
+      gap: 1px;
+      position: absolute;
+      top: -18px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      padding: 2px 3px;
+      border-radius: 5px 5px 0 0;
+      background: var(--accent);
+      box-shadow: 0 -2px 6px rgb(0 0 0 / 18%);
+      pointer-events: auto;
+    }
+
+    .ntf-table th:has(.col-action-popover):hover,
+    .ntf-table th.col-active,
+    .table-shell.readonly .ntf-table th:hover {
+      box-shadow: inset 0 3px 0 var(--accent);
+    }
+
+    .ntf-table th:hover .col-action-popover,
+    .ntf-table th.col-active .col-action-popover {
+      display: inline-flex;
+    }
+
+    .row-action-popover {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 1px;
+      position: absolute;
+      right: calc(100% - 1px);
+      top: 50%;
+      transform: translateY(-50%);
+      width: var(--row-action-width);
+      min-width: var(--row-action-width);
+      height: auto;
+      padding: 2px 0;
+      border-radius: 5px 0 0 5px;
+      background: var(--accent);
+    }
+
+    .ntf-table tbody td:first-child {
+      position: relative;
+    }
+
+    .ntf-table tbody tr:hover > td:first-child {
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+
+    .ntf-table tbody tr:hover .row-action-popover {
+      display: inline-flex;
+    }
+
+    .icon-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 14px;
+      min-height: 14px;
+      border: 0;
+      border-radius: 3px;
+      padding: 0 2px;
+      background: transparent;
+      color: #fff;
+      line-height: 1;
+    }
+
+    .icon-button svg {
+      display: block;
+      width: 10px;
+      height: 10px;
+      stroke: currentColor;
+    }
+
+    .icon-button.danger:hover {
+      background: var(--danger);
+    }
+
+    .drag-handle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 14px;
+      height: 14px;
+      color: #fff;
+      cursor: grab;
+      user-select: none;
+    }
+
+    .drag-handle svg {
+      display: block;
+      width: 10px;
+      height: 10px;
+    }
+
+    .drag-handle:hover {
+      border-radius: 3px;
+      background: var(--accent-hover);
+    }
+
+    .rawrows-table .raw-key-cell,
+    .rawrows-table .raw-section-cell {
+      background: var(--header);
+      font-weight: 700;
+    }
+
+    .rawrows-table .raw-filler-cell {
+      min-width: 0;
+      background: #f3f5f4;
+    }
+
+    .diff-row-changed > td {
+      background: #fffbea;
+    }
+
+    .diff-cell-changed {
+      box-shadow: inset 0 0 0 2px #d8a700;
+    }
+
+    .comment {
+      margin: 8px 12px 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    code {
+      background: #ecefed;
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>NTF Table UI Dummy Block</h1>
+  <p class="note">
+    認識合わせ用の静的 HTML。ポイントは、行/列操作 UI を NTF のデータ表の論理行列に混ぜないこと。
+    つまり <code>thead</code>/<code>tbody</code> には実データ列だけを置き、行操作は先頭データセルから外側へ出す。
+  </p>
+
+  <section class="block" data-block-name="LIST_MAP=requestParams">
+    <header class="block-header">
+      <input class="block-name" value="LIST_MAP=requestParams" aria-label="Block name">
+      <div class="block-actions" aria-label="Block actions">
+        <button type="button">Add Row</button>
+        <button type="button">Add Column</button>
+      </div>
+    </header>
+
+    <!--
+      通常テーブル。
+      NG: 行操作用の <th>/<td> を追加しない。
+      OK: <tr> の子は NTF の実データ列だけ。
+      行操作 UI は先頭 <td> 内の absolute overlay として左余白へ表示する。
+    -->
+    <div class="table-shell" data-table-actions="overlay-outside-grid">
+      <table class="ntf-table" data-table-kind="map-table">
+        <thead>
+          <tr>
+            <th data-col-key="no">
+              <div class="col-action-popover" aria-label="Column actions for no">
+                <span class="drag-handle" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="5" cy="4" r="1.2" fill="currentColor"></circle><circle cx="11" cy="4" r="1.2" fill="currentColor"></circle><circle cx="5" cy="8" r="1.2" fill="currentColor"></circle><circle cx="11" cy="8" r="1.2" fill="currentColor"></circle><circle cx="5" cy="12" r="1.2" fill="currentColor"></circle><circle cx="11" cy="12" r="1.2" fill="currentColor"></circle></svg></span>
+                <button class="icon-button danger" type="button" title="Delete column"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke-width="1.8" stroke-linecap="round"></path></svg></button>
+              </div>
+              <input value="no" aria-label="Column no">
+            </th>
+            <th data-col-key="name">
+              <div class="col-action-popover" aria-label="Column actions for name">
+                <span class="drag-handle" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="5" cy="4" r="1.2" fill="currentColor"></circle><circle cx="11" cy="4" r="1.2" fill="currentColor"></circle><circle cx="5" cy="8" r="1.2" fill="currentColor"></circle><circle cx="11" cy="8" r="1.2" fill="currentColor"></circle><circle cx="5" cy="12" r="1.2" fill="currentColor"></circle><circle cx="11" cy="12" r="1.2" fill="currentColor"></circle></svg></span>
+                <button class="icon-button danger" type="button" title="Delete column"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke-width="1.8" stroke-linecap="round"></path></svg></button>
+              </div>
+              <input value="name" aria-label="Column name">
+            </th>
+            <th data-col-key="value">
+              <div class="col-action-popover" aria-label="Column actions for value">
+                <span class="drag-handle" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="5" cy="4" r="1.2" fill="currentColor"></circle><circle cx="11" cy="4" r="1.2" fill="currentColor"></circle><circle cx="5" cy="8" r="1.2" fill="currentColor"></circle><circle cx="11" cy="8" r="1.2" fill="currentColor"></circle><circle cx="5" cy="12" r="1.2" fill="currentColor"></circle><circle cx="11" cy="12" r="1.2" fill="currentColor"></circle></svg></span>
+                <button class="icon-button danger" type="button" title="Delete column"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke-width="1.8" stroke-linecap="round"></path></svg></button>
+              </div>
+              <input value="value" aria-label="Column value">
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr data-row-key="1">
+            <td data-col-key="no">
+              <div class="row-action-popover" aria-label="Row actions">
+                <span class="drag-handle" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="5" cy="4" r="1.2" fill="currentColor"></circle><circle cx="11" cy="4" r="1.2" fill="currentColor"></circle><circle cx="5" cy="8" r="1.2" fill="currentColor"></circle><circle cx="11" cy="8" r="1.2" fill="currentColor"></circle><circle cx="5" cy="12" r="1.2" fill="currentColor"></circle><circle cx="11" cy="12" r="1.2" fill="currentColor"></circle></svg></span>
+                <button class="icon-button danger" type="button" title="Delete row"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke-width="1.8" stroke-linecap="round"></path></svg></button>
+              </div>
+              <input value="1" aria-label="Row 1 no">
+            </td>
+            <td data-col-key="name"><input value="expected_variable" aria-label="Row 1 name"></td>
+            <td data-col-key="value"><input value="metadata + multi format" aria-label="Row 1 value"></td>
+          </tr>
+          <tr data-row-key="2">
+            <td data-col-key="no">
+              <div class="row-action-popover" aria-label="Row actions">
+                <span class="drag-handle" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="5" cy="4" r="1.2" fill="currentColor"></circle><circle cx="11" cy="4" r="1.2" fill="currentColor"></circle><circle cx="5" cy="8" r="1.2" fill="currentColor"></circle><circle cx="11" cy="8" r="1.2" fill="currentColor"></circle><circle cx="5" cy="12" r="1.2" fill="currentColor"></circle><circle cx="11" cy="12" r="1.2" fill="currentColor"></circle></svg></span>
+                <button class="icon-button danger" type="button" title="Delete row"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke-width="1.8" stroke-linecap="round"></path></svg></button>
+              </div>
+              <input value="2" aria-label="Row 2 no">
+            </td>
+            <td data-col-key="name"><input value="setup_variable" aria-label="Row 2 name"></td>
+            <td data-col-key="value"><input value="csv" aria-label="Row 2 value"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="comment">この表の列数は 3。行操作 UI は列数に含まれない。</p>
+  </section>
+
+  <section class="block" data-block-name="EXPECTED_VARIABLE=./tmp/result-fixed.dat">
+    <header class="block-header">
+      <input class="block-name" value="EXPECTED_VARIABLE=./tmp/result-fixed.dat" aria-label="Block name">
+      <div class="block-actions" aria-label="Block actions">
+        <button type="button">Add Row</button>
+        <button type="button">Add Column</button>
+      </div>
+    </header>
+
+    <!--
+      RawRows。
+      NG: 行操作列を追加して RawRows の第1列をずらさない。
+      OK: RawRows の列 index は HTML の th/td index と一致する。
+      欠損セルは RawRows の表示整形として filler td を置くが、操作 UI のための列ではない。
+    -->
+    <div class="table-shell" data-table-actions="overlay-outside-grid">
+      <table class="ntf-table rawrows-table" data-table-kind="rawrows">
+        <thead>
+          <tr>
+            <th data-raw-column="0">
+              <div class="col-action-popover" aria-label="Raw column 0 actions">
+                <span class="drag-handle" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="5" cy="4" r="1.2" fill="currentColor"></circle><circle cx="11" cy="4" r="1.2" fill="currentColor"></circle><circle cx="5" cy="8" r="1.2" fill="currentColor"></circle><circle cx="11" cy="8" r="1.2" fill="currentColor"></circle><circle cx="5" cy="12" r="1.2" fill="currentColor"></circle><circle cx="11" cy="12" r="1.2" fill="currentColor"></circle></svg></span>
+                <button class="icon-button danger" type="button" title="Delete raw column"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke-width="1.8" stroke-linecap="round"></path></svg></button>
+              </div>
+              <input value="0" aria-label="Raw column 0">
+            </th>
+            <th data-raw-column="1">
+              <div class="col-action-popover" aria-label="Raw column 1 actions">
+                <span class="drag-handle" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="5" cy="4" r="1.2" fill="currentColor"></circle><circle cx="11" cy="4" r="1.2" fill="currentColor"></circle><circle cx="5" cy="8" r="1.2" fill="currentColor"></circle><circle cx="11" cy="8" r="1.2" fill="currentColor"></circle><circle cx="5" cy="12" r="1.2" fill="currentColor"></circle><circle cx="11" cy="12" r="1.2" fill="currentColor"></circle></svg></span>
+                <button class="icon-button danger" type="button" title="Delete raw column"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke-width="1.8" stroke-linecap="round"></path></svg></button>
+              </div>
+              <input value="1" aria-label="Raw column 1">
+            </th>
+            <th data-raw-column="2">
+              <div class="col-action-popover" aria-label="Raw column 2 actions">
+                <span class="drag-handle" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="5" cy="4" r="1.2" fill="currentColor"></circle><circle cx="11" cy="4" r="1.2" fill="currentColor"></circle><circle cx="5" cy="8" r="1.2" fill="currentColor"></circle><circle cx="11" cy="8" r="1.2" fill="currentColor"></circle><circle cx="5" cy="12" r="1.2" fill="currentColor"></circle><circle cx="11" cy="12" r="1.2" fill="currentColor"></circle></svg></span>
+                <button class="icon-button danger" type="button" title="Delete raw column"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke-width="1.8" stroke-linecap="round"></path></svg></button>
+              </div>
+              <input value="2" aria-label="Raw column 2">
+            </th>
+            <th data-raw-column="3">
+              <div class="col-action-popover" aria-label="Raw column 3 actions">
+                <span class="drag-handle" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="5" cy="4" r="1.2" fill="currentColor"></circle><circle cx="11" cy="4" r="1.2" fill="currentColor"></circle><circle cx="5" cy="8" r="1.2" fill="currentColor"></circle><circle cx="11" cy="8" r="1.2" fill="currentColor"></circle><circle cx="5" cy="12" r="1.2" fill="currentColor"></circle><circle cx="11" cy="12" r="1.2" fill="currentColor"></circle></svg></span>
+                <button class="icon-button danger" type="button" title="Delete raw column"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke-width="1.8" stroke-linecap="round"></path></svg></button>
+              </div>
+              <input value="3" aria-label="Raw column 3">
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="raw-metadata-row" data-raw-row="0">
+            <td class="raw-key-cell" data-raw-column="0">
+              <div class="row-action-popover" aria-label="Raw row actions">
+                <span class="drag-handle" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="5" cy="4" r="1.2" fill="currentColor"></circle><circle cx="11" cy="4" r="1.2" fill="currentColor"></circle><circle cx="5" cy="8" r="1.2" fill="currentColor"></circle><circle cx="11" cy="8" r="1.2" fill="currentColor"></circle><circle cx="5" cy="12" r="1.2" fill="currentColor"></circle><circle cx="11" cy="12" r="1.2" fill="currentColor"></circle></svg></span>
+                <button class="icon-button danger" type="button" title="Delete raw row"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke-width="1.8" stroke-linecap="round"></path></svg></button>
+              </div>
+              <input value="text-encoding" aria-label="Row 0 column 0">
+            </td>
+            <td data-raw-column="1"><input value="UTF-8" aria-label="Row 0 column 1"></td>
+            <td class="raw-filler-cell" data-raw-filler="true"></td>
+            <td class="raw-filler-cell" data-raw-filler="true"></td>
+          </tr>
+          <tr class="raw-metadata-row" data-raw-row="1">
+            <td class="raw-key-cell" data-raw-column="0">
+              <div class="row-action-popover" aria-label="Raw row actions">
+                <span class="drag-handle" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="5" cy="4" r="1.2" fill="currentColor"></circle><circle cx="11" cy="4" r="1.2" fill="currentColor"></circle><circle cx="5" cy="8" r="1.2" fill="currentColor"></circle><circle cx="11" cy="8" r="1.2" fill="currentColor"></circle><circle cx="5" cy="12" r="1.2" fill="currentColor"></circle><circle cx="11" cy="12" r="1.2" fill="currentColor"></circle></svg></span>
+                <button class="icon-button danger" type="button" title="Delete raw row"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke-width="1.8" stroke-linecap="round"></path></svg></button>
+              </div>
+              <input value="record-separator" aria-label="Row 1 column 0">
+            </td>
+            <td data-raw-column="1"><input value="LF" aria-label="Row 1 column 1"></td>
+            <td class="raw-filler-cell" data-raw-filler="true"></td>
+            <td class="raw-filler-cell" data-raw-filler="true"></td>
+          </tr>
+          <tr class="raw-section-header-row" data-raw-row="2">
+            <td class="raw-section-cell" data-raw-column="0">
+              <div class="row-action-popover" aria-label="Raw row actions">
+                <span class="drag-handle" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="5" cy="4" r="1.2" fill="currentColor"></circle><circle cx="11" cy="4" r="1.2" fill="currentColor"></circle><circle cx="5" cy="8" r="1.2" fill="currentColor"></circle><circle cx="11" cy="8" r="1.2" fill="currentColor"></circle><circle cx="5" cy="12" r="1.2" fill="currentColor"></circle><circle cx="11" cy="12" r="1.2" fill="currentColor"></circle></svg></span>
+                <button class="icon-button danger" type="button" title="Delete raw row"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke-width="1.8" stroke-linecap="round"></path></svg></button>
+              </div>
+              <input value="header" aria-label="Row 2 column 0">
+            </td>
+            <td class="raw-section-cell" data-raw-column="1"><input value="recordType" aria-label="Row 2 column 1"></td>
+            <td class="raw-section-cell" data-raw-column="2"><input value="customerId" aria-label="Row 2 column 2"></td>
+            <td class="raw-section-cell" data-raw-column="3"><input value="amount" aria-label="Row 2 column 3"></td>
+          </tr>
+          <tr class="raw-value-row" data-raw-row="3">
+            <td data-raw-column="0">
+              <div class="row-action-popover" aria-label="Raw row actions">
+                <span class="drag-handle" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="5" cy="4" r="1.2" fill="currentColor"></circle><circle cx="11" cy="4" r="1.2" fill="currentColor"></circle><circle cx="5" cy="8" r="1.2" fill="currentColor"></circle><circle cx="11" cy="8" r="1.2" fill="currentColor"></circle><circle cx="5" cy="12" r="1.2" fill="currentColor"></circle><circle cx="11" cy="12" r="1.2" fill="currentColor"></circle></svg></span>
+                <button class="icon-button danger" type="button" title="Delete raw row"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke-width="1.8" stroke-linecap="round"></path></svg></button>
+              </div>
+              <input value="H" aria-label="Row 3 column 0">
+            </td>
+            <td data-raw-column="1"><input value="C001" aria-label="Row 3 column 1"></td>
+            <td data-raw-column="2"><input value="1000" aria-label="Row 3 column 2"></td>
+            <td class="raw-filler-cell" data-raw-filler="true"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="comment">この RawRows の列数は 4。filler は RawRows の欠損セルを表すためだけのセルで、操作 UI 用ではない。</p>
+  </section>
+
+  <section class="block" data-block-name="UNIFIED_DIFF_READONLY">
+    <header class="block-header">
+      <input class="block-name" value="UNIFIED_DIFF_READONLY" readonly aria-label="Block name">
+    </header>
+
+    <!--
+      unified / read-only diff。
+      操作 UI は不要なので、左余白も row/column action popover も存在しない。
+      diff 表示のハイライトは純粋なデータセルにだけ適用する。
+    -->
+    <div class="table-shell readonly" data-table-actions="none">
+      <table class="ntf-table" data-table-kind="unified-diff">
+        <thead>
+          <tr>
+            <th data-col-key="no"><input value="no" readonly aria-label="Column no"></th>
+            <th data-col-key="name"><input value="name" readonly aria-label="Column name"></th>
+            <th data-col-key="value"><input value="value" readonly aria-label="Column value"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="diff-row-changed" data-row-key="1">
+            <td data-col-key="no"><input value="1" readonly aria-label="Row 1 no"></td>
+            <td class="diff-cell-changed" data-col-key="name"><input value="expected_variable" readonly aria-label="Row 1 name"></td>
+            <td data-col-key="value"><input value="metadata + multi format" readonly aria-label="Row 1 value"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="comment">unified/read-only は操作 UI がない。行の先頭に空セルを置かない。</p>
+  </section>
+  <script>
+    document.querySelectorAll('.table-shell .ntf-table').forEach(table => {
+      const headers = Array.from(table.querySelectorAll('thead th'));
+
+      function clearActiveColumn() {
+        headers.forEach(th => th.classList.remove('col-active'));
+      }
+
+      function activateColumn(header) {
+        clearActiveColumn();
+        if (header) {
+          header.classList.add('col-active');
+        }
+      }
+
+      function activateColumnFromCell(cell) {
+        activateColumn(headers[cell.cellIndex]);
+      }
+
+      headers.forEach(header => {
+        header.addEventListener('mouseenter', () => activateColumn(header));
+        header.addEventListener('focusin', () => activateColumn(header));
+      });
+
+      table.querySelectorAll('tbody td').forEach(cell => {
+        cell.addEventListener('mouseenter', () => activateColumnFromCell(cell));
+        cell.addEventListener('focusin', () => activateColumnFromCell(cell));
+      });
+
+      table.addEventListener('mouseleave', clearActiveColumn);
+      table.addEventListener('focusout', event => {
+        if (!table.contains(event.relatedTarget)) {
+          clearActiveColumn();
+        }
+      });
+    });
+  </script>
+</body>
+</html>

@@ -153,7 +153,7 @@ const pages = [
         "[data-action='add-row']",
         "[data-action='add-column']",
         ".rawrows-table",
-        ".row-actions-cell"
+        ".table-scroll--with-row-actions"
       ],
       exists: [
         ".row-action-bar",
@@ -166,6 +166,49 @@ const pages = [
       focusVisible: [
         { focus: "[data-role='column-name']", visible: ".col-action-bar" },
         { focus: "[data-column='name']", visible: ".row-action-bar" }
+      ],
+      hoverChecks: [
+        {
+          hover: "[data-column='name']",
+          activeColIndex: "1",
+          visible: "th.col-active .col-action-bar",
+          singleActiveColumn: true
+        },
+        {
+          hover: "th[data-col-index='2']",
+          activeColIndex: "2",
+          visible: "th.col-active .col-action-bar",
+          singleActiveColumn: true
+        }
+      ],
+      geometryChecks: [
+        {
+          type: "centeredWithin",
+          element: "th[data-col-index='1'] .col-action-bar",
+          container: "th[data-col-index='1']",
+          tolerance: 2,
+          activate: { hover: "[data-column='name']" }
+        },
+        {
+          type: "touchesLeftEdge",
+          element: "tbody tr:first-child .row-action-bar",
+          container: "tbody tr:first-child > td:first-child",
+          tolerance: 2,
+          activate: { focus: "tbody tr:first-child [data-column='no']" }
+        },
+        {
+          type: "outsideAbove",
+          element: "th[data-col-index='1'] .col-action-bar",
+          container: "th[data-col-index='1']",
+          activate: { hover: "[data-column='name']" }
+        },
+        {
+          type: "outsideLeft",
+          element: "tbody tr:first-child .row-action-bar",
+          container: "tbody tr:first-child > td:first-child",
+          tolerance: 2,
+          activate: { focus: "tbody tr:first-child [data-column='no']" }
+        }
       ],
       focusChecks: [
         {
@@ -196,7 +239,7 @@ const pages = [
       visible: [
         "tr.row-focused",
         "tr.row-focused .row-action-bar",
-        "tr.row-focused .row-actions-cell",
+        "tr.row-focused > td:first-child",
         "th.col-focused",
         "th.col-focused .col-action-bar"
       ],
@@ -281,6 +324,13 @@ const pages = [
         "#toggle-unified.layout-btn-active",
         ".cell-unified-diff",
         ".diff-cell-changed"
+      ],
+      hoverChecks: [
+        {
+          hover: "#unified-root .diff-cell-changed",
+          activeColIndex: "1",
+          singleActiveColumn: true
+        }
       ],
       hidden: [".diff-panel-container"]
     }
@@ -515,8 +565,7 @@ function injectUiRegressionScript(html, checks) {
 <script>
 (function() {
   const checks = ${json(checks || {})};
-  function visible(selector) {
-    const element = document.querySelector(selector);
+  function visibleElement(element) {
     if (!element) return false;
     const style = window.getComputedStyle(element);
     const rect = element.getBoundingClientRect();
@@ -524,6 +573,9 @@ function injectUiRegressionScript(html, checks) {
       && style.visibility !== "hidden"
       && rect.width > 0
       && rect.height > 0;
+  }
+  function visible(selector) {
+    return visibleElement(document.querySelector(selector));
   }
   function hidden(selector) {
     const element = document.querySelector(selector);
@@ -534,6 +586,53 @@ function injectUiRegressionScript(html, checks) {
       || style.visibility === "hidden"
       || rect.width === 0
       || rect.height === 0;
+  }
+  function trigger(item) {
+    if (!item) return;
+    if (item.focusBeforeHover) {
+      const target = document.querySelector(item.focusBeforeHover);
+      if (target) {
+        target.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, view: window }));
+        target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
+        target.focus();
+        target.dispatchEvent(new FocusEvent("focus", { bubbles: false, relatedTarget: null }));
+        target.dispatchEvent(new FocusEvent("focusin", { bubbles: true, relatedTarget: null }));
+        const table = target.closest("table");
+        const cell = target.closest("td");
+        const row = target.closest("tr");
+        if (table && cell && row) {
+          table.classList.add("has-focused-cell");
+          table.dataset.focusLocked = "true";
+          row.classList.add("row-focused");
+          const header = table.querySelectorAll("thead th")[cell.cellIndex];
+          if (header) {
+            header.classList.add("col-focused", "col-active");
+          }
+        }
+      }
+    }
+    if (item.hover) {
+      const target = document.querySelector(item.hover);
+      if (target) {
+        target.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true, cancelable: true, view: window }));
+      }
+    }
+    if (item.focus) {
+      const target = document.querySelector(item.focus);
+      if (target) target.focus();
+    }
+  }
+  function cleanupInteractionState() {
+    document.querySelectorAll(".row-focused, .col-focused, .col-active").forEach(function(el) {
+      el.classList.remove("row-focused", "col-focused", "col-active");
+    });
+    document.querySelectorAll(".has-focused-cell").forEach(function(el) {
+      el.classList.remove("has-focused-cell");
+      delete el.dataset.focusLocked;
+    });
+    if (document.activeElement && document.activeElement.blur) {
+      document.activeElement.blur();
+    }
   }
   function report() {
     const failures = [];
@@ -559,10 +658,49 @@ function injectUiRegressionScript(html, checks) {
       }
       target.focus();
       if (!visible(item.visible)) failures.push("expected visible after focus " + item.focus + ": " + item.visible);
-      target.blur();
-      document.querySelectorAll(".row-focused, .col-focused").forEach(function(el) {
-        el.classList.remove("row-focused", "col-focused");
-      });
+      cleanupInteractionState();
+    }
+    for (const item of checks.hoverChecks || []) {
+      const target = document.querySelector(item.hover);
+      if (!target) {
+        failures.push("expected hover target: " + item.hover);
+        continue;
+      }
+      trigger({ hover: item.hover });
+      if (item.visible && !visible(item.visible)) {
+        failures.push("expected visible after hover " + item.hover + ": " + item.visible);
+      }
+      if (item.focusedColIndex !== undefined) {
+        const focused = document.querySelector("th.col-focused");
+        if (!focused) {
+          failures.push("expected th.col-focused after hover on: " + item.hover);
+        } else if (String(focused.dataset.colIndex) !== String(item.focusedColIndex)) {
+          failures.push("expected th.col-focused[data-col-index=" + item.focusedColIndex + "] but got " + focused.dataset.colIndex + " (hover: " + item.hover + ")");
+        }
+      }
+      if (item.focusedRowCount !== undefined && document.querySelectorAll("tr.row-focused").length !== Number(item.focusedRowCount)) {
+        failures.push("expected " + item.focusedRowCount + " tr.row-focused after hover on: " + item.hover);
+      }
+      if (item.activeRowActionCount !== undefined) {
+        const count = Array.from(document.querySelectorAll(".row-action-bar")).filter(function(element) {
+          return visibleElement(element);
+        }).length;
+        if (count !== Number(item.activeRowActionCount)) {
+          failures.push("expected " + item.activeRowActionCount + " visible .row-action-bar after hover on " + item.hover + " but got " + count);
+        }
+      }
+      if (item.singleActiveColumn && document.querySelectorAll("th.col-active").length !== 1) {
+        failures.push("expected exactly one th.col-active after hover on: " + item.hover);
+      }
+      if (item.activeColIndex !== undefined) {
+        const active = document.querySelector("th.col-active");
+        if (!active) {
+          failures.push("expected th.col-active after hover on: " + item.hover);
+        } else if (String(active.dataset.colIndex) !== String(item.activeColIndex)) {
+          failures.push("expected th.col-active[data-col-index=" + item.activeColIndex + "] but got " + active.dataset.colIndex + " (hover: " + item.hover + ")");
+        }
+      }
+      cleanupInteractionState();
     }
     for (const item of checks.focusChecks || []) {
       const target = document.querySelector(item.focus);
@@ -582,10 +720,40 @@ function injectUiRegressionScript(html, checks) {
           failures.push("expected th.col-focused[data-col-index=" + item.colFocusedIndex + "] but got " + cf.dataset.colIndex + " (focus: " + item.focus + ")");
         }
       }
-      target.blur();
-      document.querySelectorAll(".row-focused, .col-focused").forEach(function(el) {
-        el.classList.remove("row-focused", "col-focused");
-      });
+      cleanupInteractionState();
+    }
+    for (const item of checks.geometryChecks || []) {
+      trigger(item.activate);
+      const element = document.querySelector(item.element);
+      const container = document.querySelector(item.container);
+      if (!element || !container) {
+        failures.push("expected geometry targets: " + item.element + " / " + item.container);
+        cleanupInteractionState();
+        continue;
+      }
+      const er = element.getBoundingClientRect();
+      const cr = container.getBoundingClientRect();
+      const tolerance = item.tolerance == null ? 1 : Number(item.tolerance);
+      if (item.type === "centeredWithin") {
+        const ec = er.left + er.width / 2;
+        const cc = cr.left + cr.width / 2;
+        if (Math.abs(ec - cc) > tolerance) {
+          failures.push("expected " + item.element + " centered within " + item.container + " (delta " + Math.abs(ec - cc).toFixed(2) + ")");
+        }
+      } else if (item.type === "touchesLeftEdge") {
+        if (Math.abs(er.right - cr.left) > tolerance) {
+          failures.push("expected " + item.element + " right edge to touch " + item.container + " left edge");
+        }
+      } else if (item.type === "outsideAbove") {
+        if (!(er.top < cr.top - tolerance)) {
+          failures.push("expected " + item.element + " outside above " + item.container);
+        }
+      } else if (item.type === "outsideLeft") {
+        if (!(er.right <= cr.left + tolerance)) {
+          failures.push("expected " + item.element + " outside left of " + item.container);
+        }
+      }
+      cleanupInteractionState();
     }
     for (const item of checks.styleNot || []) {
       const target = document.querySelector(item.selector);
