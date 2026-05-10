@@ -9,8 +9,25 @@
     --warn: #8a4b00;
     --danger: #a33a2a;
     --danger-bg: #fff4f1;
+    --table-header-bg: #e8ecea;
+    --surface-muted: #f3f5f4;
+    --row-action-width: 22px;
+    --z-sticky-row-action: 3;
+    --z-sticky-header: 10;
+    --z-action-bar: 12;
+    --diff-added-bg: #daf1df;
+    --diff-added-border: #4b9b63;
+    --diff-added-accent: #2f8a45;
+    --diff-changed-bg: #fff0b8;
+    --diff-changed-soft-bg: #fffbea;
+    --diff-changed-border: #d8a700;
+    --diff-deleted-bg: #ffdcd2;
+    --diff-deleted-soft-bg: #ffe3dc;
+    --diff-deleted-border: #c9543d;
+    --diff-deleted-accent: #b43d28;
 }
 
+/* Base */
 body {
     margin: 0;
     background: var(--bg);
@@ -19,6 +36,12 @@ body {
     font-size: var(--vscode-font-size);
 }
 
+body.resizing-sidebar {
+    cursor: col-resize;
+    user-select: none;
+}
+
+/* Layout */
 .app {
     display: grid;
     grid-template-columns: var(--ntf-sidebar-width, 240px) minmax(0, 1fr);
@@ -29,17 +52,37 @@ body {
     min-height: 100%;
 }
 
-.app.diff-app>aside {
+.app.diff-app > aside {
     min-height: 0;
 }
 
-aside {
+.app aside {
     position: relative;
     border-right: 1px solid var(--line);
     background: #eef1ef;
     padding: 14px;
     overflow-x: hidden;
     overflow-y: auto;
+}
+
+.app main {
+    padding: 16px;
+}
+
+.app h1,
+.app h2,
+.app h3 {
+    margin: 0 0 10px;
+    line-height: 1.3;
+}
+
+.app h1 {
+    font-size: 18px;
+}
+
+.app h2 {
+    font-size: 16px;
+    margin-top: 18px;
 }
 
 .sidebar-resizer {
@@ -50,35 +93,12 @@ aside {
     width: 10px;
     cursor: col-resize;
     background: transparent;
-    z-index: 10;
+    z-index: var(--z-sticky-header);
 }
 
-body.resizing-sidebar {
-    cursor: col-resize;
-    user-select: none;
-}
-
-main {
-    padding: 16px;
-}
-
-h1,
-h2,
-h3 {
-    margin: 0 0 10px;
-    line-height: 1.3;
-}
-
-h1 {
-    font-size: 18px;
-}
-
-h2 {
-    font-size: 16px;
-    margin-top: 18px;
-}
-
-button {
+/* Controls */
+.app button,
+.diff-panel-shell button {
     border: 1px solid var(--accent-strong);
     border-radius: 6px;
     background: var(--accent);
@@ -88,28 +108,110 @@ button {
     font: inherit;
 }
 
-button.secondary {
+.app button.secondary,
+.diff-panel-shell button.secondary {
     background: white;
     color: var(--accent-strong);
 }
 
-button.danger {
+.app button.danger {
     background: var(--danger-bg);
     color: var(--danger);
     border-color: var(--danger);
 }
 
-button.danger.ghost {
+.app button.danger.ghost {
     background: transparent;
     color: var(--danger);
     border-color: transparent;
 }
 
-button.compact {
+.app button.compact {
     min-width: 26px;
     min-height: 26px;
     padding: 2px 6px;
     line-height: 1;
+}
+
+.app input,
+.diff-panel-shell input {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 32px;
+    border: 0;
+    padding: 6px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+}
+
+.app input:focus,
+.diff-panel-shell input:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    background: white;
+}
+
+.app input[readonly],
+.diff-panel-shell input[readonly] {
+    cursor: default;
+}
+
+.toolbar,
+.side-toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+
+.side-toolbar button,
+.side-form button {
+    width: 100%;
+}
+
+.message {
+    color: var(--muted);
+}
+
+.side-form,
+.add-block-form,
+.block-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.side-form,
+.add-block-form {
+    margin: 0 0 12px;
+}
+
+.side-form input[type="text"],
+.add-block-form input[type="text"],
+.add-block-form select {
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font: inherit;
+    min-height: unset;
+    width: 140px;
+    field-sizing: content;
+    min-width: 80px;
+    background: white;
+    color: var(--text);
+}
+
+.side-form input[type="text"] {
+    width: 100%;
+}
+
+/* Sheets and Blocks */
+.sheet-item {
+    position: relative;
+    margin: 0 0 8px;
 }
 
 .sheet {
@@ -122,15 +224,9 @@ button.compact {
     color: var(--text);
     border: 1px solid var(--line);
     border-radius: 6px;
-    border-color: var(--line);
     padding: 6px 36px 6px 8px;
     margin: 0;
     box-sizing: border-box;
-}
-
-.sheet-item {
-    position: relative;
-    margin: 0 0 8px;
 }
 
 .sheet input {
@@ -145,51 +241,8 @@ button.compact {
     box-shadow: inset 3px 0 0 var(--accent);
 }
 
-.toolbar,
-.side-toolbar {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    margin-bottom: 14px;
-    flex-wrap: wrap;
-}
-
-.side-toolbar button {
-    width: 100%;
-}
-
-.message {
-    color: var(--muted);
-}
-
-.side-form,
-.add-block-form,
-.block-actions,
-.cell-actions {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.side-form,
-.add-block-form {
-    margin: 0 0 12px;
-}
-
-.side-form button {
-    width: 100%;
-}
-
 .sheet-header {
     margin: 0 0 12px;
-}
-
-.block-name {
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    background: white;
-    font-weight: 700;
 }
 
 .block {
@@ -205,86 +258,75 @@ button.compact {
     gap: 8px;
     padding: 10px 44px 10px 10px;
     border-bottom: 1px solid var(--line);
-    background: #f3f5f4;
+    background: var(--surface-muted);
     align-items: center;
     flex-wrap: wrap;
     position: relative;
 }
 
-.block-header>.table-delete-button {}
-
 .block-name {
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: white;
     font-weight: 700;
     overflow-wrap: anywhere;
     min-width: 260px;
     max-width: min(720px, 100%);
 }
 
+/* Editor Tables */
 .table-scroll {
     overflow-x: auto;
     width: 100%;
 }
 
-table {
+.ntf-table {
     border-collapse: collapse;
     table-layout: auto;
 }
 
-th,
-td {
+.ntf-table th,
+.ntf-table td {
     border: 1px solid var(--line);
     min-width: 100px;
     padding: 0;
     vertical-align: top;
 }
 
-td {
+.ntf-table td {
     background: var(--panel);
 }
 
-th {
+.ntf-table th {
     position: sticky;
     top: 0;
-    z-index: 1;
+    z-index: var(--z-sticky-header);
 }
 
 .table-header-cell {
-    background: #e8ecea;
+    background: var(--table-header-bg);
     font-weight: 700;
 }
 
-td input {
+.ntf-table td input {
     display: block;
     width: 100%;
     min-width: 100%;
 }
 
-th input {
+.ntf-table th input {
     width: auto;
     field-sizing: content;
     min-width: 4ch;
 }
 
-/* ---- 列ヘッダーセル ---- */
 .th-inner {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
     gap: 0;
     padding: 2px 4px;
 }
-
-.th-inner>.drag-handle {
-    padding-top: 0;
-    padding-bottom: 0;
-    line-height: 1;
-}
-
-th.table-header-cell {
-    position: relative;
-}
-
-th.table-header-cell>.table-delete-button {}
 
 .th-content {
     display: flex;
@@ -302,26 +344,291 @@ th.table-header-cell>.table-delete-button {}
     field-sizing: content;
 }
 
-/* ---- 汎用 input ---- */
-input {
-    box-sizing: border-box;
-    width: 100%;
-    min-height: 32px;
-    border: 0;
-    padding: 6px;
-    background: transparent;
-    color: var(--text);
-    font: inherit;
+.ntf-table th.table-header-cell {
+    position: sticky;
+    overflow: visible;
 }
 
-input:focus {
+/* Row and Column Actions */
+.row-actions-cell {
+    width: var(--row-action-width);
+    min-width: var(--row-action-width);
+    max-width: var(--row-action-width);
+    background: #f7f8f7;
+    position: sticky;
+    left: 0;
+    z-index: var(--z-sticky-row-action);
+    white-space: nowrap;
+    padding: 0;
+    vertical-align: top;
+    overflow: visible;
+}
+
+.col-action-bar {
+    display: none;
+    align-items: center;
+    gap: 2px;
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: var(--z-action-bar);
+    padding: 2px 4px;
+    border-radius: 4px 4px 0 0;
+    background: var(--accent);
+    white-space: nowrap;
+}
+
+.ntf-table th:hover .col-action-bar,
+.ntf-table th:focus-within .col-action-bar {
+    display: flex;
+}
+
+.row-action-bar {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: var(--z-action-bar);
+    width: var(--row-action-width);
+    padding: 2px 0;
+    border-radius: 3px;
+    background: var(--accent);
+}
+
+.ntf-table tr:hover .row-action-bar,
+.ntf-table tr:focus-within .row-action-bar {
+    display: flex;
+}
+
+.sheet-delete-button,
+.block-delete-button {
+    position: absolute;
+    z-index: var(--z-action-bar);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    min-height: 0;
+    line-height: 1;
+}
+
+.sheet-delete-button {
+    top: 0;
+    right: 0;
+    padding: 4px;
+    border-radius: 4px;
+}
+
+.block-delete-button {
+    top: 0;
+    right: 0;
+    padding: 4px;
+    border-radius: 4px;
+}
+
+.action-bar-delete {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    min-height: 0;
+    padding: 1px 3px;
+    border: 0;
+    border-radius: 2px;
+    background: transparent;
+    color: white;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.action-bar-delete:hover {
+    background: var(--danger);
+}
+
+.col-action-bar .drag-handle,
+.row-action-bar .drag-handle {
+    color: white;
+    opacity: 1;
+    font-size: 11px;
+    padding: 1px 2px;
+}
+
+/* Drag and Drop */
+.drag-handle {
+    color: var(--muted);
+    cursor: grab;
+    user-select: none;
+    padding: 0 2px;
+    font-size: 13px;
+    opacity: 0.55;
+    vertical-align: middle;
+    flex-shrink: 0;
+    display: inline-block;
+}
+
+.drag-handle--h {
+    transform: rotate(90deg);
+}
+
+.app [draggable="true"] {
+    cursor: grab;
+}
+
+.dragging {
+    opacity: 0.55;
+}
+
+.drop-target {
     outline: 2px solid var(--accent);
     outline-offset: -2px;
-    background: white;
 }
 
-input[readonly] {
+/* Diff Shell */
+.scm-diff-html,
+.scm-diff-body,
+.diff-panel-html,
+.diff-panel-body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+.scm-diff-body {
+    display: flex;
+    flex-direction: column;
+}
+
+.scm-diff-body > #root {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+
+.scm-diff-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    flex-shrink: 0;
+    background: var(--vscode-editorWidget-background, var(--surface-muted));
+    border-bottom: 1px solid var(--vscode-editorGroup-border, var(--line));
+}
+
+.scm-diff-header .diff-ref-input {
+    flex: 1;
+    min-width: 0;
     cursor: default;
+}
+
+.diff-panel-shell {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.diff-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 6px 10px;
+    background: var(--vscode-editorGroupHeader-tabsBackground);
+    border-bottom: 1px solid var(--vscode-editorGroup-border, #ccc);
+}
+
+.diff-panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.diff-panel-error {
+    color: var(--vscode-errorForeground, #c0392b);
+    font-size: 12px;
+}
+
+.diff-panel-container {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.diff-panel-container.split-column {
+    flex-direction: column;
+}
+
+.diff-panel-pane {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+}
+
+.diff-panel-pane + .diff-panel-pane {
+    border-left: 1px solid var(--vscode-editorGroup-border, #ccc);
+}
+
+.diff-panel-container.split-column .diff-panel-pane + .diff-panel-pane {
+    border-left: none;
+    border-top: 1px solid var(--vscode-editorGroup-border, #ccc);
+}
+
+.diff-panel-label {
+    padding: 0;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    background: var(--vscode-editorWidget-background, var(--surface-muted));
+    border-bottom: 1px solid var(--vscode-editorGroup-border, #ccc);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.diff-panel-label .diff-ref-label {
+    padding: 4px 12px;
+}
+
+.diff-panel-pane > #base-root,
+.diff-panel-pane > #head-root,
+.unified-panel > #unified-root {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+
+.unified-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.unified-ref-bar {
+    display: flex;
+    align-items: center;
+    background: var(--vscode-editorWidget-background, var(--surface-muted));
+    border-bottom: 1px solid var(--vscode-editorGroup-border, #ccc);
+    font-size: 12px;
+}
+
+.unified-ref-arrow {
+    padding: 0 8px;
+    color: var(--vscode-descriptionForeground);
+    flex-shrink: 0;
 }
 
 .diff-ref-input {
@@ -344,40 +651,35 @@ input[readonly] {
     outline-offset: -1px;
 }
 
-.scm-diff-html,
-.scm-diff-body {
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    padding: 0;
+.diff-ref-label {
+    display: block;
+    min-width: 0;
     overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--vscode-editor-font-family, monospace);
+    color: var(--vscode-editor-foreground, #202124);
 }
 
-.scm-diff-body {
-    display: flex;
-    flex-direction: column;
-}
-
-.scm-diff-body>#root {
-    flex: 1;
-    min-height: 0;
-    overflow: auto;
-}
-
-.scm-diff-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 10px;
-    flex-shrink: 0;
-    background: var(--vscode-editorWidget-background, #f3f5f4);
-    border-bottom: 1px solid var(--vscode-editorGroup-border, var(--line));
-}
-
-.scm-diff-header .diff-ref-input {
+.unified-ref-bar .diff-ref-input,
+.unified-ref-bar .diff-ref-label {
     flex: 1;
     min-width: 0;
-    cursor: default;
+}
+
+.layout-toggle-group {
+    display: flex;
+    gap: 0;
+}
+
+.layout-toggle-group .diff-control-btn + .diff-control-btn {
+    border-left: none;
+}
+
+.layout-btn-active {
+    background: var(--vscode-button-background, #0078d4) !important;
+    color: var(--vscode-button-foreground, #fff) !important;
+    border-color: var(--vscode-button-background, #0078d4) !important;
 }
 
 .diff-control-btn {
@@ -386,6 +688,7 @@ input[readonly] {
     cursor: pointer;
 }
 
+/* Diff Highlights */
 .diff-legend {
     display: flex;
     gap: 12px;
@@ -410,16 +713,16 @@ input[readonly] {
 }
 
 .diff-legend-added {
-    background: #daf1df;
+    background: var(--diff-added-bg);
 }
 
 .diff-legend-changed {
-    background: #fff0b8;
-    border-color: #d8a700;
+    background: var(--diff-changed-bg);
+    border-color: var(--diff-changed-border);
 }
 
 .diff-legend-deleted {
-    background: #ffdcd2;
+    background: var(--diff-deleted-bg);
 }
 
 .diff-sheet-added,
@@ -428,8 +731,8 @@ input[readonly] {
 .diff-sheet-added.sheet-header,
 .diff-block-added .block-header {
     background: #dff3e3;
-    border-color: #4b9b63;
-    box-shadow: inset 4px 0 0 #2f8a45;
+    border-color: var(--diff-added-border);
+    box-shadow: inset 4px 0 0 var(--diff-added-accent);
 }
 
 .diff-sheet-deleted,
@@ -437,9 +740,9 @@ input[readonly] {
 .diff-sheet-deleted.sheet.active,
 .diff-sheet-deleted.sheet-header,
 .diff-block-deleted .block-header {
-    background: #ffe3dc;
-    border-color: #c9543d;
-    box-shadow: inset 4px 0 0 #b43d28;
+    background: var(--diff-deleted-soft-bg);
+    border-color: var(--diff-deleted-border);
+    box-shadow: inset 4px 0 0 var(--diff-deleted-accent);
 }
 
 .diff-sheet-changed,
@@ -447,12 +750,16 @@ input[readonly] {
 .diff-sheet-changed.sheet.active,
 .diff-sheet-changed.sheet-header,
 .diff-block-changed .block-header {
-    background: #fffbea;
-    border-color: #d8a700;
-    box-shadow: inset 4px 0 0 #d8a700;
+    background: var(--diff-changed-soft-bg);
+    border-color: var(--diff-changed-border);
+    box-shadow: inset 4px 0 0 var(--diff-changed-border);
 }
 
 .diff-row-added {
+    background: #edf8ef;
+}
+
+.diff-row-added > td {
     background: #edf8ef;
 }
 
@@ -460,21 +767,29 @@ input[readonly] {
     background: #fff1ed;
 }
 
+.diff-row-deleted > td {
+    background: #fff1ed;
+}
+
 .diff-row-changed {
-    box-shadow: inset 4px 0 0 #d8a700;
+    box-shadow: inset 4px 0 0 var(--diff-changed-border);
+}
+
+.diff-row-changed > td {
+    background: var(--diff-changed-soft-bg);
 }
 
 .diff-cell-added {
-    background: #daf1df;
+    background: var(--diff-added-bg);
 }
 
 .diff-cell-deleted {
-    background: #ffdcd2;
+    background: var(--diff-deleted-bg);
 }
 
 .diff-cell-changed {
-    background: #fff0b8;
-    box-shadow: inset 0 0 0 2px #d8a700;
+    background: var(--diff-changed-bg);
+    box-shadow: inset 0 0 0 2px var(--diff-changed-border);
 }
 
 .cell-unified-diff {
@@ -493,7 +808,6 @@ input[readonly] {
     overflow: hidden;
     text-overflow: ellipsis;
     opacity: 0.75;
-    font-size: 11px;
     line-height: 1.4;
 }
 
@@ -507,7 +821,6 @@ input[readonly] {
 .cell-sep {
     flex-shrink: 0;
     color: var(--vscode-descriptionForeground, #888);
-    font-size: 11px;
 }
 
 .cell-after {
@@ -515,7 +828,6 @@ input[readonly] {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-size: 11px;
     line-height: 1.4;
     min-width: 0;
     flex: 1;
@@ -527,24 +839,16 @@ input[readonly] {
     opacity: 0.75;
 }
 
-pre {
-    margin: 0;
-    padding: 10px;
-    overflow: auto;
-    color: var(--warn);
-    background: #fff8ec;
-}
-
-/* ---- RawRows テーブル ---- */
+/* RawRows */
 .rawrows-table td:first-child {
-    font-weight: bold;
+    font-weight: 700;
     text-align: center;
     color: var(--muted);
     min-width: 2ch;
 }
 
 .rawrows-table .raw-key-cell {
-    background: #e8ecea;
+    background: var(--table-header-bg);
 }
 
 .rawrows-table .raw-metadata-row .raw-key-cell input {
@@ -552,108 +856,21 @@ pre {
 }
 
 .rawrows-table .raw-filler-cell {
-    background: #f7f8f7;
-    min-width: 0;
-}
-
-/* ---- 行アクション列 ---- */
-.row-actions-cell {
-    width: 1px;
-    min-width: 0;
-    background: #f7f8f7;
-    position: sticky;
-    left: 0;
-    z-index: 2;
-    white-space: nowrap;
-    padding: 0;
-    vertical-align: top;
-}
-
-.row-actions-cell>.table-delete-button {
-    padding: 1px 1px;
-}
-
-.row-actions-inner {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    padding: 4px;
-}
-
-.cell-actions {
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    z-index: 3;
-    padding: 0;
-    background: transparent;
-}
-
-.table-delete-button {
-    position: absolute;
-    top: 0;
-    right: 0;
-}
-
-button.table-delete-button {
-    font-weight: 700;
-    z-index: 3;
-    border-radius: 4px;
-    padding: 4px 4px;
-    min-width: 0;
-    min-height: 0;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* ---- D&D ---- */
-.drag-handle {
-    color: var(--muted);
-    cursor: grab;
-    user-select: none;
-    padding: 0 2px;
-    font-size: 13px;
-    opacity: 0.55;
-    vertical-align: middle;
-    flex-shrink: 0;
-    display: inline-block;
-}
-
-.drag-handle--h {
-    transform: rotate(90deg);
-}
-
-[draggable=true] {
-    cursor: grab;
-}
-
-.dragging {
-    opacity: 0.55;
-}
-
-.drop-target {
-    outline: 2px solid var(--accent);
-    outline-offset: -2px;
-}
-
-/* ---- フォーム入力 ---- */
-.side-form input[type=text],
-.add-block-form input[type=text],
-.add-block-form select {
     border: 1px solid var(--line);
-    border-radius: 4px;
-    padding: 4px 8px;
-    font: inherit;
-    min-height: unset;
-    width: 140px;
-    field-sizing: content;
-    min-width: 80px;
-    background: white;
-    color: var(--text);
+    background: var(--surface-muted);
+    min-width: 0;
 }
 
-.side-form input[type=text] {
-    width: 100%;
+.rawrows-table .row-actions-cell {
+    border: 1px solid var(--line);
+    background: var(--surface-muted);
+}
+
+/* Raw Blocks */
+.app pre {
+    margin: 0;
+    padding: 10px;
+    overflow: auto;
+    color: var(--warn);
+    background: #fff8ec;
 }

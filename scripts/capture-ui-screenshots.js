@@ -53,20 +53,56 @@ const headText = [
 
 const rawRowsBaseText = [
   "case1:",
-  "  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows",
-  "    - [ \"id\", \"city\" ]",
-  "    - [ \"001\", \"Tokyo\" ]",
-  "    - [ \"002\", \"Osaka\" ]",
+  "  SETUP_VARIABLE[1]=customer.csv: #RawRows",
+  "    - [ \"text-encoding\", \"UTF-8\" ]",
+  "    - [ \"field-separator\", \",\" ]",
+  "    - [ \"quoting-delimiter\", \"\\\"\" ]",
+  "    - [ \"header\", \"recordType\", \"createdAt\" ]",
+  "    - [ \"\", \"X\", \"X\" ]",
+  "    - [ \"\", \"H\", \"2026-05-09\" ]",
+  "    - [ \"data\", \"customerId\", \"city\", \"status\" ]",
+  "    - [ \"\", \"9\", \"X\", \"X\" ]",
+  "    - [ \"\", \"001\", \"Tokyo\", \"active\" ]",
+  "    - [ \"\", \"002\", \"Osaka\", \"inactive\" ]",
+  "    - [ \"end\", \"recordType\", \"count\" ]",
+  "    - [ \"\", \"X\", \"9\" ]",
+  "    - [ \"\", \"E\", \"2\" ]",
+  "",
+  "  EXPECTED_VARIABLE=./tmp/result-fixed.dat: #RawRows",
+  "    - [ \"text-encoding\", \"MS932\" ]",
+  "    - [ \"record-separator\", \"CRLF\" ]",
+  "    - [ \"record-length\", \"20\" ]",
+  "    - [ \"data\", \"code\", \"amount\" ]",
+  "    - [ \"\", \"X\", \"9\" ]",
+  "    - [ \"\", \"A001\", \"100\" ]",
   ""
 ].join("\n");
 
 const rawRowsHeadText = [
   "case1:",
-  "  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows",
-  "    - [ \"id\", \"city\" ]",
-  "    - [ \"001\", \"Tokyo\" ]",
-  "    - [ \"002\", \"Kyoto\" ]",
-  "    - [ \"003\", \"Nara\" ]",
+  "  SETUP_VARIABLE[1]=customer.csv: #RawRows",
+  "    - [ \"text-encoding\", \"UTF-8\" ]",
+  "    - [ \"field-separator\", \",\" ]",
+  "    - [ \"quoting-delimiter\", \"\\\"\" ]",
+  "    - [ \"header\", \"recordType\", \"createdAt\" ]",
+  "    - [ \"\", \"X\", \"X\" ]",
+  "    - [ \"\", \"H\", \"2026-05-10\" ]",
+  "    - [ \"data\", \"customerId\", \"city\", \"status\" ]",
+  "    - [ \"\", \"9\", \"X\", \"X\" ]",
+  "    - [ \"\", \"001\", \"Tokyo\", \"active\" ]",
+  "    - [ \"\", \"002\", \"Kyoto\", \"active\" ]",
+  "    - [ \"\", \"003\", \"Nara\", \"active\" ]",
+  "    - [ \"end\", \"recordType\", \"count\" ]",
+  "    - [ \"\", \"X\", \"9\" ]",
+  "    - [ \"\", \"E\", \"3\" ]",
+  "",
+  "  EXPECTED_VARIABLE=./tmp/result-fixed.dat: #RawRows",
+  "    - [ \"text-encoding\", \"MS932\" ]",
+  "    - [ \"record-separator\", \"CRLF\" ]",
+  "    - [ \"record-length\", \"20\" ]",
+  "    - [ \"data\", \"code\", \"amount\" ]",
+  "    - [ \"\", \"X\", \"9\" ]",
+  "    - [ \"\", \"A001\", \"150\" ]",
   ""
 ].join("\n");
 
@@ -105,11 +141,19 @@ const pages = [
         "[data-action='add-row']",
         "[data-action='add-column']",
         ".rawrows-table",
-        ".row-actions-cell",
+        ".row-actions-cell"
+      ],
+      exists: [
+        ".row-action-bar",
+        ".col-action-bar",
         "[title='Delete row']",
         "[title='Delete column']",
         "[title='Delete raw row']",
         "[title='Delete raw column']"
+      ],
+      focusVisible: [
+        { focus: "[data-role='column-name']", visible: ".col-action-bar" },
+        { focus: "[data-column='name']", visible: ".row-action-bar" }
       ],
       hidden: [".diff-legend", ".scm-diff-header"]
     }
@@ -197,10 +241,20 @@ const pages = [
         ".diff-panel-shell",
         "#base-root .rawrows-table",
         "#head-root .rawrows-table",
+        "#head-root .raw-metadata-row",
+        "#head-root .raw-section-header-row",
         "#head-root .diff-cell-changed",
+        "#head-root .diff-row-changed",
         "#head-root .diff-row-added"
       ],
-      textPresent: ["Osaka", "Kyoto", "Nara"]
+      styleNot: [
+        {
+          selector: "#head-root .diff-row-changed td:not(.diff-cell-changed)",
+          property: "backgroundColor",
+          values: ["rgba(0, 0, 0, 0)", "rgb(255, 255, 255)"]
+        }
+      ],
+      textPresent: ["text-encoding", "field-separator", "header", "data", "end", "Osaka", "Kyoto", "Nara", "record-length", "A001", "150"]
     }
   },
   {
@@ -213,12 +267,14 @@ const pages = [
         "#unified-root .block"
       ],
       exists: [
-        "#unified-root [data-column]",
+        "#unified-root .rawrows-table",
+        "#unified-root [data-raw-column]",
         "#unified-root .diff-cell-changed",
+        "#unified-root .diff-row-changed",
         "#unified-root .diff-row-added"
       ],
       hidden: [".diff-panel-container"],
-      textPresent: ["Osaka", "Kyoto", "Nara"]
+      textPresent: ["text-encoding", "header", "data", "end", "Osaka", "Kyoto", "Nara", "record-length", "A001", "150"]
     }
   }
 ];
@@ -360,26 +416,6 @@ function htmlDocument(title, body, options = {}) {
     `<title>${escapeHtml(title)}</title>`,
     "<style>",
     editorCss,
-    ".diff-panel-html,.diff-panel-body{width:100%;height:100%;margin:0;padding:0;overflow:hidden}",
-    ".diff-panel-shell{display:flex;flex-direction:column;width:100%;height:100%;overflow:hidden}",
-    ".diff-panel-header{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap;padding:6px 10px;background:var(--vscode-editorGroupHeader-tabsBackground);border-bottom:1px solid var(--vscode-editorGroup-border,#ccc)}",
-    ".diff-panel-actions{display:flex;align-items:center;gap:8px}",
-    ".diff-panel-container{display:flex;flex:1;min-height:0;overflow:hidden}",
-    ".diff-panel-container.split-column{flex-direction:column}",
-    ".diff-panel-pane{display:flex;flex:1;flex-direction:column;overflow:hidden;min-width:0}",
-    ".diff-panel-pane+.diff-panel-pane{border-left:1px solid var(--vscode-editorGroup-border,#ccc)}",
-    ".diff-panel-container.split-column .diff-panel-pane+.diff-panel-pane{border-left:none;border-top:1px solid var(--vscode-editorGroup-border,#ccc)}",
-    ".diff-panel-label{padding:0;font-size:12px;color:var(--vscode-descriptionForeground);background:var(--vscode-editorWidget-background,#f3f5f4);border-bottom:1px solid var(--vscode-editorGroup-border,#ccc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
-    ".diff-panel-label .diff-ref-label{padding:4px 12px}",
-    ".diff-panel-pane>#base-root,.diff-panel-pane>#head-root,.unified-panel>#unified-root{flex:1;min-height:0;overflow:auto}",
-    ".unified-panel{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}",
-    ".unified-ref-bar{display:flex;align-items:center;background:var(--vscode-editorWidget-background,#f3f5f4);border-bottom:1px solid var(--vscode-editorGroup-border,#ccc);font-size:12px}",
-    ".unified-ref-bar .diff-ref-input{flex:1;min-width:0}",
-    ".unified-ref-bar .diff-ref-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--vscode-editor-font-family,monospace);color:var(--vscode-editor-foreground,#202124)}",
-    ".unified-ref-arrow{padding:0 8px;color:var(--vscode-descriptionForeground);flex-shrink:0}",
-    ".layout-toggle-group{display:flex;gap:0}",
-    ".layout-toggle-group .diff-control-btn+.diff-control-btn{border-left:none}",
-    ".layout-btn-active{background:var(--vscode-button-background,#0078d4)!important;color:var(--vscode-button-foreground,#fff)!important;border-color:var(--vscode-button-background,#0078d4)!important}",
     "</style>",
     "</head>",
     bodyClass ? `<body class="${escapeHtml(bodyClass)}">` : "<body>",
@@ -439,6 +475,27 @@ function injectUiRegressionScript(html, checks) {
     }
     for (const selector of checks.exists || []) {
       if (!document.querySelector(selector)) failures.push("expected present: " + selector);
+    }
+    for (const item of checks.focusVisible || []) {
+      const target = document.querySelector(item.focus);
+      if (!target) {
+        failures.push("expected focus target: " + item.focus);
+        continue;
+      }
+      target.focus();
+      if (!visible(item.visible)) failures.push("expected visible after focus " + item.focus + ": " + item.visible);
+      target.blur();
+    }
+    for (const item of checks.styleNot || []) {
+      const target = document.querySelector(item.selector);
+      if (!target) {
+        failures.push("expected style target: " + item.selector);
+        continue;
+      }
+      const actual = window.getComputedStyle(target)[item.property];
+      if ((item.values || []).includes(actual)) {
+        failures.push("expected " + item.selector + " " + item.property + " not to be " + actual);
+      }
     }
     for (const selector of checks.hidden || []) {
       if (!hidden(selector)) failures.push("expected hidden or absent: " + selector);

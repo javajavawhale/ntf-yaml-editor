@@ -91,7 +91,7 @@
             state.sheets.splice(index, 1);
             activeSheetId = state.sheets[Math.max(0, index - 1)]?._id ?? "";
             render();
-          }, "danger ghost compact table-delete-button");
+          }, "danger ghost compact sheet-delete-button");
           deleteBtn.dataset.action = "delete-sheet";
           itemWrapper.append(deleteBtn);
         }
@@ -282,10 +282,7 @@
       applyDiffClass(wrapper, diffBlock?.status, "diff-block");
       const header = document.createElement("div");
       header.className = "block-header";
-      if (!readOnly) {
-        header.append(createDragHandle());
-      }
-      const name = document.createElement("input");
+        const name = document.createElement("input");
       name.className = "block-name";
       name.dataset.role = "block-name";
       name.value = block.name;
@@ -370,6 +367,8 @@
       const scroll = document.createElement("div");
       scroll.className = "table-scroll";
       const table = document.createElement("table");
+      table.className = "ntf-table";
+      table.className = "ntf-table";
       const cols = model.columns(block);
       const thead = document.createElement("thead");
       const headRow = document.createElement("tr");
@@ -399,13 +398,14 @@
         input.onchange = () => renameColumn(block, col, input.value);
         thContent.append(input);
         if (!readOnly) {
-          thInner.append(createDragHandle("h"));
+          const colActionBar = document.createElement("div");
+          colActionBar.className = "col-action-bar";
+          colActionBar.append(createDragHandle("h"));
+          colActionBar.append(smallButton(CLOSE_SVG, "Delete column", () => deleteColumn(block, col), "action-bar-delete"));
+          th.append(colActionBar);
         }
         thInner.append(thContent);
         th.append(thInner);
-        if (!readOnly) {
-          th.append(smallButton(CLOSE_SVG, "Delete column", () => deleteColumn(block, col), "danger ghost compact table-delete-button"));
-        }
         headRow.append(th);
       }
       thead.append(headRow);
@@ -422,14 +422,12 @@
         }
         const actionTd = document.createElement("td");
         actionTd.className = "row-actions-cell";
-        const rowActionsInner = document.createElement("div");
-        rowActionsInner.className = "row-actions-inner";
         if (!readOnly) {
-          rowActionsInner.append(createDragHandle());
-          actionTd.append(
-            rowActionsInner,
-            smallButton(CLOSE_SVG, "Delete row", () => deleteRow(block, index), "danger ghost compact table-delete-button")
-          );
+          const rowActionBar = document.createElement("div");
+          rowActionBar.className = "row-action-bar";
+          rowActionBar.append(createDragHandle());
+          rowActionBar.append(smallButton(CLOSE_SVG, "Delete row", () => deleteRow(block, index), "action-bar-delete"));
+          actionTd.append(rowActionBar);
         }
         tr.append(actionTd);
         cols.forEach(col => {
@@ -462,7 +460,7 @@
       const scroll = document.createElement("div");
       scroll.className = "table-scroll";
       const table = document.createElement("table");
-      table.className = "rawrows-table";
+      table.className = "ntf-table rawrows-table";
       const maxCols = block.rows.reduce(function(m, r) { return Math.max(m, r.length); }, 0);
       const thead = document.createElement("thead");
       const headRow = document.createElement("tr");
@@ -479,12 +477,13 @@
         const thInner = document.createElement("div");
         thInner.className = "th-inner";
         if (!readOnly) {
-          thInner.append(createDragHandle("h"));
+          const colActionBar = document.createElement("div");
+          colActionBar.className = "col-action-bar";
+          colActionBar.append(createDragHandle("h"));
+          colActionBar.append(smallButton(CLOSE_SVG, "Delete raw column", () => deleteRawColumn(block, i), "action-bar-delete"));
+          th.append(colActionBar);
         }
         th.append(thInner);
-        if (!readOnly) {
-          th.append(smallButton(CLOSE_SVG, "Delete raw column", () => deleteRawColumn(block, i), "danger ghost compact table-delete-button"));
-        }
         headRow.append(th);
       }
       thead.append(headRow);
@@ -503,14 +502,12 @@
         }
         const tdIdx = document.createElement("td");
         tdIdx.className = "row-actions-cell";
-        const rawActionsInner = document.createElement("div");
-        rawActionsInner.className = "row-actions-inner";
         if (!readOnly) {
-          rawActionsInner.append(createDragHandle());
-          tdIdx.append(
-            rawActionsInner,
-            smallButton(CLOSE_SVG, "Delete raw row", () => deleteRow(block, ri), "danger ghost compact table-delete-button")
-          );
+          const rowActionBar = document.createElement("div");
+          rowActionBar.className = "row-action-bar";
+          rowActionBar.append(createDragHandle());
+          rowActionBar.append(smallButton(CLOSE_SVG, "Delete raw row", () => deleteRow(block, ri), "action-bar-delete"));
+          tdIdx.append(rowActionBar);
         }
         tr.append(tdIdx);
         for (let ci = 0; ci < row.length; ci++) {
@@ -546,10 +543,9 @@
           td.append(input);
           tr.append(td);
         }
-        if (row.length < maxCols) {
+        for (let ci = row.length; ci < maxCols; ci++) {
           const filler = document.createElement("td");
           filler.className = "raw-filler-cell";
-          filler.colSpan = maxCols - row.length;
           tr.append(filler);
         }
         tbody.append(tr);
@@ -563,7 +559,7 @@
       const btn = smallButton(CLOSE_SVG, "Delete block", () => {
         sheet.blocks.splice(sheet.blocks.indexOf(block), 1);
         render();
-      }, "danger ghost compact table-delete-button");
+      }, "danger ghost compact block-delete-button");
       btn.dataset.action = "delete-block";
       return btn;
     }
@@ -906,10 +902,12 @@
 
       const cols = (diffBlock.columns || []).map(c => c.key);
       const colLabels = Object.fromEntries((diffBlock.columns || []).map(c => [c.key, c.label]));
+      const isRawRows = diffBlock.kind === "RawRows" || model.isRawRowsBlock(diffBlock.name);
 
       const scroll = document.createElement("div");
       scroll.className = "table-scroll";
       const table = document.createElement("table");
+      table.className = isRawRows ? "ntf-table rawrows-table" : "ntf-table";
 
       const thead = document.createElement("thead");
       const headRow = document.createElement("tr");
@@ -941,9 +939,6 @@
         applyDiffClass(tr, diffRow.status, "diff-row");
         const actionTd = document.createElement("td");
         actionTd.className = "row-actions-cell";
-        const inner = document.createElement("div");
-        inner.className = "row-actions-inner";
-        actionTd.append(inner);
         tr.append(actionTd);
         for (const col of cols) {
           const diffCell = diffRow.cells?.find(c => c.column === col) || null;
@@ -969,7 +964,11 @@
             td.append(wrapper);
           } else {
             const input = document.createElement("input");
-            input.dataset.column = col;
+            if (isRawRows) {
+              input.dataset.rawColumn = col;
+            } else {
+              input.dataset.column = col;
+            }
             const isDeleted = diffRow.status === "deleted";
             input.value = valueText(isDeleted ? diffCell?.before : (diffCell?.after ?? diffCell?.before));
             input.readOnly = true;
