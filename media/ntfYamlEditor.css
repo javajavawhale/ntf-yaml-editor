@@ -375,14 +375,16 @@ body.resizing-sidebar {
     align-items: center;
     gap: 2px;
     position: absolute;
-    bottom: 100%;
+    top: 0;
     left: 50%;
     transform: translateX(-50%);
     z-index: var(--z-action-bar);
     padding: 2px 4px;
-    border-radius: 4px 4px 0 0;
+    border-radius: 0 0 4px 4px;
     background: var(--accent);
     white-space: nowrap;
+    /* bottom:100% は table-scroll の overflow-x:auto による暗黙的 overflow-y:auto でクリップされるため
+       th 内上端に配置する */
 }
 
 .ntf-table th:hover .col-action-bar,

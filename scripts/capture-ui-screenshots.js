@@ -124,6 +124,18 @@ const rawRowsDiffReport = createDiffReport({
   repositoryPath: root
 });
 
+const multiSheetText = [
+  "sheet1:",
+  "  LIST_MAP=params: #ListMap",
+  "    - no: \"1\"",
+  "      name: \"hello\"",
+  "sheet2:",
+  "  LIST_MAP=other: #ListMap",
+  "    - code: \"A\"",
+  "      value: \"x\"",
+  ""
+].join("\n");
+
 const pages = [
   {
     name: "editor",
@@ -155,7 +167,66 @@ const pages = [
         { focus: "[data-role='column-name']", visible: ".col-action-bar" },
         { focus: "[data-column='name']", visible: ".row-action-bar" }
       ],
+      focusChecks: [
+        {
+          focus: "[data-column='no']",
+          rowFocused: true,
+          colFocusedIndex: "0"
+        },
+        {
+          focus: "[data-column='name']",
+          rowFocused: true,
+          colFocusedIndex: "1"
+        }
+      ],
       hidden: [".diff-legend", ".scm-diff-header"]
+    }
+  },
+  {
+    name: "editor-focused",
+    html: renderAppHtml({
+      title: "NTF YAML Editor (focused)",
+      initialText: headText,
+      diffReport: null,
+      readOnly: false,
+      diffSide: "head",
+      initFocus: "[data-column='name']"
+    }),
+    checks: {
+      visible: [
+        "tr.row-focused",
+        "tr.row-focused .row-action-bar",
+        "tr.row-focused .row-actions-cell",
+        "th.col-focused",
+        "th.col-focused .col-action-bar"
+      ],
+      exists: [
+        "th[data-col-index='0']",
+        "th[data-col-index='1']",
+        "th[data-col-index='2']"
+      ]
+    }
+  },
+  {
+    name: "editor-multi-sheet",
+    html: renderAppHtml({
+      title: "NTF YAML Editor (multi-sheet)",
+      initialText: multiSheetText,
+      diffReport: null,
+      readOnly: false,
+      diffSide: "head"
+    }),
+    checks: {
+      visible: [
+        ".sheet[role='button']",
+        ".sheet.active"
+      ],
+      exists: [
+        ".sheet[tabindex='0']"
+      ],
+      hidden: [
+        ".sheet[role='button'] .drag-handle"
+      ]
     }
   },
   {
@@ -295,6 +366,9 @@ function renderAppHtml(options) {
   const scmHeader = options.diffReport && scmRef
     ? `<div class="scm-diff-header"><input class="diff-ref-input" type="text" value="${escapeHtml(scmRef)}" readonly aria-label="Git ref" title="Git ref"></div>`
     : "";
+  const initFocusScript = options.initFocus
+    ? `document.querySelector(${json(options.initFocus)})?.focus();`
+    : "";
   return htmlDocument(options.title, `
     ${scmHeader}
     <div id="root"></div>
@@ -310,6 +384,7 @@ function renderAppHtml(options) {
         vscode: acquireVsCodeApi(),
         window
       });
+      ${initFocusScript}
     </script>
   `, {
     htmlClass: options.diffReport ? "scm-diff-html" : "",
@@ -485,6 +560,32 @@ function injectUiRegressionScript(html, checks) {
       target.focus();
       if (!visible(item.visible)) failures.push("expected visible after focus " + item.focus + ": " + item.visible);
       target.blur();
+      document.querySelectorAll(".row-focused, .col-focused").forEach(function(el) {
+        el.classList.remove("row-focused", "col-focused");
+      });
+    }
+    for (const item of checks.focusChecks || []) {
+      const target = document.querySelector(item.focus);
+      if (!target) {
+        failures.push("expected focusCheck target: " + item.focus);
+        continue;
+      }
+      target.focus();
+      if (item.rowFocused && !document.querySelector("tr.row-focused")) {
+        failures.push("expected tr.row-focused after focus on: " + item.focus);
+      }
+      if (item.colFocusedIndex !== undefined) {
+        const cf = document.querySelector("th.col-focused");
+        if (!cf) {
+          failures.push("expected th.col-focused after focus on: " + item.focus);
+        } else if (String(cf.dataset.colIndex) !== String(item.colFocusedIndex)) {
+          failures.push("expected th.col-focused[data-col-index=" + item.colFocusedIndex + "] but got " + cf.dataset.colIndex + " (focus: " + item.focus + ")");
+        }
+      }
+      target.blur();
+      document.querySelectorAll(".row-focused, .col-focused").forEach(function(el) {
+        el.classList.remove("row-focused", "col-focused");
+      });
     }
     for (const item of checks.styleNot || []) {
       const target = document.querySelector(item.selector);
