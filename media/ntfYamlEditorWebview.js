@@ -196,19 +196,21 @@
     }
 
     function renderSheetSelector(sheet) {
-      const button = document.createElement("button");
-      button.className = "sheet";
-      button.dataset.sheetName = sheet.name;
-      applyDiffClass(button, findDiffSheet(sheet.name)?.status, "diff-sheet");
-      if (!readOnly) {
-        button.append(createDragHandle());
-      }
-      button.append(document.createTextNode(sheet.name || "(unnamed sheet)"));
-      button.onclick = () => {
+      const div = document.createElement("div");
+      div.className = "sheet";
+      div.dataset.sheetName = sheet.name;
+      div.setAttribute("role", "button");
+      div.tabIndex = 0;
+      applyDiffClass(div, findDiffSheet(sheet.name)?.status, "diff-sheet");
+      div.append(document.createTextNode(sheet.name || "(unnamed sheet)"));
+      div.onclick = () => {
         activeSheetId = sheet._id;
         render();
       };
-      return button;
+      div.onkeydown = (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); div.click(); }
+      };
+      return div;
     }
 
     function renderActiveSheetNameInput(sheet) {
@@ -216,9 +218,6 @@
       container.className = "sheet active";
       container.dataset.sheetName = sheet.name;
       applyDiffClass(container, findDiffSheet(sheet.name)?.status, "diff-sheet");
-      if (!readOnly) {
-        container.append(createDragHandle());
-      }
       const input = document.createElement("input");
       input.dataset.role = "sheet-name";
       input.value = sheet.name;
@@ -373,22 +372,22 @@
       const thead = document.createElement("thead");
       const headRow = document.createElement("tr");
       const actionHead = document.createElement("th");
-      actionHead.className = "row-actions-cell table-header-cell";
+      actionHead.className = "row-actions-cell";
       headRow.append(actionHead);
       for (const col of cols) {
+        const colIndex = cols.indexOf(col);
         const th = document.createElement("th");
         th.className = "table-header-cell";
+        th.dataset.colIndex = String(colIndex);
         th.draggable = !readOnly;
         if (!readOnly) {
-          attachIndexDragSort(th, () => model.columns(block).length, cols.indexOf(col), (from, to) => {
+          attachIndexDragSort(th, () => model.columns(block).length, colIndex, (from, to) => {
             const order = model.columns(block);
             helper.moveItem(order, from, to);
             block.columnOrder = order;
             render();
           });
         }
-        const thInner = document.createElement("div");
-        thInner.className = "th-inner";
         const thContent = document.createElement("div");
         thContent.className = "th-content";
         const input = document.createElement("input");
@@ -404,8 +403,7 @@
           colActionBar.append(smallButton(CLOSE_SVG, "Delete column", () => deleteColumn(block, col), "action-bar-delete"));
           th.append(colActionBar);
         }
-        thInner.append(thContent);
-        th.append(thInner);
+        th.append(thContent);
         headRow.append(th);
       }
       thead.append(headRow);
@@ -451,6 +449,11 @@
         tbody.append(tr);
       });
       table.append(tbody);
+      if (!readOnly) {
+        attachTableFocus(table, headRow, input =>
+          Array.from(input.closest("tr").children).indexOf(input.closest("td")) - 1
+        );
+      }
       scroll.append(table);
       wrapper.append(scroll);
       return wrapper;
@@ -465,25 +468,21 @@
       const thead = document.createElement("thead");
       const headRow = document.createElement("tr");
       const thIdx = document.createElement("th");
-      thIdx.className = "row-actions-cell table-header-cell";
+      thIdx.className = "row-actions-cell";
       headRow.append(thIdx);
       for (let i = 0; i < maxCols; i++) {
         const th = document.createElement("th");
         th.className = "table-header-cell";
+        th.dataset.colIndex = String(i);
         th.draggable = !readOnly;
         if (!readOnly) {
           attachIndexDragSort(th, () => helper.rawWidth(block), i, (from, to) => moveRawColumnTo(block, from, to));
-        }
-        const thInner = document.createElement("div");
-        thInner.className = "th-inner";
-        if (!readOnly) {
           const colActionBar = document.createElement("div");
           colActionBar.className = "col-action-bar";
           colActionBar.append(createDragHandle("h"));
           colActionBar.append(smallButton(CLOSE_SVG, "Delete raw column", () => deleteRawColumn(block, i), "action-bar-delete"));
           th.append(colActionBar);
         }
-        th.append(thInner);
         headRow.append(th);
       }
       thead.append(headRow);
@@ -551,6 +550,9 @@
         tbody.append(tr);
       });
       table.append(tbody);
+      if (!readOnly) {
+        attachTableFocus(table, headRow, input => parseInt(input.dataset.rawColumn ?? "0"));
+      }
       scroll.append(table);
       return scroll;
     }
@@ -586,6 +588,31 @@
       handle.setAttribute("aria-hidden", "true");
       handle.textContent = "⣿";
       return handle;
+    }
+
+    function attachTableFocus(table, headRow, getColIndex) {
+      let blurTimer = null;
+      table.querySelectorAll("tbody td input").forEach(input => {
+        input.addEventListener("focus", () => {
+          clearTimeout(blurTimer);
+          const tr = input.closest("tr");
+          const colIdx = getColIndex(input);
+          table.querySelectorAll("tr.row-focused").forEach(r => r.classList.remove("row-focused"));
+          table.querySelectorAll("th.col-focused").forEach(h => h.classList.remove("col-focused"));
+          tr.classList.add("row-focused");
+          const th = headRow.querySelector(`th[data-col-index="${colIdx}"]`);
+          if (th) th.classList.add("col-focused");
+        });
+        input.addEventListener("blur", () => {
+          blurTimer = setTimeout(() => {
+            table.querySelectorAll("tr.row-focused").forEach(r => r.classList.remove("row-focused"));
+            table.querySelectorAll("th.col-focused").forEach(h => h.classList.remove("col-focused"));
+          }, 200);
+        });
+      });
+      table.querySelectorAll(".action-bar-delete").forEach(btn => {
+        btn.addEventListener("mousedown", () => clearTimeout(blurTimer));
+      });
     }
 
     function renameSheet(sheet, to) {

@@ -227,6 +227,12 @@ body.resizing-sidebar {
     padding: 6px 36px 6px 8px;
     margin: 0;
     box-sizing: border-box;
+    cursor: pointer;
+}
+
+.sheet:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
 }
 
 .sheet input {
@@ -380,8 +386,13 @@ body.resizing-sidebar {
 }
 
 .ntf-table th:hover .col-action-bar,
-.ntf-table th:focus-within .col-action-bar {
+.ntf-table th:focus-within .col-action-bar,
+th.col-focused .col-action-bar {
     display: flex;
+}
+
+th.col-focused {
+    box-shadow: inset 0 3px 0 var(--accent);
 }
 
 .row-action-bar {
@@ -401,8 +412,13 @@ body.resizing-sidebar {
 }
 
 .ntf-table tr:hover .row-action-bar,
-.ntf-table tr:focus-within .row-action-bar {
+.ntf-table tr:focus-within .row-action-bar,
+tr.row-focused .row-action-bar {
     display: flex;
+}
+
+tr.row-focused .row-actions-cell {
+    box-shadow: inset -3px 0 0 var(--accent);
 }
 
 .sheet-delete-button,
