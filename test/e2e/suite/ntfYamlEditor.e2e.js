@@ -6,8 +6,9 @@ const { spawnSync } = require("child_process");
 const vscode = require("vscode");
 const { parseYaml, serializeYaml } = require("../../../lib/ntfYamlModel");
 
-const extensionId = "javajavawhale.ntf-yaml-editor";
 const extensionRoot = path.resolve(__dirname, "..", "..", "..");
+const packageJson = require(path.join(extensionRoot, "package.json"));
+const extensionId = `${packageJson.publisher}.${packageJson.name}`;
 const sampleFixtures = {
   webProjectAction: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "web-project-action-request.ntf.yaml"),
   webProjectBulkAction: path.join(extensionRoot, "test", "fixtures", "ntf-samples", "web-project-bulk-action-request.ntf.yaml")
