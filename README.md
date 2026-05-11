@@ -14,7 +14,7 @@ yamlのフォーマットは、[nablarch公式のサンプルリポジトリをy
 
 ## 導入方法
 
-1. [GitHub Releases](../../releases) から最新の `.vsix` ファイルをダウンロード
+1. [GitHub Releases](https://github.com/javajavawhale/ntf-yaml-editor/releases) から最新の `.vsix` ファイルをダウンロード
 2. VSCode でインストール（いずれかの方法）:
    - コマンドパレット（`Ctrl+Shift+P`）→ `Extensions: Install from VSIX...` → ファイルを選択
    - ターミナル: `code --install-extension ntf-yaml-editor-X.Y.Z.vsix`
