@@ -156,7 +156,7 @@ function selectConverter(source) {
 function defaultDeps() {
   return {
     resolveTool(name) {
-      return path.resolve(__dirname, "..", "..", "tools", name);
+      return path.resolve(__dirname, "..", "tools", name);
     },
     runPython(args) {
       return spawnSync("python3", args, { encoding: "utf8" });
