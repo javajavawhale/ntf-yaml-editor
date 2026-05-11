@@ -3,7 +3,7 @@
   "displayName": "NTF YAML Editor PoC",
   "description": "Table editor PoC for Nablarch NTF YAML files.",
   "version": "0.0.1",
-  "publisher": "local",
+  "publisher": "javajavawhale",
   "private": true,
   "license": "UNLICENSED",
   "engines": {

@@ -14,7 +14,11 @@ yamlのフォーマットは、[nablarch公式のサンプルリポジトリをy
 
 ## 導入方法
 
-//TODO: vsix配布・導入手順
+1. [GitHub Releases](../../releases) から最新の `.vsix` ファイルをダウンロード
+2. VSCode でインストール（いずれかの方法）:
+   - コマンドパレット（`Ctrl+Shift+P`）→ `Extensions: Install from VSIX...` → ファイルを選択
+   - ターミナル: `code --install-extension ntf-yaml-editor-X.Y.Z.vsix`
+3. `.ntf.yaml` ファイルを開くと自動でエディタが起動
 
 ## 背景
 
