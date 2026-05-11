@@ -1,609 +1,364 @@
 # NTF YAML Editor 手動テスト計画
 
-この文書は、NTF YAML Editor PoC を人間が手で確認するためのテストケースを定義する。
-
-自動テストでは、parser、serializer、CLI、Webview DOM 操作、VS Code 拡張としての基本経路を確認する。手動テストでは、人間の判断が必要な観点、つまり可読性、編集しやすさ、ナビゲーション、保存後 YAML の差分がレビュー可能かを確認する。
-
-## スコープ
-
-手動テストでは、次を確認する。
-
-- NTF の保守者が raw YAML より速くテストデータを理解できるか。
-- よくある編集を、NTF YAML の構造を壊さずに実施できるか。
-- 代表的な sheet や横に広い table が実用に耐えるか。
-- diagnostics が役に立つ指摘になっているか、うるさすぎないか。
-- 保存後の YAML diff がコードレビュー可能な粒度か。
-
-parser の細かい edge case を手動で網羅する必要はない。それは自動テストで担保する。
+この文書は、現行実装の UI と保存動作を人間が確認するための最小限の手動テスト計画である。parser、serializer、CLI、Webview DOM の細かい分岐は自動テストで確認し、ここでは見た目、操作感、VS Code 上のワークフロー、保存後 YAML のレビュー可能性に絞る。
 
 ## 前提
 
-先に自動テストを通す。
+手動確認の前に自動テストを通す。
 
 ```sh
 npm test
 ```
 
-拡張を起動する。
+CLI は今回の手動テストケースのスコープ外とする。CLI の lint / diff / report 生成は自動テストの前提品質として扱い、手動ケースでは掘らない。
+
+拡張は次の手順で起動する。
 
 1. VS Code で `vscode-ntf-yaml-editor` フォルダを開く。
 2. `F5` で Extension Development Host を起動する。
-3. Extension Development Host 側で `test/fixtures/ntf-samples/` 配下のファイルを開く。
+3. Extension Development Host 側で対象 fixture を開く。
 
-fixture を編集する場合は、直接編集せず scratch copy を使う。
+編集を伴う確認では scratch copy を使う。
 
 ```sh
 mkdir -p /tmp/ntf-yaml-manual
-cp test/fixtures/ntf-samples/*.yaml /tmp/ntf-yaml-manual/
+cp test/fixtures/manual/*.ntf.yaml /tmp/ntf-yaml-manual/
+cp test/fixtures/ntf-samples/*.ntf.yaml /tmp/ntf-yaml-manual/
 ```
 
-その後、Extension Development Host 側で `/tmp/ntf-yaml-manual/` を開く。
+## 現行仕様
 
-## 全体の注意事項
-
-- `.yaml` は通常 open で `NTF YAML Table Editor` が起動する前提で確認する。
-- 各ケースで「開く」と書いてある場合、特に指定がなければ Explorer から通常どおり開く。
-- `Open With...` は通常手順では使わない。明示的な補助経路を確認するケースでだけ使う。
+- `.ntf.yaml` は `NTF YAML Table Editor` で開く。
+- 通常エディタは編集可能で、SCM diff、Cell Diff Panel、HTML report は readonly として扱う。
+- 編集可能テーブルの行・列操作 UI は、表のダミー行列ではなく、ヘッダまたは先頭セルの外側に overlay 表示する。
+- 列操作アイコンは列ヘッダの上外側に表示し、セル hover でも該当列だけ表示する。
+- 行操作アイコンは行の先頭セルの左外側に縦並びで表示する。
+- セルをクリックまたは focus した後は、そのセルの行・列アイコンだけを保持し、他セル hover で追加表示しない。
+- readonly テーブルでは操作アイコンを表示しない。hover 時は行左端と列上端のガイドだけを表示し、セル本体の hover ハイライトは出さない。
+- RawRows は列番号を表示しない。欠損セル filler は RawRows 表示整形用であり、操作 UI 用のダミー列ではない。
+- unified diff は readonly の 1 枚表示で、変更セルは before / after をセル内に表示する。
+- `SETUP_FIXED` / `EXPECTED_FIXED` は現行実装では raw block として保持する。
 
 ## テストデータ
 
-vendoring 済みの fixture を使う。
-
-| Fixture | 目的 |
+| Fixture | 用途 |
 | --- | --- |
-| `test/fixtures/ntf-samples/web-project-action-request.yaml` | Web action request の代表データ。`LIST_MAP`、`EXPECTED_VARIABLE`、`"[no]"`、日本語を含む |
-| `test/fixtures/ntf-samples/web-project-bulk-action-request.yaml` | Web action データ。DB setup、null sentinel 行、複数行 request params を含む |
-| `test/fixtures/ntf-samples/batch-import-zip-code-data-format-action-request.yaml` | Batch request データ。`SETUP_VARIABLE`、大きい RawRows、block comment の別配置を含む |
-| `test/fixtures/ntf-samples/rest-project-action.yaml` | REST action データ。日本語 sheet 名、setup/expected DB table を含む |
-| `test/fixtures/ntf-samples/web-project-form.yaml` | Form validation データ。日本語列名が多い横長の `LIST_MAP` を含む |
+| `test/fixtures/manual/table-ui-current-spec.ntf.yaml` | 通常エディタの table UI、保存、RawRows、raw block の確認 |
+| `test/fixtures/manual/rawrows-ui-case.ntf.yaml` | RawRows の小さい確認 |
+| `test/fixtures/manual/cell-diff-ui-base.ntf.yaml` | SCM diff / Cell Diff 用 base |
+| `test/fixtures/manual/cell-diff-ui-head.ntf.yaml` | SCM diff / Cell Diff 用 head |
+| `test/fixtures/ntf-samples/web-project-form.ntf.yaml` | 実データに近い横長 table の確認 |
+
+## 観点
+
+### 通常エディタ
+
+対象ブロック:
+
+- `LIST_MAP`
+- `SETUP_TABLE` / `EXPECTED_TABLE`
+- `SETUP_VARIABLE` / `EXPECTED_VARIABLE`
+- raw block
+
+確認する状態:
+
+- sheet navigation
+- カード表示、テーブル表示、RawRows 表示、raw block 保持
+- 列ヘッダ hover、セル hover、行 hover、セル click/focus 後の表示固定
+- カード背景、余白、外向きアイコン、見切れ、横長表のスクロール
+- セル編集、行列操作、RawRows 行列操作、sheet/block 操作、保存後 YAML
+
+### SCM diff
+
+対象ブロック:
+
+- 通常 table
+- RawRows
+
+確認する状態:
+
+- VS Code 管理の左右ペインで readonly table が表示される
+- 拡張側の分割 UI は出ない
+- 保存、追加、削除、リネーム系操作が出ない
+- hover は行左端と列上端のガイドだけ出る
+- 変更行、変更セル、追加行、削除行が読める
+
+### Cell Diff Panel
+
+対象ブロック:
+
+- 通常 table
+- RawRows
+
+確認する状態:
+
+- split 表示、縦分割、unified 表示を切り替えられる
+- readonly table として表示される
+- unified の before / after 文字サイズが通常セルと同等に見える
+- 変更行、変更セル、追加行、削除行、RawRows 変更が読める
+
+### HTML report
+
+対象ブロック:
+
+- 通常 table
+- RawRows
+
+確認する状態:
+
+- Cell Diff Panel と同等の split / unified 表示が読める
+- 編集操作は出ない
+- VS Code 専用の export 操作は出ない
 
 ## 合格基準
 
-手動テストは次を満たせば合格とする。
+- 対象ファイルを `NTF YAML Table Editor` で開ける。
+- 現行仕様に反する操作アイコン、hover、focus、readonly 表示がない。
+- RawRows と raw block が黙って壊れない。
+- 編集内容を保存でき、保存後 YAML の差分が説明可能である。
+- SCM diff、Cell Diff Panel、HTML report の readonly / diff 表示が矛盾しない。
 
-- ファイルを `NTF YAML Table Editor` で開ける。
-- 複数 sheet の navigation が理解できる。
-- 編集可能 block が安定した table として表示される。
-- RawRows が行/セルの table として表示される。
-- 未対応 block が raw text として表示され、黙って消えない。
-- 編集内容を保存でき、YAML 上で確認できる。
-- 意図しない保存で、破壊的または説明不能な差分が出ない。
-- Problems diagnostics が有用な指摘になっている。
-
-使い勝手の問題を見つけた場合は、次を記録する。
-
-- fixture 名
-- sheet 名
-- block 名
-- 操作
-- 期待結果
-- 実際の結果
-- 保存後 YAML がレビュー可能に見えるか
+不具合を見つけた場合は、fixture、sheet、block、操作、期待結果、実際の結果、保存後 YAML 差分の有無を記録する。
 
 ## テストケース
 
-### MT-01 `.yaml` を通常 open して Table Editor が起動すること
+### MT-01 通常エディタを開く
 
-Fixture: `web-project-action-request.yaml`
+Fixture: `test/fixtures/manual/table-ui-current-spec.ntf.yaml`
 
 手順:
 
-1. Explorer で fixture をクリックして通常どおり開く。
+1. Extension Development Host で fixture を開く。
+2. sheet list と最初の sheet のカードを確認する。
+3. `wideTable` sheet に切り替える。
 
 期待結果:
 
-- `NTF YAML Table Editor` が自動で開く。
-- 左ペインに sheet 名が表示される。
-- メインペインに最初の sheet の内容が表示される。
+- `NTF YAML Table Editor` が開く。
+- sheet list から sheet を切り替えられる。
+- `LIST_MAP`、`SETUP_TABLE`、`EXPECTED_TABLE`、RawRows、raw block がそれぞれ表示される。
 - blank Webview や script error が出ない。
 
-### MT-02 明示コマンドで Table Editor を開く補助経路
+### MT-02 編集可能 table の hover / focus UI
 
-INFO: 通常のtext editorとして開くことができないのでこのケースは不要
+Fixture: `test/fixtures/manual/table-ui-current-spec.ntf.yaml`
 
-Fixture: `web-project-action-request.yaml`
-
-手順:
-
-1. 何らかの方法で fixture を通常の text editor として開く。例: Command Palette の `Reopen Editor With...` から built-in text editor を選ぶ。
-2. Command Palette から `NTF YAML: Open as Table` を実行する。
-
-期待結果:
-
-- 同じファイルが `NTF YAML Table Editor` で開く。
-- active editor が table editor になる。
-- 無関係な別ファイルは開かれない。
-
-### MT-03 sheet navigation
-
-Fixture: `web-project-action-request.yaml`
+Sheet: `tableUi`
 
 手順:
 
-1. fixture を `NTF YAML Table Editor` で開く。
-2. `confirmOfCreateNormal` を選択する。
-3. `downloadNormal` を選択する。
-4. `confirmOfCreateNormal` へ戻る。
+1. `LIST_MAP=requestParams` の列ヘッダに hover する。
+2. 同じ table の任意セルに hover する。
+3. 行の任意セルに hover する。
+4. 1つのセルをクリックして focus する。
+5. focus したまま別セルに hover する。
 
 期待結果:
 
-- sheet button が読める。
-- 目的の sheet を選択できる。
-- sheet 切り替えが手作業に耐える速度で動く。
-- 選択中 sheet が視覚的に分かる。
-- メインペインが選択 sheet の内容に更新される。
+- 列ヘッダ hover で列操作アイコンが列ヘッダ上外側に表示される。
+- セル hover で該当列だけ列操作アイコンが表示される。
+- 行 hover で行操作アイコンが先頭セルの左外側に縦並びで表示される。
+- アイコンは表の内側にダミー列/行として表示されない。
+- アイコンは見切れず、列アイコンは左右中央寄せされる。
+- セル click/focus 後はクリックセルの行・列アイコンだけが残り、別セル hover で追加表示されない。
 
-人間が判断すること:
+### MT-03 カードと横長 table のレイアウト
 
-- sheet list に検索、filter、grouping、keyboard navigation が必要か。
+Fixture: `test/fixtures/manual/table-ui-current-spec.ntf.yaml`
 
-### MT-04 ListMap の可読性
-
-Fixture: `web-project-action-request.yaml`
-
-Sheet: `confirmOfCreateNormal`
-
-Block:
-
-- `LIST_MAP=testShots`
-- `LIST_MAP=requestParams`
+Sheet: `wideTable`
 
 手順:
 
-1. 対象 sheet を開く。
-2. 両方の block を確認する。
-3. 必要なら横スクロールする。
+1. `LIST_MAP=wideRows` を表示する。
+2. 横スクロールする。
+3. 列ヘッダとセルに hover する。
 
 期待結果:
 
-- `LIST_MAP=testShots` が raw YAML より見通しやすい。
-- `LIST_MAP=requestParams` の `"[no]"` が通常の編集可能列として表示される。
-- 日本語や `form.projectName` のような dotted key が読める。
+- カード上部と表領域の背景に不自然な分断がない。
+- 入力項目と表の間の余白が他カードと揃って見える。
+- 横スクロールしても列アイコンと行アイコンが表の外側に表示され、見切れない。
+- 列ヘッダは読める。
 
-人間が判断すること:
+### MT-04 table の編集と保存
 
-- 列幅、table 密度、sticky header が必要か。
+Fixture: `/tmp/ntf-yaml-manual/table-ui-current-spec.ntf.yaml`
 
-### MT-05 table cell を編集して保存する
-
-Fixture: `web-project-action-request.yaml` の scratch copy
-
-Sheet: `confirmOfCreateNormal`
-
-Block: `LIST_MAP=requestParams`
+Sheet: `tableUi`
 
 手順:
 
-1. 見えている cell を1つ変更する。例: `form.projectName` の値。
-2. `Save YAML` をクリックする。
-3. ファイルを text として開き直す。
-4. 変更後の値を検索する。
+1. `LIST_MAP=requestParams` のセル値を1つ編集する。
+2. `Add Row` を押し、新しい行に値を入力する。
+3. `Add Column` を押し、追加された列の値を入力する。
+4. 既存列名を1つ変更する。
+5. 行操作アイコンから行を1つ削除する。
+6. 列操作アイコンから列を1つ削除する。
+7. `Save YAML` を押す。
+8. text editor で保存後 YAML を確認する。
 
 期待結果:
 
-- 編集した値が YAML に存在する。
-- `"[no]"` は quoted のまま残る。
-- 周辺 block が認識可能な形で残る。
+- 編集、行追加、列追加、列名変更、行削除、列削除が保存される。
+- `"[no]"`、空文字、`~`、日本語列名が意図せず壊れない。
+- 保存後の差分が操作内容に対応して説明可能である。
 
-追加確認:
+### MT-05 RawRows の表示、操作、保存
+
+Fixture: `/tmp/ntf-yaml-manual/table-ui-current-spec.ntf.yaml`
+
+Sheet: `tableUi`
+
+手順:
+
+1. `EXPECTED_VARIABLE=./tmp/result.csv` を表示する。
+2. メタデータ行、複数レコード種別、データ行、欠損セルを確認する。
+3. RawRows のセルを1つ編集する。
+4. `Add Row` と `Add Column` を使う。
+5. 行操作アイコンと列操作アイコンで削除する。
+6. `Save YAML` を押し、text editor で確認する。
+
+期待結果:
+
+- RawRows の列番号は表示されない。
+- 構造セルとデータセルが視覚的に区別できる。
+- 欠損セル filler は操作 UI 用のダミー列に見えない。
+- RawRows の編集と行列操作が YAML に保存される。
+
+### MT-06 raw block の保持
+
+Fixture: `/tmp/ntf-yaml-manual/table-ui-current-spec.ntf.yaml`
+
+Sheet: `tableUi`
+
+手順:
+
+1. `EXPECTED_FIXED[1]=./tmp/fixed.dat` を確認する。
+2. 何も編集せず `Save YAML` を押す。
+3. text editor で保存後 YAML を確認する。
+
+期待結果:
+
+- `EXPECTED_FIXED` は raw block として表示される。
+- 保存しても raw content が黙って消えない。
+
+### MT-07 sheet / block 操作
+
+Fixture: `/tmp/ntf-yaml-manual/table-ui-current-spec.ntf.yaml`
+
+手順:
+
+1. `New sheet` から sheet を追加する。
+2. 追加 sheet に `LIST_MAP` block を追加する。
+3. sheet 名と block 名を変更する。
+4. block を削除する。
+5. sheet を削除する。
+6. `Save YAML` を押し、text editor で確認する。
+
+期待結果:
+
+- sheet と block の追加、リネーム、削除が保存される。
+- 操作対象外の sheet / block が消えない。
+
+### MT-08 save only 差分
+
+Fixture: `test/fixtures/manual/table-ui-current-spec.ntf.yaml`
+
+手順:
+
+1. fixture を `/tmp/ntf-yaml-manual/original.ntf.yaml` と `/tmp/ntf-yaml-manual/save-only.ntf.yaml` に copy する。
+2. `save-only.ntf.yaml` を開く。
+3. 何も編集せず `Save YAML` を押す。
+4. 差分を確認する。
 
 ```sh
-node ./bin/ntf-yaml.js lint /tmp/ntf-yaml-manual/web-project-action-request.yaml
+diff -u /tmp/ntf-yaml-manual/original.ntf.yaml /tmp/ntf-yaml-manual/save-only.ntf.yaml
 ```
 
 期待結果:
 
-- 編集によって新しい error が増えない。
+- diff がない、または canonical form として説明可能な差分だけである。
+- NTF に必要な sheet / block / row / cell が失われない。
 
-### MT-06 行を追加する
+### MT-09 SCM diff の readonly table
 
-Fixture: `web-project-bulk-action-request.yaml` の scratch copy
-
-対象: 小さめの `LIST_MAP=requestParams` block
-
-手順:
-
-1. `Add Row` をクリックする。
-2. 新しい行に簡単な値を入力する。
-3. `Save YAML` をクリックする。
-4. text として開き直し、追加行を確認する。
-
-期待結果:
-
-- 既存行と同じ列構成で行が追加される。
-- 空 cell は `""` として serialize される。
-- 既存行が予期せず並び替わらない。
-
-人間が判断すること:
-
-- 末尾追加、行移動、行削除の操作が分かりやすいか。
-- 大きな表で行操作ボタンが邪魔にならないか。
-
-### MT-07 列を追加する
-
-Fixture: `web-project-bulk-action-request.yaml` の scratch copy
-
-対象: 小さめの `LIST_MAP=requestParams` block
-
-手順:
-
-1. Add Column の input に新しい列名を入力する。
-2. `Add Column` をクリックする。
-3. 新しい列の1行に値を入力する。
-4. `Save YAML` をクリックする。
-5. text として開き直し、対象 block を確認する。
-
-期待結果:
-
-- 新しい列が table に表示される。
-- 既存行にも新しい列が追加される。
-- 入力した値が正しく serialize される。
-
-人間が判断すること:
-
-- 列追加時に全行へ列を足す挙動が NTF データ編集として自然か。
-- 列移動、列削除の操作がレビュー可能な YAML 差分になるか。
-
-### MT-08 列名を変更する
-
-Fixture: `web-project-form.yaml` の scratch copy
-
-対象: 日本語列名を含む `LIST_MAP` block
-
-手順:
-
-1. column header を1つ編集する。
-2. header から focus を外す。
-3. table が新しい列名で再描画されることを確認する。
-4. `Save YAML` をクリックする。
-5. text として開き直し、値が新しい key の下に残っていることを確認する。
-
-期待結果:
-
-- 値が新しい key の下に保持される。
-- その block から旧 key が消える。
-- 日本語列名が読める。
-
-注意するリスク:
-
-- 列名変更は破壊的操作になり得る。確認 dialog や undo が必要かを判断する。
-
-### MT-09 null sentinel を保持する
-
-Fixture: `web-project-bulk-action-request.yaml` の scratch copy
-
-Sheet: `setUpDb`
-
-Block: `SETUP_TABLE=PROJECT`
-
-手順:
-
-1. 対象 block を開く。
-2. 多くの cell が空表示になっていることを確認する。
-3. それらの cell は編集せず `Save YAML` をクリックする。
-4. text として開き直す。
-
-期待結果:
-
-- 既存の `~` cell は `~` のまま残る。
-- `""` cell がある場合は `""` のまま残る。
-- NTF setup data として有効な形を保つ。
-
-### MT-10 RawRows の可読性と編集
-
-Fixture: `batch-import-zip-code-data-format-action-request.yaml` の scratch copy
-
-Block: `SETUP_VARIABLE[1]=work/test/importZipCode/importZipCode_by_format.csv`
-
-手順:
-
-1. 対象 block を含む sheet を開く。
-2. RawRows 表示を確認する。
-3. RawRows の cell を1つ編集する。
-4. `Save YAML` をクリックする。
-5. text として開き直し、inline array の行を確認する。
-
-期待結果:
-
-- RawRows が行/セルの table として表示される。
-- 編集した cell が保存される。
-- comma、日本語、empty/null cell が理解できる形で残る。
-
-人間が判断すること:
-
-- RawRows に列 label、固定幅表示、CSV preview、copy/paste support が必要か。
-
-### MT-11 シートとブロックを追加・変更・削除する
-
-Fixture: `web-project-action-request.yaml` の scratch copy
-
-手順:
-
-1. 左ペインの `New sheet` に `manualCase` と入力し、`Add Sheet` をクリックする。
-2. 追加された sheet が選択されていることを確認する。
-3. `LIST_MAP` を選び、block name に `manualParams` と入力して `Add Block` をクリックする。
-4. 追加された `LIST_MAP=manualParams` の `no` cell に `1` を入力する。
-5. block 名を `LIST_MAP=manualParamsRenamed` に変更する。
-6. sheet 名を `manualCaseRenamed` に変更する。
-7. `Save YAML` をクリックする。
-8. text として開き直し、sheet と block が保存されていることを確認する。
-9. もう一度 table editor で開き、追加した block の `Delete Block` をクリックして保存する。
-10. 追加した sheet の `Delete Sheet` をクリックして保存する。
-
-期待結果:
-
-- 新しい sheet が追加直後に active になる。
-- `LIST_MAP` block を新規作成できる。
-- sheet 名変更と block 名変更が YAML に反映される。
-- block 削除と sheet 削除が保存後 YAML に反映される。
-- 削除対象以外の既存 sheet / block が消えない。
-
-追加確認:
-
-```sh
-node ./bin/ntf-yaml.js lint /tmp/ntf-yaml-manual/web-project-action-request.yaml
-```
-
-期待結果:
-
-- 操作対象外の既存データに新しい error が増えない。
-
-人間が判断すること:
-
-- block 追加フォームで `LIST_MAP` / `SETUP_TABLE` / `EXPECTED_TABLE` / RawRows の選択が理解しやすいか。
-- 削除操作に確認 dialog が必要か。
-
-### MT-12 Form validation の横長 table
-
-Fixture: `web-project-form.yaml`
-
-Sheet:
-
-- `testCharsetAndLength`
-- `testSingleValidation`
-
-手順:
-
-1. 各 sheet を開く。
-2. 横長の validation table を確認する。
-3. 横スクロールする。
-4. scratch copy 上で非重要な値を1つ編集して保存する。
-
-期待結果:
-
-- 横長 table が実用に耐える。
-- 日本語 validation column が読める。
-- 横スクロールが混乱しない。
-
-人間が判断すること:
-
-- sticky first column、sticky header、より密な styling が必要か。
-
-### MT-13 Problems diagnostics
-
-scratch file に以下を作る。
-
-```yaml
-case1:
-  LIST_MAP=testShots: #ListMap
-    - no: "1"
-      setUpTable: "1"
-```
-
-手順:
-
-1. `/tmp/ntf-yaml-manual/diagnostics.yaml` として保存する。
-2. VS Code で開く。
-3. Problems panel を開く。
-
-期待結果:
-
-- `description` 不足の error が表示される。
-- `SETUP_TABLE[1]=...` 不足の warning が表示される。
-- メッセージが NTF 保守者に理解できる。
-
-### MT-14 未対応 block の保持
-
-scratch file に以下を作る。
-
-```yaml
-case1:
-  EXPECTED_FIXED[1]=./tmp/fixed.txt: #FixedLengthFile
-    text-encoding: "ms932"
-    ヘッダレコード:
-      - [one, 半角数字, "1"]: "1"
-```
-
-手順:
-
-1. `NTF YAML Table Editor` で開く。
-2. block が raw text として表示されることを確認する。
-3. `Save YAML` をクリックする。
-4. text として開き直す。
-
-期待結果:
-
-- 未対応 block が黙って消えない。
-- raw content が認識可能な形で残る。
-
-### MT-15 意図しない編集なしで保存する
-
-Fixture: `web-project-action-request.yaml` の scratch copy
-
-手順:
-
-1. fixture を `/tmp/ntf-yaml-manual/original.yaml` に copy する。
-2. さらに `/tmp/ntf-yaml-manual/save-only.yaml` に copy する。
-3. `save-only.yaml` を `NTF YAML Table Editor` で開く。
-4. 何も編集せず `Save YAML` をクリックする。
-5. 差分を確認する。
-
-   ```sh
-   diff -u /tmp/ntf-yaml-manual/original.yaml /tmp/ntf-yaml-manual/save-only.yaml
-   ```
-
-期待結果:
-
-- diff が説明可能である。
-- NTF に必要な block が失われない。
-- quote の変化は、発生する場合でも一貫したルールで説明できる。
-
-人間が判断すること:
-
-- diff がコードレビューに大きすぎる場合、どの formatting change が問題か記録する。
-
-### MT-16 CLI と editor diagnostics の一貫性
-
-Fixture: `web-project-action-request.yaml` の scratch copy
-
-手順:
-
-1. CLI lint を実行する。
-
-   ```sh
-   node ./bin/ntf-yaml.js lint /tmp/ntf-yaml-manual/web-project-action-request.yaml
-   ```
-
-2. 同じファイルを VS Code で開く。
-3. CLI output と Problems を比較する。
-
-期待結果:
-
-- error/warning count が一致する。
-- 同じ issue だと分かる程度に message が一致している。
-
-### MT-17 CLI セル差分 HTML レポートを生成する
-
-対象: scratch 用の一時 Git repository
-
-手順:
-
-1. 一時 repository を作る。
-
-   ```sh
-   tmp=$(mktemp -d /tmp/ntf-yaml-diff-manual-XXXXXX)
-   cd "$tmp"
-   git init
-   git config user.email test@example.com
-   git config user.name Test
-   ```
-
-2. base 版の YAML を作って commit する。
-
-   ```sh
-   cat > sample.yaml <<'YAML'
-   case1:
-     LIST_MAP=requestParams: #ListMap
-       - "[no]": "1"
-         name: "before"
-   YAML
-   git add sample.yaml
-   git commit -m base
-   base=$(git rev-parse HEAD)
-   ```
-
-3. head 版で cell 変更と列追加を行って commit する。
-
-   ```sh
-   cat > sample.yaml <<'YAML'
-   case1:
-     LIST_MAP=requestParams: #ListMap
-       - "[no]": "1"
-         name: "after"
-         extra: "new"
-   YAML
-   git add sample.yaml
-   git commit -m head
-   ```
-
-4. 元 repository の CLI を使って HTML レポートを生成する。
-
-   ```sh
-   node /home/happy/nablarch/vscode-ntf-yaml-editor/bin/ntf-yaml.js diff --base "$base" --head HEAD -o report.html
-   ```
-
-5. `report.html` をブラウザまたは VS Code で開く。
-
-期待結果:
-
-- `report.html` が生成される。
-- base/head ref と commit SHA が表示される。
-- `sample.yaml`、`case1`、`LIST_MAP=requestParams` が表示される。
-- `name` cell に `before` / `after` が上下に表示される。
-- `extra` cell が追加として表示される。
-- 変更行が薄くハイライトされ、変更セルが強くハイライトされる。
-
-人間が判断すること:
-
-- 通常の Git diff より変更範囲を把握しやすいか。
-- 横長表で見たときに、変更セルまでたどり着きやすいか。
-- report の summary がレビューに必要十分か。
-
-### MT-18 VS Code からセル差分 HTML レポートを生成する
-
-対象: `MT-17` で作った一時 Git repository、または実際の作業 repository
-
-手順:
-
-1. Extension Development Host で対象 repository を workspace として開く。
-2. Command Palette から `NTF YAML: Generate Cell Diff Report` を実行する。
-3. `Base Git ref` に比較元 ref を入力する。例: `HEAD~1` または `MT-17` の `$base`。
-4. `Head Git ref` に比較先 ref を入力する。例: `HEAD`。
-5. 出力ファイル名に `ntf-yaml-diff.html` を指定する。
-6. 生成された HTML が VS Code で開かれることを確認する。
-
-期待結果:
-
-- VS Code コマンドから HTML レポートが生成される。
-- CLI で生成したレポートと同じ仕様で表示される。
-- Git ref を明示して比較できる。
-- 生成に失敗した場合、VS Code の error message に原因が表示される。
-
-人間が判断すること:
-
-- Git diff editor 周辺から直接開けない制約がある場合でも、この導線でレビュー作業が回るか。
-- 出力先を毎回入力する UX で問題ないか。
-- HTML をテキストとして開く挙動で十分か、ブラウザ表示や Webview 表示が必要か。
-
-### MT-19 SCM 変更から A/B 2パターンのセル差分を比較する
-
-対象: NTF YAML を含む Git repository の working tree 変更
+Fixture: `test/fixtures/manual/cell-diff-ui-base.ntf.yaml` と `test/fixtures/manual/cell-diff-ui-head.ntf.yaml`
 
 準備:
 
-1. Extension Development Host で対象 repository を workspace として開く。
-2. tracked な `.yaml` または `.ntf.yaml` ファイルの表セルを1つ以上変更する。
-3. Source Control view の Changes に対象ファイルが出ることを確認する。
+```sh
+tmp=/tmp/ntf-yaml-scm-diff-manual
+rm -rf "$tmp"
+mkdir -p "$tmp"
+cp test/fixtures/manual/cell-diff-ui-base.ntf.yaml "$tmp/scenario.ntf.yaml"
+cd "$tmp"
+git init
+git config user.email ntf-yaml@example.test
+git config user.name "NTF YAML Test"
+git add scenario.ntf.yaml
+git commit -m base
+cp /home/happy/nablarch/vscode-ntf-yaml-editor/test/fixtures/manual/cell-diff-ui-head.ntf.yaml "$tmp/scenario.ntf.yaml"
+code "$tmp"
+```
 
 手順:
 
-1. A パターン: Source Control view の Changes で対象ファイルを通常クリックする。
-2. 左右に開いた `NTF YAML Table Editor` を確認する。
-3. B パターン: 同じ Changes の対象ファイルを右クリックし、`NTF YAML: Open Cell Diff` を実行する。
-4. 単独の `NTF YAML Cell Diff` panel を確認する。
+1. Extension Development Host で `$tmp` を開く。
+2. Source Control view の Changes から `scenario.ntf.yaml` を開く。
+3. 左右ペインの table を確認する。
+4. readonly セルに hover する。
 
 期待結果:
 
-- A パターンでは、既存の Git diff editor 上で左右の table preview が開く。
-- A パターンでは、差分サマリが表示され、変更行と変更セルが table 上で強調される。
-- A パターンでは、Git 側 preview は読み取り専用になり、保存や追加削除操作が表示されない。
-- B パターンでは、専用 WebviewPanel にセル差分レポートが表示される。
-- B パターンでは、変更行、変更セル、before/after が1画面で確認できる。
+- VS Code の diff editor 上で左右ペインが表示される。
+- 拡張側の横/縦/1枚表示ボタンは出ない。
+- 保存、追加、削除、リネーム系操作は出ない。
+- hover では行左端と列上端のガイドだけが出る。
+- セル本体の hover ハイライトは出ない。
+- 変更行、変更セル、追加行、削除行が読める。
 
-人間が判断すること:
+### MT-10 Cell Diff Panel の split / unified
 
-- A の「Git diff editor に乗る」形が、既存の VS Code 操作感として自然か。
-- B の「専用 Cell Diff panel」が、レビュー対象の把握に十分か。
-- 最終的に残すべき導線は A、B、または両方か。
+Fixture: `MT-09` の一時 repository
+
+手順:
+
+1. Source Control view の `scenario.ntf.yaml` を右クリックする。
+2. `NTF YAML: Open Cell Diff` を実行する。
+3. 横分割、縦分割、1枚表示を切り替える。
+4. unified 表示で変更セルを見る。
+5. RawRows の変更を見る。
+
+期待結果:
+
+- 専用 `NTF YAML Cell Diff` panel が開く。
+- split 表示では base/head が readonly table として表示される。
+- unified 表示では before / after がセル内に表示される。
+- before / after の文字サイズが他セルより不自然に小さく見えない。
+- 変更行、変更セル、追加行、削除行、RawRows 変更が読める。
+- 操作アイコンは出ない。
+
+### MT-11 HTML report の readonly 表示
+
+Fixture: `MT-09` の一時 repository
+
+手順:
+
+1. `NTF YAML: Open Cell Diff` panel を開く。
+2. `Export HTML` を実行する。
+3. 生成された HTML を開く。
+4. split / unified 表示を確認する。
+
+期待結果:
+
+- HTML report が開ける。
+- Cell Diff Panel と同じ意味で差分が読める。
+- 編集操作は出ない。
+- VS Code 専用の `Export HTML` / `Export All` 操作は report 内に出ない。
 
 ## 完了条件
 
-次を満たしたら手動テスト完了とする。
-
-- MT-01 から MT-19 までを実行した、または skip 理由を明記した。
-- 失敗 case には再現手順がある。
-- UX 懸念を次のいずれかに分類した。
-  - PoC review の blocker
-  - broader trial 前に直すべき
-  - backlog
-- 最終結果を project notes または PR description に要約した。
+- MT-01 から MT-11 を実行した、または skip 理由を記録した。
+- 失敗ケースには再現手順がある。
+- UX 懸念を `blocker`、`before broader trial`、`backlog` のいずれかに分類した。

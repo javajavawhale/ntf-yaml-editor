@@ -1,0 +1,67 @@
+tableUi:
+  LIST_MAP=requestParams: #ListMap
+    - "[no]": "1"
+      name: "setup_variable"
+      value: "alpha"
+      note: "first row"
+      optional: ""
+    - "[no]": "2"
+      name: "expected_variable"
+      value: ~
+      note: "contains null sentinel"
+      optional: "日本語"
+
+  SETUP_TABLE=PROJECT: #ListMap
+    - ID: "1"
+      PROJECT_NAME: "Nablarch"
+      STATUS: "ACTIVE"
+    - ID: "2"
+      PROJECT_NAME: "Yaml Editor"
+      STATUS: ""
+
+  EXPECTED_TABLE=PROJECT: #ListMap
+    - ID: "1"
+      PROJECT_NAME: "Nablarch"
+      STATUS: "ACTIVE"
+
+  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows
+    - [ "text-encoding", "UTF-8" ]
+    - [ "field-separator", "," ]
+    - [ "header", "id", "city", "memo" ]
+    - [ "data", "001", "Tokyo", "base" ]
+    - [ "data", "002", "Osaka" ]
+    - [ "end" ]
+
+  EXPECTED_FIXED[1]=./tmp/fixed.dat: #FixedLengthFile
+    text-encoding: "ms932"
+    record-length: 12
+    DATA:
+      - [ "id", "半角数字", "3" ]: "001"
+      - [ "name", "全角文字", "4" ]: "テスト"
+
+wideTable:
+  LIST_MAP=wideRows: #ListMap
+    - "[no]": "1"
+      col01: "a"
+      col02: "b"
+      col03: "c"
+      col04: "d"
+      col05: "e"
+      col06: "f"
+      col07: "g"
+      col08: "h"
+      col09: "i"
+      col10: "j"
+      日本語列: "値"
+    - "[no]": "2"
+      col01: ""
+      col02: ""
+      col03: ""
+      col04: ""
+      col05: ""
+      col06: ""
+      col07: ""
+      col08: ""
+      col09: ""
+      col10: ""
+      日本語列: ""
