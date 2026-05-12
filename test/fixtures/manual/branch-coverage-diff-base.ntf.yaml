@@ -1,0 +1,26 @@
+deletedSheet:
+  LIST_MAP=deletedSheetRows: #ListMap
+    - no: "1"
+      name: "base only sheet row"
+
+changedSheet:
+  LIST_MAP=changedRows: #ListMap
+    - no: "1"
+      name: "before cell"
+      note: "same"
+    - no: "2"
+      name: "deleted row"
+      note: "base only"
+
+  SETUP_TABLE=DELETED_BLOCK: #ListMap
+    - ID: "1"
+      NAME: "deleted block row"
+
+blockOnlySheet:
+  LIST_MAP=stableBlock: #ListMap
+    - no: "1"
+      name: "stable"
+
+  EXPECTED_TABLE=CHANGED_BLOCK: #ListMap
+    - ID: "1"
+      VALUE: "before block cell"
