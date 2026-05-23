@@ -28,6 +28,7 @@
   }
   function isTableBlock(name) { return !isRawRowsBlock(name); }
   function isRawRowsBlock(name) { return blockNameStartsWith(name, rawRowsBlockPrefixes); }
+  function isFixedRowsBlock(name) { return blockNameStartsWith(name, ["SETUP_FIXED", "EXPECTED_FIXED"]); }
   function columns(block) {
     var names = [];
     for (var n of (block.columnOrder || [])) { if (!names.includes(n)) names.push(n); }
@@ -515,7 +516,7 @@
       const sectionState = { name: "", continuationCount: 0 };
       block.rows.forEach(function(row, ri) {
         const tr = document.createElement("tr");
-        const rowView = helper.rawRowView(row, sectionState);
+        const rowView = helper.rawRowView(row, sectionState, { fixedLength: isFixedRowsBlock(block.name) });
         tr.className = rowView.className;
         const diffRow = findDiffRow(diffBlock, String(ri));
         applyDiffClass(tr, diffRow?.status, "diff-row");
@@ -691,7 +692,11 @@
         }
       });
       table.querySelectorAll(".action-bar-delete").forEach(btn => {
-        btn.addEventListener("mousedown", () => clearTimeout(blurTimer));
+        btn.addEventListener("mousedown", event => {
+          clearTimeout(blurTimer);
+          // Keep a focused cell/header input from blurring and re-rendering before click.
+          event.preventDefault();
+        });
       });
     }
 

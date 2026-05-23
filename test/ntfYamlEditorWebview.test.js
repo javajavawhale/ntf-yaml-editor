@@ -327,6 +327,31 @@ test("webview adds columns to populated table blocks", () => {
   assert.match(serializeYaml(messages[0].model), /form\.clientId: "12345"/);
 });
 
+test("webview keeps column delete clickable while editing the column header", () => {
+  const { dom, root, messages } = createHarness();
+  const requestParams = block(root, "LIST_MAP=requestParams");
+
+  requestParams.querySelector('[data-action="add-column"]').click();
+  const added = block(root, "LIST_MAP=requestParams");
+  const newColHeader = Array.from(added.querySelectorAll('[data-role="column-name"]'))
+    .find(input => input.value === "col");
+  assert.ok(newColHeader, "auto-named column header should render");
+
+  newColHeader.focus();
+  newColHeader.value = "form.clientId";
+  const deleteButton = newColHeader.closest("th").querySelector('[title="Delete column"]');
+  const mouseDown = new dom.window.MouseEvent("mousedown", { bubbles: true, cancelable: true });
+  assert.equal(deleteButton.dispatchEvent(mouseDown), false);
+  assert.equal(mouseDown.defaultPrevented, true);
+
+  deleteButton.click();
+  save(root);
+
+  const yaml = serializeYaml(messages[0].model);
+  assert.doesNotMatch(yaml, /form\.clientId:/);
+  assert.doesNotMatch(yaml, /\bcol:/);
+});
+
 test("webview adds a column to an empty table block", () => {
   const { root, messages } = createHarness([
     "case1:",
@@ -496,11 +521,33 @@ test("webview renders RawRows without column numbers and highlights structural c
   assert.equal(rawRows.querySelector('[data-raw-row="1"][data-raw-column="0"]').closest("tr").classList.contains("raw-metadata-row"), true);
   assert.equal(rawRows.querySelector('[data-raw-row="0"][data-raw-column="2"]'), null);
   assert.ok(rawRows.querySelector(".raw-filler-cell"));
-  assert.equal(rawRows.querySelector('[data-raw-row="3"][data-raw-column="0"]'), null);
+  assert.ok(rawRows.querySelector('[data-raw-row="3"][data-raw-column="0"]'));
   assert.equal(rawRows.querySelector(".raw-type-row .raw-row-label"), null);
   assert.equal(rawRows.querySelector(".raw-value-row .raw-row-label"), null);
   assert.ok(rawRows.querySelector(".raw-type-row"));
   assert.ok(rawRows.querySelector(".raw-value-row"));
+});
+
+test("webview highlights fixed-length type and length label rows as structural cells", () => {
+  const { root } = createHarness([
+    "case1:",
+    "  EXPECTED_FIXED[1]=data.dat: #FixedLengthFile",
+    "    - [ \"text-encoding\", \"ms932\" ]",
+    "    - [ \"record-separator\", \"LF\" ]",
+    "    - [ \"データレコード\", \"id\", \"name\" ]",
+    "    - [ \"データ型\", \"半角数字\", \"全角文字\" ]",
+    "    - [ \"フィールド長\", \"3\", \"4\" ]",
+    "    - [ \"\", \"001\", \"\" ]",
+    "    - [ \"\", \"002\", \"テスト\" ]",
+    ""
+  ].join("\n"));
+  const fixed = block(root, "EXPECTED_FIXED[1]=data.dat");
+
+  assert.ok(fixed.querySelector('[data-raw-row="3"][data-raw-column="0"]'));
+  assert.equal(fixed.querySelector('[data-raw-row="3"][data-raw-column="0"]').closest("td").classList.contains("table-header-cell"), true);
+  assert.equal(fixed.querySelector('[data-raw-row="4"][data-raw-column="0"]').closest("td").classList.contains("table-header-cell"), true);
+  assert.equal(fixed.querySelector('[data-raw-row="5"][data-raw-column="0"]'), null);
+  assert.equal(fixed.querySelector('[data-raw-row="5"][data-raw-column="1"]').closest("td").classList.contains("table-header-cell"), false);
 });
 
 test("webview only treats NTF file generation directives as RawRows metadata", () => {

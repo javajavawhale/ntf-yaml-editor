@@ -12,6 +12,7 @@
     --danger-bg: #fff4f1;
     --table-header-bg: #e8ecea;
     --surface-muted: #f3f5f4;
+    --filler-cell-bg: #fafbfa;
     --row-action-width: 18px;
     --block-padding-x: 10px;
     --z-sticky-row-action: 3;
@@ -290,7 +291,25 @@ body.resizing-sidebar {
 }
 
 .table-scroll--with-row-actions {
-    padding-left: var(--block-padding-x);
+    /* padding-left を row-action-width に合わせることで、viewport の負のマージン(-18px)が
+       ちょうど padding 内に収まり、scrollbar がブロック外に出なくなる */
+    padding-left: var(--row-action-width);
+}
+
+.table-scroll--with-row-actions .table-viewport::-webkit-scrollbar-track:horizontal {
+    margin-left: var(--row-action-width);
+}
+
+.table-scroll--with-row-actions::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: 12px;
+    width: var(--row-action-width);
+    height: 16px;
+    background: var(--panel);
+    pointer-events: none;
+    z-index: var(--z-sticky-row-action);
 }
 
 .table-viewport {
@@ -330,6 +349,14 @@ body.resizing-sidebar {
 .table-header-cell {
     background: var(--table-header-bg);
     font-weight: 700;
+}
+
+.ntf-table td.table-header-cell {
+    background: var(--table-header-bg);
+}
+
+.ntf-table td.table-header-cell input:focus {
+    background: var(--table-header-bg);
 }
 
 .ntf-table td input {
@@ -958,7 +985,7 @@ tr.row-focused .row-action-bar {
 
 .rawrows-table .raw-filler-cell {
     border: 1px solid var(--line);
-    background: var(--surface-muted);
+    background: var(--filler-cell-bg);
     min-width: 0;
 }
 

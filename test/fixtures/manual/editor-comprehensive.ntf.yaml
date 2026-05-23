@@ -1,20 +1,35 @@
 tableUi:
   LIST_MAP=requestParams: #ListMap
-    - "[no]": "1"
-      name: "setup_variable"
-      value: "alpha"
-      note: "first row"
-      optional: ""
-    - "[no]": "2"
-      name: "expected_variable"
-      value: ~
-      note: "null sentinel row"
-      optional: "日本語"
-    - "[no]": "3"
-      name: "empty cells"
+    - "[no]": ""
       value: ""
+      name: ""
       note: ""
       optional: ""
+      col2: ""
+    - "[no]": "2"
+      value: ""
+      name: "expected_variable"
+      note: "null sentinel row"
+      optional: "日本語"
+      col2: ""
+    - "[no]": "4"
+      value: ""
+      name: ""
+      note: ""
+      optional: ""
+      col2: ""
+    - "[no]": "3"
+      value: ""
+      name: "empty cellssss"
+      note: ""
+      optional: ""
+      col2: ""
+    - "[no]": ""
+      value: ""
+      name: ""
+      note: ""
+      optional: ""
+      col2: ""
 
   SETUP_TABLE=PROJECT: #ListMap
     - ID: "1"
@@ -23,6 +38,9 @@ tableUi:
     - ID: "2"
       PROJECT_NAME: "Yaml Editor"
       STATUS: ""
+    - ID: ""
+      PROJECT_NAME: ""
+      STATUS: ""
 
   EXPECTED_TABLE=PROJECT: #ListMap
     - ID: "1"
@@ -30,24 +48,28 @@ tableUi:
       STATUS: "ACTIVE"
 
   EXPECTED_VARIABLE=./tmp/result.csv: #RawRows
-    - [ "text-encoding", "UTF-8" ]
-    - [ "field-separator", "," ]
-    - [ "header", "id", "city", "memo" ]
-    - [ "data", "001", "Tokyo", "base row" ]
-    - [ "data", "002", "Osaka" ]
-    - [ "end" ]
+    - ["text-encoding", "UTF-8"]
+    - ["field-separator", ","]
+    - ["header", "id", "city", "memo"]
+    - ["", "半角数字", "半角英字", "全角文字"]
+    - ["", "001", "Tokyo", "base row"]
+    - ["data", "id", "city", "memo"]
+    - ["", "半角数字", "半角英字", "全角文字"]
+    - ["", "002", "Osaka", ""]
 
   SETUP_VARIABLE=./tmp/input.csv: #RawRows
-    - [ "id", "name", "value" ]
-    - [ "001", "alpha", "1" ]
-    - [ "002", "beta", "2" ]
+    - ["id", "name", "value"]
+    - ["001", "alpha", "1"]
+    - ["002", "beta", "2"]
 
   EXPECTED_FIXED[1]=./tmp/fixed.dat: #FixedLengthFile
-    text-encoding: "ms932"
-    record-length: 12
-    DATA:
-      - [ "id", "半角数字", "3" ]: "001"
-      - [ "name", "全角文字", "4" ]: "テスト"
+    - ["text-encoding", "ms932"]
+    - ["record-separator", "LF"]
+    - ["データレコード", "id", "name"]
+    - ["データ型", "半角数字", "全角文字"]
+    - ["フィールド長", "3", "4"]
+    - ["", "001", ""]
+    - ["", "002", "テスト"]
 
 wideTable:
   LIST_MAP=wideRows: #ListMap
@@ -62,7 +84,7 @@ wideTable:
       col08: "h"
       col09: "i"
       col10: "j"
-      日本語列: "値"
+      "日本語列": "値"
     - "[no]": "2"
       col01: ""
       col02: ""
@@ -74,4 +96,4 @@ wideTable:
       col08: ""
       col09: ""
       col10: ""
-      日本語列: ""
+      "日本語列": ""

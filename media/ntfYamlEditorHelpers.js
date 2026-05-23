@@ -135,29 +135,41 @@
     return ntfFileDirectives.has(String(name ?? ""));
   }
 
-  function rawRowView(row, sectionState) {
+  function rawRowView(row, sectionState, options) {
     const first = String(row[0] ?? "");
     if (isNtfFileDirective(first)) {
-      sectionState.name = "";
-      sectionState.continuationCount = 0;
+      sectionState.fileRowsStarted = true;
+      sectionState.next = "record";
       return { className: "raw-metadata-row", keyLike: true };
     }
-    if (/^(header|data|end)$/.test(first)) {
-      sectionState.name = first;
-      sectionState.continuationCount = 0;
-      return { className: "raw-section-header-row", headerLike: true };
+
+    if (sectionState.next === "types") {
+      sectionState.next = options?.fixedLength ? "lengths" : "values";
+      return { className: "raw-type-row", headerLike: true };
     }
-    if (!first && sectionState.name) {
-      sectionState.continuationCount++;
+
+    if (sectionState.next === "lengths") {
+      sectionState.next = "values";
+      return { className: "raw-length-row", headerLike: true };
+    }
+
+    if (!first && sectionState.next === "values") {
       return {
-        className: sectionState.continuationCount === 1 ? "raw-type-row" : "raw-value-row",
-        headerLike: sectionState.continuationCount === 1,
+        className: "raw-value-row",
         keyLike: true,
         lockFirstCell: true
       };
     }
-    sectionState.name = "";
-    sectionState.continuationCount = 0;
+
+    const isKnownRecordType = /^(header|data)$/.test(first);
+    if (first && (sectionState.fileRowsStarted || isKnownRecordType || sectionState.next === "values")) {
+      sectionState.fileRowsStarted = true;
+      sectionState.next = "types";
+      return { className: "raw-section-header-row", headerLike: true };
+    }
+
+    sectionState.fileRowsStarted = false;
+    sectionState.next = "";
     return { className: "" };
   }
 
