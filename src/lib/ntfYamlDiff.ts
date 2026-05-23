@@ -423,7 +423,7 @@ function maxRawWidth(rows: RawRow[]): number {
 }
 
 function isComparableBlock(block: NtfBlock | undefined): boolean {
-  return !!(block && (isTableBlock(block.name) || isRawRowsBlock(block.name)));
+  return !!(block && (isRawRowsBlock(block.name) || isTableBlock(block.name)) && !block.raw);
 }
 
 function mapByName<T extends { name: string }>(items: T[]): Map<string, T> {

@@ -4,7 +4,7 @@ const os = require("os");
 const path = require("path");
 const { spawnSync } = require("child_process");
 const vscode = require("vscode");
-const { parseYaml, serializeYaml } = require("../../../lib/ntfYamlModel");
+const { parseYaml, serializeYaml } = require("../../../out/lib/ntfYamlModel");
 
 const extensionRoot = path.resolve(__dirname, "..", "..", "..");
 const packageJson = require(path.join(extensionRoot, "package.json"));
@@ -288,7 +288,7 @@ const tests = [
     }
   },
   {
-    name: "publishes NTF YAML diagnostics for invalid testShots blocks",
+    name: "does not publish NTF YAML diagnostics from editor views",
     run: async () => {
       const uri = makeTempYaml("diagnostics.yaml", [
         "case1:",
@@ -301,16 +301,11 @@ const tests = [
       const document = await vscode.workspace.openTextDocument(uri);
       await vscode.window.showTextDocument(document);
 
-      for (let attempt = 0; attempt < 20; attempt++) {
+      for (let attempt = 0; attempt < 5; attempt++) {
         const diagnostics = vscode.languages.getDiagnostics(uri);
-        if (diagnostics.length > 0) {
-          assert.ok(diagnostics.some(item => item.message.includes("missing required column")));
-          assert.ok(diagnostics.some(item => item.message.includes("SETUP_TABLE[1]")));
-          return;
-        }
+        assert.deepEqual(diagnostics, []);
         await delay(250);
       }
-      assert.fail("expected NTF YAML diagnostics to be published");
     }
   },
   {

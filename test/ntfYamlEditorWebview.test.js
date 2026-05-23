@@ -620,16 +620,28 @@ test("webview deletes table rows and columns", () => {
   assert.doesNotMatch(serializeYaml(messages[0].model), /\[no\]": "1"/);
 });
 
-test("webview renders unsupported blocks as preserved raw text", () => {
-  const { root } = createHarness([
+test("webview edits fixed-length file rows and sends serialized YAML on save", () => {
+  const { dom, root, messages } = createHarness([
     "case1:",
     "  EXPECTED_FIXED[1]=./tmp/fixed.txt: #FixedLengthFile",
-    "    text-encoding: \"ms932\"",
+    "    - [ \"text-encoding\", \"ms932\" ]",
+    "    - [ \"record-length\", \"12\" ]",
+    "    - [ \"data\", \"001\", \"Tokyo\" ]",
     ""
   ].join("\n"));
 
   const fixed = block(root, "EXPECTED_FIXED[1]=./tmp/fixed.txt");
-  assert.match(fixed.querySelector("pre").textContent, /text-encoding: "ms932"/);
+  const city = fixed.querySelector('[data-raw-row="2"][data-raw-column="2"]');
+  assert.ok(city, "fixed-length row cell should be editable as file rows");
+  assert.equal(city.readOnly, false);
+  city.value = "Kyoto";
+  city.dispatchEvent(inputEvent(dom));
+
+  root.querySelector('[data-action="save"]').click();
+
+  assert.equal(messages[0].type, "save");
+  assert.match(serializeYaml(messages[0].model), /EXPECTED_FIXED\[1\]=\.\/tmp\/fixed\.txt: #FixedLengthFile/);
+  assert.match(serializeYaml(messages[0].model), /    - \[ "data", "001", "Kyoto" \]/);
 });
 
 test("webview highlights diff on head side using headIndex", () => {

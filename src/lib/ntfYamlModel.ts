@@ -41,16 +41,11 @@ export const tableBlockPrefixes: string[] = [
 export const rawRowsBlockPrefixes: string[] = [
   "SETUP_VARIABLE",
   "EXPECTED_VARIABLE",
+  "SETUP_FIXED",
+  "EXPECTED_FIXED",
 ];
 
 export const rawBlockPrefixes: string[] = [
-  "SETUP_FIXED",
-  "EXPECTED_FIXED",
-  "MESSAGE",
-  "EXPECTED_REQUEST_HEADER_MESSAGES",
-  "EXPECTED_REQUEST_BODY_MESSAGES",
-  "RESPONSE_HEADER_MESSAGES",
-  "RESPONSE_BODY_MESSAGES",
 ];
 
 export const blockPrefixes: string[] = [
@@ -110,10 +105,6 @@ export function parseYaml(text: string): NtfYamlModel {
     if (!currentBlock) {
       continue;
     }
-    if (!isTableBlock(currentBlock.name) && !isRawRowsBlock(currentBlock.name)) {
-      rawBuffer.push(line.replace(/^\s{4}/, ""));
-      continue;
-    }
     if (isRawRowsBlock(currentBlock.name)) {
       const singleLine = line.match(/^\s{4}-?\s*\[(.*)\]\s*,?$/);
       if (singleLine) {
@@ -159,7 +150,9 @@ export function parseYaml(text: string): NtfYamlModel {
       const name = unquote(pair[1].trim());
       rememberColumn(currentBlock, name);
       currentRow[name] = parseScalar(pair[2].trim());
+      continue;
     }
+    rawBuffer.push(line.replace(/^\s{4}/, ""));
   }
   flushRaw();
   return model;
@@ -172,15 +165,12 @@ function rememberColumn(block: NtfBlock, name: string): void {
 }
 
 export function inferKind(name: string): string {
-  if (isTableBlock(name)) return "ListMap";
   if (isRawRowsBlock(name)) return "RawRows";
-  if (isFixedLengthFileBlock(name)) return "FixedLengthFile";
-  if (isMessageBlock(name)) return "Message";
-  return "Raw";
+  return "ListMap";
 }
 
 export function isTableBlock(name: string): boolean {
-  return blockNameStartsWith(name, tableBlockPrefixes);
+  return !isRawRowsBlock(name);
 }
 
 export function isRawRowsBlock(name: string): boolean {
@@ -189,14 +179,6 @@ export function isRawRowsBlock(name: string): boolean {
 
 export function isKnownRawBlock(name: string): boolean {
   return blockNameStartsWith(name, rawBlockPrefixes);
-}
-
-function isFixedLengthFileBlock(name: string): boolean {
-  return blockNameStartsWith(name, rawBlockPrefixes.filter(prefix => prefix !== "MESSAGE"));
-}
-
-function isMessageBlock(name: string): boolean {
-  return blockNameStartsWith(name, ["MESSAGE"]);
 }
 
 function blockNameStartsWith(name: string, prefixes: string[]): boolean {
@@ -447,7 +429,11 @@ export function serializeYaml(model: NtfYamlModel): string {
     out.push(sheet.name + ":");
     for (const block of sheet.blocks) {
       out.push("  " + block.name + ": #" + (block.kind || inferKind(block.name)));
-      if (isTableBlock(block.name)) {
+      if (block.raw && !block.rows.length) {
+        for (const rawLine of block.raw.split("\n")) {
+          out.push("    " + rawLine);
+        }
+      } else if (isTableBlock(block.name)) {
         const cols = columns(block);
         for (const row of block.rows as TableRow[]) {
           out.push("    - " + key(cols[0]) + ": " + quote(Object.hasOwn(row, cols[0]) ? row[cols[0]] : ""));
@@ -459,10 +445,6 @@ export function serializeYaml(model: NtfYamlModel): string {
         for (const row of block.rows as RawRow[]) {
           const cells = row.map(quote);
           out.push("    - [ " + cells.join(", ") + " ]");
-        }
-      } else if (block.raw) {
-        for (const rawLine of block.raw.split("\n")) {
-          out.push("    " + rawLine);
         }
       }
       out.push("");

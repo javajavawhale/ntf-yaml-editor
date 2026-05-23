@@ -186,6 +186,9 @@ test("classifies editable table and raw-row blocks", () => {
   assert.equal(isTableBlock("EXPECTED_COMPLETE_TABLE=PROJECT"), true);
   assert.equal(isRawRowsBlock("SETUP_VARIABLE[1]=work/input.csv"), true);
   assert.equal(isRawRowsBlock("EXPECTED_VARIABLE=./tmp/result.csv"), true);
+  assert.equal(isRawRowsBlock("SETUP_FIXED[1]=work/input.dat"), true);
+  assert.equal(isRawRowsBlock("EXPECTED_FIXED[1]=./tmp/result.dat"), true);
+  assert.equal(isTableBlock("RESPONSE_BODY_MESSAGES=response"), true);
 });
 
 test("classifies all supported NTF block prefixes", () => {
@@ -197,33 +200,29 @@ test("classifies all supported NTF block prefixes", () => {
     "SETUP_VARIABLE",
     "EXPECTED_VARIABLE",
     "SETUP_FIXED",
-    "EXPECTED_FIXED",
-    "MESSAGE",
-    "EXPECTED_REQUEST_HEADER_MESSAGES",
-    "EXPECTED_REQUEST_BODY_MESSAGES",
-    "RESPONSE_HEADER_MESSAGES",
-    "RESPONSE_BODY_MESSAGES"
+    "EXPECTED_FIXED"
   ]);
 
   assert.equal(inferKind("SETUP_TABLE=PROJECT"), "ListMap");
   assert.equal(inferKind("EXPECTED_COMPLETE_TABLE[1]=PROJECT"), "ListMap");
   assert.equal(inferKind("SETUP_VARIABLE[1]=work/input.csv"), "RawRows");
   assert.equal(inferKind("EXPECTED_VARIABLE=./tmp/result.csv"), "RawRows");
+  assert.equal(inferKind("SETUP_FIXED[1]=work/input.dat"), "RawRows");
+  assert.equal(inferKind("EXPECTED_FIXED[1]=./tmp/result.dat"), "RawRows");
 
   for (const name of [
-    "SETUP_FIXED[1]=work/input.dat",
-    "EXPECTED_FIXED[1]=./tmp/result.dat",
     "EXPECTED_REQUEST_HEADER_MESSAGES=req01",
     "EXPECTED_REQUEST_BODY_MESSAGES=req01",
     "RESPONSE_HEADER_MESSAGES=req01",
     "RESPONSE_BODY_MESSAGES=req01"
   ]) {
-    assert.equal(isKnownRawBlock(name), true);
-    assert.equal(inferKind(name), "FixedLengthFile");
+    assert.equal(isKnownRawBlock(name), false);
+    assert.equal(inferKind(name), "ListMap");
+    assert.equal(isTableBlock(name), true);
   }
 
-  assert.equal(isKnownRawBlock("MESSAGE=2"), true);
-  assert.equal(inferKind("MESSAGE=2"), "Message");
+  assert.equal(isKnownRawBlock("MESSAGE=2"), false);
+  assert.equal(inferKind("MESSAGE=2"), "ListMap");
 });
 
 test("parses sheet, table rows, and quoted special keys", () => {
@@ -374,22 +373,27 @@ test("parses multiline RawRows arrays without synthetic blank cells", () => {
   assert.deepEqual(block.rows[1], ["", "1", "0600000"]);
 });
 
-test("preserves unsupported fixed-length blocks as raw text", () => {
+test("parses and serializes fixed-length blocks as editable file rows", () => {
   const yaml = [
     "case1:",
     "  EXPECTED_FIXED[1]=./path/to/fixedFile: #FixedLengthFile",
-    "    text-encoding: \"ms932\"",
-    "    ヘッダレコード:",
-    "      - [one, 半角数字, \"1\"]: \"1\"",
+    "    - [ \"text-encoding\", \"ms932\" ]",
+    "    - [ \"record-length\", \"12\" ]",
+    "    - [ \"data\", \"001\", \"東京\" ]",
     ""
   ].join("\n");
 
   const model = parseYaml(yaml);
   const block = getBlock(model, "case1", "EXPECTED_FIXED[1]=./path/to/fixedFile");
 
-  assert.equal(block.raw.includes("text-encoding"), true);
+  assert.deepEqual(block.rows, [
+    ["text-encoding", "ms932"],
+    ["record-length", "12"],
+    ["data", "001", "東京"]
+  ]);
+  block.rows[2][2] = "大阪";
   assert.match(serializeYaml(model), /EXPECTED_FIXED\[1\]=\.\/path\/to\/fixedFile: #FixedLengthFile/);
-  assert.match(serializeYaml(model), /    text-encoding: "ms932"/);
+  assert.match(serializeYaml(model), /    - \[ "data", "001", "大阪" \]/);
 });
 
 test("loads representative sample fixtures and keeps key editor targets", () => {
@@ -779,6 +783,43 @@ test("cell diff report exposes exact RawRows cell values", () => {
       ]
     }
   ]);
+});
+
+test("cell diff report treats fixed-length blocks as file rows", () => {
+  const report = createDiffReport({
+    path: "test.ntf.yaml",
+    baseText: [
+      "case1:",
+      "  EXPECTED_FIXED[1]=./tmp/result.dat: #FixedLengthFile",
+      "    - [ \"text-encoding\", \"ms932\" ]",
+      "    - [ \"record-length\", \"12\" ]",
+      "    - [ \"data\", \"001\", \"Tokyo\" ]",
+      ""
+    ].join("\n"),
+    headText: [
+      "case1:",
+      "  EXPECTED_FIXED[1]=./tmp/result.dat: #FixedLengthFile",
+      "    - [ \"text-encoding\", \"ms932\" ]",
+      "    - [ \"record-length\", \"12\" ]",
+      "    - [ \"data\", \"001\", \"Kyoto\" ]",
+      "    - [ \"data\", \"002\", \"Nara\" ]",
+      ""
+    ].join("\n")
+  });
+
+  const block = report.files[0].sheets[0].blocks[0];
+
+  assert.equal(block.kind, "FixedLengthFile");
+  assert.deepEqual(block.columns, [
+    { key: "0", label: "0" },
+    { key: "1", label: "1" },
+    { key: "2", label: "2" }
+  ]);
+  assert.equal(block.rows[0].status, "changed");
+  assert.equal(block.rows[0].cells[2].before, "Tokyo");
+  assert.equal(block.rows[0].cells[2].after, "Kyoto");
+  assert.equal(block.rows[1].status, "added");
+  assert.equal(block.rows[1].headIndex, 3);
 });
 
 test("cell diff report exposes deleted RawRows cell values", () => {

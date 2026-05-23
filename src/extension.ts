@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import * as fs from "fs";
 import * as path from "path";
-import { analyzeYaml, parseYaml, serializeYaml } from "./lib/ntfYamlModel";
+import { parseYaml, serializeYaml } from "./lib/ntfYamlModel";
 import { createDiffReport, diffGitRefs, renderSummaryHtmlReport } from "./lib/ntfYamlDiff";
 import {
   createDocumentDiffReport,
@@ -10,7 +10,6 @@ import {
   diffWorkingTreeAllFiles,
 } from "./lib/ntfYamlGitDiffContext";
 import { parseGitQuery } from "./lib/gitUri";
-import { locateDiagnosticLine } from "./lib/ntfYamlDiagnostics";
 import {
   collectResourceUris,
   isNtfYamlUri,
@@ -22,7 +21,6 @@ import {
   renderHtmlDiffPanel,
   renderStandaloneHtmlDiffPanel,
 } from "./lib/ntfYamlWebviewHtml";
-import type { NtfDiagnostic } from "./lib/ntfYamlModel";
 import type { DiffReport } from "./lib/ntfYamlDiff";
 
 // tsc compiles this to out/extension.js, so __dirname = <project>/out.
@@ -30,10 +28,6 @@ import type { DiffReport } from "./lib/ntfYamlDiff";
 const extensionRoot = path.resolve(__dirname, "..");
 
 export function activate(context: vscode.ExtensionContext): void {
-  const diagnostics = vscode.languages.createDiagnosticCollection("ntf-yaml");
-  context.subscriptions.push(diagnostics);
-  registerDiagnostics(context, diagnostics);
-
   const provider = new NtfYamlEditorProvider(context);
   const editorOptions: { webviewOptions: vscode.WebviewPanelOptions; supportsMultipleEditorsPerDocument: boolean } = {
     webviewOptions: { retainContextWhenHidden: true },
@@ -190,62 +184,6 @@ export function activate(context: vscode.ExtensionContext): void {
       })
     );
   }
-}
-
-// ── Diagnostics ────────────────────────────────────────────────────────────
-
-function registerDiagnostics(
-  context: vscode.ExtensionContext,
-  collection: vscode.DiagnosticCollection
-): void {
-  function update(document: vscode.TextDocument): void {
-    if (!isYamlDocument(document)) {
-      collection.delete(document.uri);
-      return;
-    }
-    let items: vscode.Diagnostic[] = [];
-    try {
-      items = analyzeYaml(document.getText()).map(item => toVsCodeDiagnostic(document, item));
-    } catch (error) {
-      items = [
-        new vscode.Diagnostic(
-          new vscode.Range(0, 0, 0, 1),
-          `NTF YAML analysis failed: ${(error as Error).message}`,
-          vscode.DiagnosticSeverity.Error
-        ),
-      ];
-    }
-    collection.set(document.uri, items);
-  }
-
-  for (const document of vscode.workspace.textDocuments) {
-    update(document);
-  }
-  context.subscriptions.push(
-    vscode.workspace.onDidOpenTextDocument(update),
-    vscode.workspace.onDidChangeTextDocument(event => update(event.document)),
-    vscode.workspace.onDidCloseTextDocument(document => collection.delete(document.uri))
-  );
-}
-
-function isYamlDocument(document: vscode.TextDocument): boolean {
-  const name = document.uri.fsPath.toLowerCase();
-  return name.endsWith(".yaml") || name.endsWith(".yml");
-}
-
-function toVsCodeDiagnostic(document: vscode.TextDocument, item: NtfDiagnostic): vscode.Diagnostic {
-  const range = locateDiagnosticRange(document, item.path || []);
-  const severity = item.severity === "error"
-    ? vscode.DiagnosticSeverity.Error
-    : vscode.DiagnosticSeverity.Warning;
-  const diagnostic = new vscode.Diagnostic(range, item.message, severity);
-  diagnostic.source = "ntf-yaml";
-  return diagnostic;
-}
-
-function locateDiagnosticRange(document: vscode.TextDocument, diagnosticPath: string[]): vscode.Range {
-  const line = locateDiagnosticLine(document.getText(), diagnosticPath || []);
-  return new vscode.Range(line.line, 0, line.line, line.length);
 }
 
 // ── Editor provider ────────────────────────────────────────────────────────

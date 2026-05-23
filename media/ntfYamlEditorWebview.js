@@ -13,12 +13,8 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function(helper, diffHelper) {
   // ── Block type helpers (no longer need external model object) ──────────────
   const tableBlockPrefixes = ["SETUP_TABLE", "EXPECTED_TABLE", "EXPECTED_COMPLETE_TABLE", "LIST_MAP"];
-  const rawRowsBlockPrefixes = ["SETUP_VARIABLE", "EXPECTED_VARIABLE"];
-  const rawBlockPrefixes = [
-    "SETUP_FIXED", "EXPECTED_FIXED", "MESSAGE",
-    "EXPECTED_REQUEST_HEADER_MESSAGES", "EXPECTED_REQUEST_BODY_MESSAGES",
-    "RESPONSE_HEADER_MESSAGES", "RESPONSE_BODY_MESSAGES"
-  ];
+  const rawRowsBlockPrefixes = ["SETUP_VARIABLE", "EXPECTED_VARIABLE", "SETUP_FIXED", "EXPECTED_FIXED"];
+  const rawBlockPrefixes = [];
   const blockPrefixList = tableBlockPrefixes.concat(rawRowsBlockPrefixes, rawBlockPrefixes);
 
   function blockNameStartsWith(name, prefixes) {
@@ -27,13 +23,10 @@
     });
   }
   function inferKind(name) {
-    if (blockNameStartsWith(name, tableBlockPrefixes)) return "ListMap";
     if (blockNameStartsWith(name, rawRowsBlockPrefixes)) return "RawRows";
-    if (blockNameStartsWith(name, rawBlockPrefixes.filter(function(p) { return p !== "MESSAGE"; }))) return "FixedLengthFile";
-    if (blockNameStartsWith(name, ["MESSAGE"])) return "Message";
-    return "Raw";
+    return "ListMap";
   }
-  function isTableBlock(name) { return blockNameStartsWith(name, tableBlockPrefixes); }
+  function isTableBlock(name) { return !isRawRowsBlock(name); }
   function isRawRowsBlock(name) { return blockNameStartsWith(name, rawRowsBlockPrefixes); }
   function columns(block) {
     var names = [];
