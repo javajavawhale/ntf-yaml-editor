@@ -11,13 +11,43 @@
     );
   }
 })(typeof globalThis !== "undefined" ? globalThis : this, function(helper, diffHelper) {
+  // ── Block type helpers (no longer need external model object) ──────────────
+  const tableBlockPrefixes = ["SETUP_TABLE", "EXPECTED_TABLE", "EXPECTED_COMPLETE_TABLE", "LIST_MAP"];
+  const rawRowsBlockPrefixes = ["SETUP_VARIABLE", "EXPECTED_VARIABLE"];
+  const rawBlockPrefixes = [
+    "SETUP_FIXED", "EXPECTED_FIXED", "MESSAGE",
+    "EXPECTED_REQUEST_HEADER_MESSAGES", "EXPECTED_REQUEST_BODY_MESSAGES",
+    "RESPONSE_HEADER_MESSAGES", "RESPONSE_BODY_MESSAGES"
+  ];
+  const blockPrefixList = tableBlockPrefixes.concat(rawRowsBlockPrefixes, rawBlockPrefixes);
+
+  function blockNameStartsWith(name, prefixes) {
+    return prefixes.some(function(prefix) {
+      return new RegExp("^" + prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(\\[\\d+\\])?=").test(String(name || ""));
+    });
+  }
+  function inferKind(name) {
+    if (blockNameStartsWith(name, tableBlockPrefixes)) return "ListMap";
+    if (blockNameStartsWith(name, rawRowsBlockPrefixes)) return "RawRows";
+    if (blockNameStartsWith(name, rawBlockPrefixes.filter(function(p) { return p !== "MESSAGE"; }))) return "FixedLengthFile";
+    if (blockNameStartsWith(name, ["MESSAGE"])) return "Message";
+    return "Raw";
+  }
+  function isTableBlock(name) { return blockNameStartsWith(name, tableBlockPrefixes); }
+  function isRawRowsBlock(name) { return blockNameStartsWith(name, rawRowsBlockPrefixes); }
+  function columns(block) {
+    var names = [];
+    for (var n of (block.columnOrder || [])) { if (!names.includes(n)) names.push(n); }
+    for (var row of (block.rows || [])) { for (var k of Object.keys(row)) { if (!names.includes(k)) names.push(k); } }
+    return names;
+  }
+
   function createNtfYamlEditorApp(options) {
     const root = options.root;
-    const model = options.model;
     const vscode = options.vscode;
     const document = root.ownerDocument;
     const viewWindow = options.window || document.defaultView;
-    let state = model.parseYaml(options.initialText || "");
+    let state = options.initialModel || { sheets: [] };
     let diffReport = options.initialDiffReport || null;
     const readOnly = Boolean(options.readOnly);
     const diffSide = options.diffSide != null ? options.diffSide : (readOnly ? "base" : "head");
@@ -33,7 +63,7 @@
     function handleMessage(event) {
       if (event.data.type === "update") {
         const activeName = activeSheet()?.name;
-        state = model.parseYaml(event.data.text);
+        state = event.data.model || { sheets: [] };
         diffReport = event.data.diffReport || null;
         ensureIds(state);
         activeSheetId = state.sheets.find(sheet => sheet.name === activeName)?._id
@@ -172,7 +202,7 @@
       const save = document.createElement("button");
       save.dataset.action = "save";
       save.textContent = "Save YAML";
-      save.onclick = () => vscode.postMessage({ type: "save", text: model.serializeYaml(state) });
+      save.onclick = () => vscode.postMessage({ type: "save", model: state });
       toolbar.append(save);
       return toolbar;
     }
@@ -243,7 +273,7 @@
       form.className = "add-block-form";
       const kind = document.createElement("select");
       kind.dataset.role = "new-block-kind";
-      for (const value of model.blockPrefixes || ["LIST_MAP", "SETUP_TABLE", "EXPECTED_TABLE", "SETUP_VARIABLE", "EXPECTED_VARIABLE"]) {
+      for (const value of blockPrefixList) {
         const option = document.createElement("option");
         option.value = value;
         option.textContent = value;
@@ -257,9 +287,9 @@
         const name = helper.uniqueName(kind.value + "=", sheet.blocks.map(block => block.name));
         sheet.blocks.push(withId({
           name,
-          kind: model.inferKind(name),
-          rows: model.isRawRowsBlock(name) ? [[""]] : model.isTableBlock(name) ? [{}] : [],
-          columnOrder: model.isTableBlock(name) ? ["no"] : [],
+          kind: inferKind(name),
+          rows: isRawRowsBlock(name) ? [[""]] : isTableBlock(name) ? [{}] : [],
+          columnOrder: isTableBlock(name) ? ["no"] : [],
           raw: ""
         }));
         render();
@@ -289,7 +319,7 @@
       name.onchange = () => renameBlock(sheet, block, name.value);
       header.append(name);
 
-      if (!readOnly && model.isTableBlock(block.name)) {
+      if (!readOnly && isTableBlock(block.name)) {
         const actions = document.createElement("div");
         actions.className = "block-actions";
         const addRow = document.createElement("button");
@@ -298,7 +328,7 @@
         addRow.textContent = "Add Row";
         addRow.onclick = () => {
           const row = {};
-          for (const col of model.columns(block)) {
+          for (const col of columns(block)) {
             row[col] = "";
           }
           block.rows.push(row);
@@ -309,7 +339,7 @@
         addColumn.dataset.action = "add-column";
         addColumn.textContent = "Add Column";
         addColumn.onclick = () => {
-          const col = helper.uniqueName("col", model.columns(block));
+          const col = helper.uniqueName("col", columns(block));
           for (const row of block.rows) { row[col] = ""; }
           if (block.rows.length === 0) { block.rows.push({ [col]: "" }); }
           addColumnName(block, col);
@@ -318,7 +348,7 @@
         actions.append(addRow, addColumn);
         header.append(actions);
         header.append(renderDeleteBlockButton(sheet, block));
-      } else if (!readOnly && model.isRawRowsBlock(block.name)) {
+      } else if (!readOnly && isRawRowsBlock(block.name)) {
         const actions = document.createElement("div");
         actions.className = "block-actions";
         const addRow = document.createElement("button");
@@ -352,8 +382,8 @@
       }
       wrapper.append(header);
 
-      if (!model.isTableBlock(block.name)) {
-        if (model.isRawRowsBlock(block.name)) {
+      if (!isTableBlock(block.name)) {
+        if (isRawRowsBlock(block.name)) {
           wrapper.append(renderRawRowsTable(block, diffBlock));
           return wrapper;
         }
@@ -369,7 +399,7 @@
       viewport.className = "table-viewport";
       const table = document.createElement("table");
       table.className = "ntf-table";
-      const cols = model.columns(block);
+      const cols = columns(block);
       const thead = document.createElement("thead");
       const headRow = document.createElement("tr");
       for (const col of cols) {
@@ -379,8 +409,8 @@
         th.dataset.colIndex = String(colIndex);
         th.draggable = !readOnly;
         if (!readOnly) {
-          attachIndexDragSort(th, () => model.columns(block).length, colIndex, (from, to) => {
-            const order = model.columns(block);
+          attachIndexDragSort(th, () => columns(block).length, colIndex, (from, to) => {
+            const order = columns(block);
             helper.moveItem(order, from, to);
             block.columnOrder = order;
             render();
@@ -678,12 +708,12 @@
         return;
       }
       block.name = helper.uniqueName(next, sheet.blocks.filter(item => item !== block).map(item => item.name));
-      block.kind = model.inferKind(block.name);
-      if (model.isRawRowsBlock(block.name)) {
-        const cols = model.columns(block);
+      block.kind = inferKind(block.name);
+      if (isRawRowsBlock(block.name)) {
+        const cols = columns(block);
         block.rows = block.rows.map(row => Array.isArray(row) ? row : cols.map(col => row[col] ?? ""));
         block.columnOrder = [];
-      } else if (model.isTableBlock(block.name)) {
+      } else if (isTableBlock(block.name)) {
         if (block.rows.some(Array.isArray)) {
           const width = block.rows.reduce((max, row) => Math.max(max, row.length), 0);
           const cols = Array.from({ length: width }, (_, index) => index === 0 ? "no" : "column" + index);
@@ -694,7 +724,7 @@
           });
           block.columnOrder = cols;
         } else if (!Array.isArray(block.columnOrder) || !block.columnOrder.length) {
-          block.columnOrder = model.columns(block);
+          block.columnOrder = columns(block);
         }
       }
       render();
@@ -752,7 +782,7 @@
 
     function addColumnName(block, name) {
       if (!Array.isArray(block.columnOrder)) {
-        block.columnOrder = model.columns(block);
+        block.columnOrder = columns(block);
       }
       if (!block.columnOrder.includes(name)) {
         block.columnOrder.push(name);
@@ -974,7 +1004,7 @@
 
       const cols = (diffBlock.columns || []).map(c => c.key);
       const colLabels = Object.fromEntries((diffBlock.columns || []).map(c => [c.key, c.label]));
-      const isRawRows = diffBlock.kind === "RawRows" || model.isRawRowsBlock(diffBlock.name);
+      const isRawRows = diffBlock.kind === "RawRows" || isRawRowsBlock(diffBlock.name);
 
       const scroll = document.createElement("div");
       scroll.className = "table-scroll";

@@ -26,8 +26,7 @@ import type { NtfDiagnostic } from "./lib/ntfYamlModel";
 import type { DiffReport } from "./lib/ntfYamlDiff";
 
 // tsc compiles this to out/extension.js, so __dirname = <project>/out.
-// extensionRoot points one level up to reach project root where
-// lib/ntfYamlModel.js (UMD) and media/*.js live.
+// extensionRoot points one level up to reach project root where media/*.js live.
 const extensionRoot = path.resolve(__dirname, "..");
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -296,11 +295,12 @@ class NtfYamlEditorProvider implements vscode.CustomTextEditorProvider {
 
     const updateWebview = (): void => {
       const nextDiffReport = createEditorDiffReport(document);
+      const nextText = nextDiffReport
+        ? (diffSide === "base" ? nextDiffReport.baseText : nextDiffReport.headText)
+        : document.getText();
       webviewPanel.webview.postMessage({
         type: "update",
-        text: nextDiffReport
-          ? (diffSide === "base" ? nextDiffReport.baseText : nextDiffReport.headText)
-          : document.getText(),
+        model: parseYaml(nextText),
         diffReport: (diffSide === "base" || isScmDiffHead) ? nextDiffReport : null,
       });
     };
@@ -313,7 +313,7 @@ class NtfYamlEditorProvider implements vscode.CustomTextEditorProvider {
     this.editors.add(editor);
     webviewPanel.onDidDispose(() => this.editors.delete(editor));
 
-    webviewPanel.webview.onDidReceiveMessage(async (message: { type: string; width?: number; text?: string }) => {
+    webviewPanel.webview.onDidReceiveMessage(async (message: { type: string; width?: number; model?: ReturnType<typeof parseYaml> }) => {
       if (message.type === "sidebarResize") {
         this.updateSidebarWidth(message.width ?? 0);
         return;
@@ -321,12 +321,13 @@ class NtfYamlEditorProvider implements vscode.CustomTextEditorProvider {
       if (message.type !== "save" || document.uri.scheme !== "file") {
         return;
       }
+      const yamlText = message.model ? serializeYaml(message.model) : "";
       const edit = new vscode.WorkspaceEdit();
       const fullRange = new vscode.Range(
         document.positionAt(0),
         document.positionAt(document.getText().length)
       );
-      edit.replace(document.uri, fullRange, message.text ?? "");
+      edit.replace(document.uri, fullRange, yamlText);
       await vscode.workspace.applyEdit(edit);
       await document.save();
     });

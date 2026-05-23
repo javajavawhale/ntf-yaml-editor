@@ -2,7 +2,7 @@ const assert = require("assert");
 const test = require("node:test");
 const { JSDOM } = require("jsdom");
 
-const model = require("../lib/ntfYamlModel");
+const { parseYaml, serializeYaml, blockPrefixes } = require("../out/lib/ntfYamlModel");
 const { createDiffReport } = require("../out/lib/ntfYamlDiff");
 const { createNtfYamlEditorApp } = require("../media/ntfYamlEditorWebview");
 
@@ -14,12 +14,11 @@ function createHarness(initialText = sampleYaml(), options = {}) {
   const root = dom.window.document.getElementById("root");
   const app = createNtfYamlEditorApp({
     root,
-    initialText,
+    initialModel: parseYaml(initialText),
     initialDiffReport: options.initialDiffReport,
     readOnly: options.readOnly,
     diffSide: options.diffSide,
     allowDiffControls: options.allowDiffControls,
-    model,
     vscode: {
       postMessage(message) {
         messages.push(message);
@@ -152,8 +151,8 @@ test("webview edits a table cell and sends serialized YAML on save", () => {
 
   assert.equal(messages.length, 1);
   assert.equal(messages[0].type, "save");
-  assert.match(messages[0].text, /form\.projectName: "プロジェクト９９９"/);
-  assert.match(messages[0].text, /"\[no\]": "1"/);
+  assert.match(serializeYaml(messages[0].model), /form\.projectName: "プロジェクト９９９"/);
+  assert.match(serializeYaml(messages[0].model), /"\[no\]": "1"/);
 });
 
 test("webview renders a read-only cell diff overlay", () => {
@@ -302,8 +301,8 @@ test("webview adds rows to table blocks", () => {
   requestParams.querySelector('[data-action="add-row"]').click();
   save(root);
 
-  assert.match(messages[0].text, /form\.projectName: "プロジェクト００１"/);
-  assert.match(messages[0].text, /form\.projectName: ""/);
+  assert.match(serializeYaml(messages[0].model), /form\.projectName: "プロジェクト００１"/);
+  assert.match(serializeYaml(messages[0].model), /form\.projectName: ""/);
 });
 
 test("webview adds columns to populated table blocks", () => {
@@ -325,7 +324,7 @@ test("webview adds columns to populated table blocks", () => {
   colInput.dispatchEvent(inputEvent(dom));
   save(root);
 
-  assert.match(messages[0].text, /form\.clientId: "12345"/);
+  assert.match(serializeYaml(messages[0].model), /form\.clientId: "12345"/);
 });
 
 test("webview adds a column to an empty table block", () => {
@@ -339,8 +338,8 @@ test("webview adds a column to an empty table block", () => {
   setupTable.querySelector('[data-action="add-column"]').click();
   save(root);
 
-  assert.match(messages[0].text, /SETUP_TABLE=PROJECT: #ListMap/);
-  assert.match(messages[0].text, /    - col: ""/);
+  assert.match(serializeYaml(messages[0].model), /SETUP_TABLE=PROJECT: #ListMap/);
+  assert.match(serializeYaml(messages[0].model), /    - col: ""/);
 });
 
 test("webview renames table columns and keeps cell values", () => {
@@ -355,9 +354,9 @@ test("webview renames table columns and keeps cell values", () => {
   header.dispatchEvent(changeEvent(dom));
   save(root);
 
-  assert.match(messages[0].text, /form\.projectDisplayName: "プロジェクト００１"/);
-  assert.doesNotMatch(messages[0].text, /form\.projectName:/);
-  assert.match(messages[0].text, /"\[no\]": "1"\n      form\.projectDisplayName: "プロジェクト００１"/);
+  assert.match(serializeYaml(messages[0].model), /form\.projectDisplayName: "プロジェクト００１"/);
+  assert.doesNotMatch(serializeYaml(messages[0].model), /form\.projectName:/);
+  assert.match(serializeYaml(messages[0].model), /"\[no\]": "1"\n      form\.projectDisplayName: "プロジェクト００１"/);
 });
 
 test("webview edits raw-row cells and serializes null sentinels", () => {
@@ -369,8 +368,8 @@ test("webview edits raw-row cells and serializes null sentinels", () => {
   rawInput.dispatchEvent(inputEvent(dom));
   save(root);
 
-  assert.match(messages[0].text, /EXPECTED_VARIABLE=\.\/tmp\/result\.csv: #RawRows/);
-  assert.match(messages[0].text, /    - \[ "001", "大阪", ~ \]/);
+  assert.match(serializeYaml(messages[0].model), /EXPECTED_VARIABLE=\.\/tmp\/result\.csv: #RawRows/);
+  assert.match(serializeYaml(messages[0].model), /    - \[ "001", "大阪", ~ \]/);
 });
 
 test("webview adds and deletes RawRows rows and columns", () => {
@@ -388,8 +387,8 @@ test("webview adds and deletes RawRows rows and columns", () => {
   dragDrop(dom, rawRows.querySelectorAll("thead th")[2], rawRows.querySelectorAll("thead th")[0]);
   save(root);
 
-  assert.match(messages[0].text, /EXPECTED_VARIABLE=\.\/tmp\/result\.csv: #RawRows/);
-  assert.match(messages[0].text, /    - \[ "", "", "" \]\n    - \[ "", "東京", ~ \]/);
+  assert.match(serializeYaml(messages[0].model), /EXPECTED_VARIABLE=\.\/tmp\/result\.csv: #RawRows/);
+  assert.match(serializeYaml(messages[0].model), /    - \[ "", "", "" \]\n    - \[ "", "東京", ~ \]/);
 });
 
 
@@ -400,7 +399,7 @@ test("webview re-renders on document updates while preserving active sheet when 
   dom.window.dispatchEvent(new dom.window.MessageEvent("message", {
     data: {
       type: "update",
-      text: [
+      model: parseYaml([
         "case1:",
         "  LIST_MAP=requestParams: #ListMap",
         "    - \"[no]\": \"2\"",
@@ -410,7 +409,7 @@ test("webview re-renders on document updates while preserving active sheet when 
         "    - no: \"2\"",
         "      description: \"updated\"",
         ""
-      ].join("\n")
+      ].join("\n"))
     }
   }));
 
@@ -425,13 +424,13 @@ test("webview falls back to first sheet when update removes the active sheet", (
   dom.window.dispatchEvent(new dom.window.MessageEvent("message", {
     data: {
       type: "update",
-      text: [
+      model: parseYaml([
         "case3:",
         "  LIST_MAP=testShots: #ListMap",
         "    - no: \"1\"",
         "      description: \"replacement\"",
         ""
-      ].join("\n")
+      ].join("\n"))
     }
   }));
 
@@ -460,9 +459,9 @@ test("webview adds sheets and LIST_MAP blocks", () => {
   noInput.dispatchEvent(inputEvent(dom));
   save(root);
 
-  assert.match(messages[0].text, /case3:/);
-  assert.match(messages[0].text, /LIST_MAP=items: #ListMap/);
-  assert.match(messages[0].text, /    - no: "1"/);
+  assert.match(serializeYaml(messages[0].model), /case3:/);
+  assert.match(serializeYaml(messages[0].model), /LIST_MAP=items: #ListMap/);
+  assert.match(serializeYaml(messages[0].model), /    - no: "1"/);
 });
 
 test("webview offers all supported NTF block prefixes when adding a block", () => {
@@ -470,7 +469,7 @@ test("webview offers all supported NTF block prefixes when adding a block", () =
 
   const options = Array.from(root.querySelector('[data-role="new-block-kind"]').options).map(option => option.value);
 
-  assert.deepEqual(options, model.blockPrefixes);
+  assert.deepEqual(options, blockPrefixes);
 });
 
 test("webview renders RawRows without column numbers and highlights structural cells", () => {
@@ -573,10 +572,10 @@ test("webview reorders sheets, blocks, rows, and columns with drag and drop", ()
   dragDrop(dom, headerCells[1], headerCells[0]);
   save(root);
 
-  assert.ok(messages[0].text.indexOf("case2:") < messages[0].text.indexOf("case1:"));
-  assert.ok(messages[0].text.indexOf("LIST_MAP=second") < messages[0].text.indexOf("LIST_MAP=first"));
-  assert.ok(messages[0].text.indexOf('name: "second-row"') < messages[0].text.indexOf('name: "first-row"'));
-  assert.match(messages[0].text, /    - name: "second-row"\n      no: "2"/);
+  assert.ok(serializeYaml(messages[0].model).indexOf("case2:") < serializeYaml(messages[0].model).indexOf("case1:"));
+  assert.ok(serializeYaml(messages[0].model).indexOf("LIST_MAP=second") < serializeYaml(messages[0].model).indexOf("LIST_MAP=first"));
+  assert.ok(serializeYaml(messages[0].model).indexOf('name: "second-row"') < serializeYaml(messages[0].model).indexOf('name: "first-row"'));
+  assert.match(serializeYaml(messages[0].model), /    - name: "second-row"\n      no: "2"/);
 });
 
 test("webview renames sheets and LIST_MAP blocks", () => {
@@ -591,8 +590,8 @@ test("webview renames sheets and LIST_MAP blocks", () => {
   blockInput.dispatchEvent(changeEvent(dom));
   save(root);
 
-  assert.match(messages[0].text, /caseRenamed:/);
-  assert.match(messages[0].text, /LIST_MAP=requestParamsRenamed: #ListMap/);
+  assert.match(serializeYaml(messages[0].model), /caseRenamed:/);
+  assert.match(serializeYaml(messages[0].model), /LIST_MAP=requestParamsRenamed: #ListMap/);
 });
 
 test("webview deletes table rows and columns", () => {
@@ -616,9 +615,9 @@ test("webview deletes table rows and columns", () => {
   requestParams.querySelector('[title="Delete row"]').click();
   save(root);
 
-  assert.match(messages[0].text, /name: "second"/);
-  assert.doesNotMatch(messages[0].text, /extra:/);
-  assert.doesNotMatch(messages[0].text, /\[no\]": "1"/);
+  assert.match(serializeYaml(messages[0].model), /name: "second"/);
+  assert.doesNotMatch(serializeYaml(messages[0].model), /extra:/);
+  assert.doesNotMatch(serializeYaml(messages[0].model), /\[no\]": "1"/);
 });
 
 test("webview renders unsupported blocks as preserved raw text", () => {

@@ -15,7 +15,7 @@ const {
   isTableBlock,
   isKnownRawBlock,
   blockPrefixes
-} = require("../lib/ntfYamlModel");
+} = require("../out/lib/ntfYamlModel");
 const {
   convert,
   main: runCli,
