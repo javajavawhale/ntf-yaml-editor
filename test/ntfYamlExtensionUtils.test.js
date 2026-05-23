@@ -7,6 +7,7 @@ const {
   collectResourceUris,
   isNtfYamlUri,
   backingFilePath,
+  hasGitPairForFileUri,
   isInsidePath
 } = require("../out/lib/ntfYamlExtensionUtils");
 
@@ -47,6 +48,16 @@ test("backingFilePath prefers git query path and falls back safely", () => {
   assert.equal(backingFilePath({ scheme: "git", fsPath: "/tmp/ignored.ntf.yaml", query: gitPath }), "/repo/case.ntf.yaml");
   assert.equal(backingFilePath({ scheme: "git", fsPath: "/tmp/fallback.ntf.yaml", query: "not-json" }), "/tmp/fallback.ntf.yaml");
   assert.equal(backingFilePath({ scheme: "file", fsPath: "/tmp/file.ntf.yaml" }), "/tmp/file.ntf.yaml");
+});
+
+test("hasGitPairForFileUri detects SCM diff head by backing file path", () => {
+  const fileUri = { scheme: "file", fsPath: "/repo/case.ntf.yaml" };
+  const gitQuery = encodeURIComponent(JSON.stringify({ path: "/repo/case.ntf.yaml", ref: "HEAD" }));
+  const gitUri = { scheme: "git", fsPath: "/tmp/git/case.ntf.yaml", query: gitQuery };
+
+  assert.equal(hasGitPairForFileUri(fileUri, [gitUri]), true);
+  assert.equal(hasGitPairForFileUri(fileUri, [{ ...gitUri, query: encodeURIComponent(JSON.stringify({ path: "/repo/other.ntf.yaml" })) }]), false);
+  assert.equal(hasGitPairForFileUri({ ...fileUri, scheme: "untitled" }, [gitUri]), false);
 });
 
 test("isInsidePath checks descendant relationship", () => {

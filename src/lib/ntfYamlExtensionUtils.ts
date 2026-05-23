@@ -39,6 +39,17 @@ export function backingFilePath(uri: vscode.Uri | null | undefined): string {
   return uri.fsPath || "";
 }
 
+export function hasGitPairForFileUri(fileUri: vscode.Uri, candidateUris: vscode.Uri[]): boolean {
+  if (fileUri.scheme !== "file") return false;
+  const filePath = backingFilePath(fileUri);
+  if (!filePath) return false;
+  return candidateUris.some(uri => {
+    if (uri.scheme !== "git") return false;
+    const gitPath = backingFilePath(uri);
+    return Boolean(gitPath && path.resolve(gitPath) === path.resolve(filePath));
+  });
+}
+
 export function isInsidePath(filePath: string, rootPath: string): boolean {
   if (!filePath || !rootPath) return false;
   const relative = path.relative(rootPath, filePath);

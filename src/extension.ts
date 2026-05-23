@@ -14,6 +14,7 @@ import {
   collectResourceUris,
   isNtfYamlUri,
   backingFilePath,
+  hasGitPairForFileUri,
   isInsidePath,
 } from "./lib/ntfYamlExtensionUtils";
 import {
@@ -215,13 +216,7 @@ class NtfYamlEditorProvider implements vscode.CustomTextEditorProvider {
     const initialText = diffReport
       ? (diffSide === "base" ? diffReport.baseText : diffReport.headText)
       : document.getText();
-    // file:// の場合、同じファイルの git:// ペアが既に開いていれば SCM diff 右ペイン
-    const isScmDiffHead = diffSide === "head" && [...this.editors].some(editor => {
-      if (editor.document.uri.scheme !== "git") return false;
-      const gitPath = parseGitQuery(editor.document.uri.query)?.path;
-      return gitPath && path.resolve(gitPath as string) === path.resolve(document.uri.fsPath);
-    });
-    const webviewDiffReport = (diffSide === "base" || isScmDiffHead) ? diffReport : null;
+    const webviewDiffReport = (diffSide === "base" || this.isScmDiffHeadDocument(document)) ? diffReport : null;
     webviewPanel.webview.html = renderHtml(extensionRoot, webviewPanel.webview, document.getText(), {
       initialText,
       diffReport,
@@ -239,7 +234,7 @@ class NtfYamlEditorProvider implements vscode.CustomTextEditorProvider {
       webviewPanel.webview.postMessage({
         type: "update",
         model: parseYaml(nextText),
-        diffReport: (diffSide === "base" || isScmDiffHead) ? nextDiffReport : null,
+        diffReport: (diffSide === "base" || this.isScmDiffHeadDocument(document)) ? nextDiffReport : null,
       });
     };
 
@@ -250,6 +245,9 @@ class NtfYamlEditorProvider implements vscode.CustomTextEditorProvider {
     };
     this.editors.add(editor);
     webviewPanel.onDidDispose(() => this.editors.delete(editor));
+    if (document.uri.scheme === "git") {
+      this.updateRelatedEditors(document.uri);
+    }
 
     webviewPanel.webview.onDidReceiveMessage(async (message: { type: string; width?: number; model?: ReturnType<typeof parseYaml> }) => {
       if (message.type === "sidebarResize") {
@@ -291,6 +289,10 @@ class NtfYamlEditorProvider implements vscode.CustomTextEditorProvider {
         editor.updateWebview();
       }
     }
+  }
+
+  private isScmDiffHeadDocument(document: vscode.TextDocument): boolean {
+    return hasGitPairForFileUri(document.uri, [...this.editors].map(editor => editor.document.uri));
   }
 }
 
