@@ -36,7 +36,7 @@ npm run test:unit
 | `test/ntfYamlEditorWebview.test.js` | 修正して採用する | 不可 | 固定長ファイルブロックの Webview 表示は採用する。readonly 前提のテストは、編集保存を確認する仕様テストへ修正する。 |
 | `docs/file-block-display-spec.md` | 採用する | 可 | 固定長ファイルを可変長ファイルと同じファイル系表として扱う仕様に更新する。 |
 | `docs/rawrows-diff-spec.md` | 採用する | 可 | ファイル系 table と固定長ファイルの共有 diff 方針に更新する。 |
-| `test/fixtures/diff-scenarios/cell-diff-base.ntf.yaml` | 修正して採用する | README 更新後 | 手動確認直前に base 内容でコミットし、head 内容で上書きして diff を作る運用にする。削除する場合は README の手順を合わせる。 |
+| `test/fixtures/diff-scenarios/cell-diff-base.ntf.yaml` | 採用しない | 削除済み | base 内容は `test/fixtures/diff-scenarios/README.md` の手順内で作成する。 |
 | `test/fixtures/diff-scenarios/cell-diff-head.ntf.yaml` | 修正して採用する | README 更新後 | SCM diff を作るための上書き用 fixture として扱う。仕様根拠にはしない。 |
 | `test/fixtures/manual/cell-diff-ui-head.ntf.yaml` | 採用する | 可 | 手動確認 fixture のファイル系 table 表記ゆれを調整している。仕様根拠ではなく手動確認データとして扱う。 |
 | `test/fixtures/manual/rawrows-ui-case.ntf.yaml` | 採用する | 可 | 手動確認 fixture の差分が分かりやすくなるデータ追加。仕様根拠ではなく手動確認データとして扱う。 |
