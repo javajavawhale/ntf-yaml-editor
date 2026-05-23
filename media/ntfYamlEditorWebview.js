@@ -335,7 +335,7 @@
           const col = helper.uniqueName("col", columns(block));
           for (const row of block.rows) { row[col] = ""; }
           if (block.rows.length === 0) { block.rows.push({ [col]: "" }); }
-          addColumnName(block, col);
+          helper.addColumnName(block, col);
           render();
         };
         actions.append(addRow, addColumn);
@@ -415,13 +415,19 @@
         input.dataset.role = "column-name";
         input.value = col;
         input.readOnly = readOnly;
-        input.onchange = () => renameColumn(block, col, input.value);
+        input.onchange = () => {
+          helper.renameColumn(block, col, input.value);
+          render();
+        };
         thContent.append(input);
         if (!readOnly) {
           const colActionBar = document.createElement("div");
           colActionBar.className = "col-action-bar";
           colActionBar.append(createDragHandle("h"));
-          colActionBar.append(smallButton(CLOSE_SVG, "Delete column", () => deleteColumn(block, col), "action-bar-delete"));
+          colActionBar.append(smallButton(CLOSE_SVG, "Delete column", () => {
+            helper.deleteColumn(block, col);
+            render();
+          }, "action-bar-delete"));
           th.append(colActionBar);
         }
         th.append(thContent);
@@ -488,11 +494,17 @@
         th.dataset.colIndex = String(i);
         th.draggable = !readOnly;
         if (!readOnly) {
-          attachIndexDragSort(th, () => helper.rawWidth(block), i, (from, to) => moveRawColumnTo(block, from, to));
+          attachIndexDragSort(th, () => helper.rawWidth(block), i, (from, to) => {
+            helper.moveRawColumnTo(block, from, to);
+            render();
+          });
           const colActionBar = document.createElement("div");
           colActionBar.className = "col-action-bar";
           colActionBar.append(createDragHandle("h"));
-          colActionBar.append(smallButton(CLOSE_SVG, "Delete raw column", () => deleteRawColumn(block, i), "action-bar-delete"));
+          colActionBar.append(smallButton(CLOSE_SVG, "Delete raw column", () => {
+            helper.deleteRawColumn(block, i);
+            render();
+          }, "action-bar-delete"));
           th.append(colActionBar);
         }
         headRow.append(th);
@@ -723,63 +735,9 @@
       render();
     }
 
-    function renameColumn(block, from, to) {
-      const next = String(to || "").trim();
-      if (!next || next === from) {
-        render();
-        return;
-      }
-      for (const row of block.rows) {
-        helper.replaceRowKey(row, from, next);
-      }
-      if (Array.isArray(block.columnOrder)) {
-        block.columnOrder = block.columnOrder.map(name => name === from ? next : name);
-      }
-      render();
-    }
-
     function deleteRow(block, index) {
-      block.rows.splice(index, 1);
+      helper.deleteRow(block, index);
       render();
-    }
-
-    function deleteColumn(block, name) {
-      for (const row of block.rows) {
-        delete row[name];
-      }
-      if (Array.isArray(block.columnOrder)) {
-        block.columnOrder = block.columnOrder.filter(col => col !== name);
-      }
-      render();
-    }
-
-    function deleteRawColumn(block, index) {
-      for (const row of block.rows) {
-        row.splice(index, 1);
-      }
-      render();
-    }
-
-    function moveRawColumnTo(block, from, to) {
-      const width = helper.rawWidth(block);
-      if (from < 0 || to < 0 || from >= width || to >= width || from === to) {
-        return;
-      }
-      for (const row of block.rows) {
-        const value = row[from] ?? "";
-        row.splice(from, 1);
-        row.splice(to, 0, value);
-      }
-      render();
-    }
-
-    function addColumnName(block, name) {
-      if (!Array.isArray(block.columnOrder)) {
-        block.columnOrder = columns(block);
-      }
-      if (!block.columnOrder.includes(name)) {
-        block.columnOrder.push(name);
-      }
     }
 
     function ensureIds(modelState) {

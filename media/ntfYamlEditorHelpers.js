@@ -49,6 +49,74 @@
     return block.rows.reduce((max, row) => Math.max(max, row.length), 0);
   }
 
+  function tableColumns(block) {
+    const names = [];
+    for (const name of (block.columnOrder || [])) {
+      if (!names.includes(name)) names.push(name);
+    }
+    for (const row of (block.rows || [])) {
+      for (const name of Object.keys(row)) {
+        if (!names.includes(name)) names.push(name);
+      }
+    }
+    return names;
+  }
+
+  function addColumnName(block, name) {
+    if (!Array.isArray(block.columnOrder)) {
+      block.columnOrder = tableColumns(block);
+    }
+    if (!block.columnOrder.includes(name)) {
+      block.columnOrder.push(name);
+    }
+  }
+
+  function renameColumn(block, from, to) {
+    const next = String(to || "").trim();
+    if (!next || next === from) {
+      return false;
+    }
+    for (const row of block.rows) {
+      replaceRowKey(row, from, next);
+    }
+    if (Array.isArray(block.columnOrder)) {
+      block.columnOrder = block.columnOrder.map(name => name === from ? next : name);
+    }
+    return true;
+  }
+
+  function deleteRow(block, index) {
+    block.rows.splice(index, 1);
+  }
+
+  function deleteColumn(block, name) {
+    for (const row of block.rows) {
+      delete row[name];
+    }
+    if (Array.isArray(block.columnOrder)) {
+      block.columnOrder = block.columnOrder.filter(col => col !== name);
+    }
+  }
+
+  function deleteRawColumn(block, index) {
+    for (const row of block.rows) {
+      row.splice(index, 1);
+    }
+  }
+
+  function moveRawColumnTo(block, from, to) {
+    const width = rawWidth(block);
+    if (from < 0 || to < 0 || from >= width || to >= width || from === to) {
+      return false;
+    }
+    for (const row of block.rows) {
+      const value = row[from] ?? "";
+      row.splice(from, 1);
+      row.splice(to, 0, value);
+    }
+    return true;
+  }
+
   const ntfFileDirectives = new Set([
     "text-encoding",
     "record-separator",
@@ -98,6 +166,12 @@
     replaceRowKey,
     moveItem,
     rawWidth,
+    addColumnName,
+    renameColumn,
+    deleteRow,
+    deleteColumn,
+    deleteRawColumn,
+    moveRawColumnTo,
     isNtfFileDirective,
     rawRowView
   };
