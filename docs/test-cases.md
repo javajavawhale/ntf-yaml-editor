@@ -27,7 +27,7 @@ Current files:
 
 `test:unit` contains several subtypes:
 
-- Model tests for parse, serialize, canonical form, diagnostics, and block classification.
+- Model tests for parse, serialize, canonical form, CLI lint analysis, and block classification.
 - Cell Diff tests for `Diff Report` structure, row/cell status, Base/Head values, and Git ref text resolution.
 - CLI tests for `lint`, `format`, `convert`, and `diff` argument/exit-code behavior.
 - Webview DOM tests using jsdom for browser-side rendering, editing, messages, and diff highlighting.
@@ -87,7 +87,7 @@ Scope:
 - User-facing command registration.
 - Custom editor opening through VS Code.
 - Cell Diff Panel opening through VS Code command execution.
-- VS Code diagnostics publication.
+- No NTF YAML diagnostics are published from editor views.
 - Extension save path round-trip for representative fixtures.
 - Exported standalone Cell Diff HTML through extension-only E2E helper commands.
 
@@ -191,16 +191,17 @@ For canonical YAML behavior, prefer these expectations:
 
 Full string equality is appropriate when validating extension save path output against canonical serialization.
 
-### Diagnostics
+### CLI Lint Analysis
 
-Diagnostics expectations should check behavior, not formatting noise:
+CLI lint analysis expectations should check behavior, not formatting noise:
 
 - Severity when it is part of the contract.
 - Message substring for the issue type.
 - Path tokens when the diagnostic location matters.
 - Exit code for CLI lint.
 
-VS Code diagnostic range lookup is best-effort. Tests should not overfit exact ranges except for the utility function that owns the lookup rule.
+Editor views do not call NTF YAML Analysis and do not publish NTF YAML diagnostics.
+VS Code diagnostic range lookup is legacy support and should not drive current view behavior.
 
 ### HTML And Webview Output
 
@@ -237,7 +238,7 @@ E2E tests should assert coarse integration outcomes:
 - Extension exists and activates.
 - Commands are registered.
 - A VS Code tab opens with the expected custom editor or panel label.
-- Diagnostics appear in VS Code for an invalid document.
+- NTF YAML diagnostics do not appear from editor views.
 - A saved file equals canonical serialization.
 - Exported files exist and contain key content.
 

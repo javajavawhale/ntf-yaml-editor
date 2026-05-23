@@ -24,16 +24,18 @@ cp test/fixtures/manual/*.ntf.yaml /tmp/ntf-yaml-manual/
 cp test/fixtures/ntf-samples/*.ntf.yaml /tmp/ntf-yaml-manual/
 ```
 
-## 現行仕様
+## 確定方針
 
 - `.ntf.yaml` は `NTF YAML Table Editor` で開く。
 - 通常エディタは編集可能である。
-- SCM diff、Cell Diff Panel、HTML report は readonly として扱う。
+- SCM diff は base 側を readonly、head 側を編集可能として扱う。
+- Cell Diff Panel、HTML report は readonly として扱う。
 - scm diff は VS Code の diff editor が左右ペインを管理する。拡張側では分割切り替え UI を出さない。
 - Cell Diff Panel と HTML report は 1 webview 内で split / unified 表示を切り替える。
-- `LIST_MAP`、`SETUP_TABLE`、`EXPECTED_TABLE` は通常 table として扱う。
-- `SETUP_VARIABLE`、`EXPECTED_VARIABLE` は RawRows として扱う。
-- `SETUP_FIXED`、`EXPECTED_FIXED` は現行実装では raw block として壊さず保持する。
+- ファイル指定を持つ `VARIABLE` / `FIXED` 系 block はファイル系 table として扱う。
+- `VARIABLE` / `FIXED` 系以外の NTF block は通常 table として扱う。
+- prefix ごとの特別な表示区分は作らない。
+- 表として扱えない YAML 形状は fallback 表示として扱い、NTF block 種別の標準分類にはしない。
 
 ## 洗い出し観点
 
@@ -43,14 +45,14 @@ cp test/fixtures/ntf-samples/*.ntf.yaml /tmp/ntf-yaml-manual/
 | --- | --- |
 | ビュー種別 | 通常エディタ / SCM diff / Cell Diff Panel / HTML report |
 | 編集可否 | 編集可能 / readonly |
-| ブロック種別 | 通常 table / RawRows / raw block / sheet・block 操作 |
-| 差分種別 | セル変更 / 行追加 / 行削除 / block 追加 / block 削除 / sheet 追加 / sheet 削除 / RawRows 差分 / unified before-after |
+| ブロック種別 | 通常 table / ファイル系 table / fallback 表示 / sheet・block 操作 |
+| 差分種別 | セル変更 / 行追加 / 行削除 / block 追加 / block 削除 / sheet 追加 / sheet 削除 / ファイル系 table 差分 / unified before-after |
 
 ## 検証観点
 
 - ビュー種別ごとの責務が混ざっていないこと。
-- 通常エディタでは編集対象が編集でき、readonly ビューでは編集・追加・削除・リネーム系 UI が使えないこと。
-- 通常 table、RawRows、raw block がそれぞれ期待する形式で読めること。
+- 通常エディタと SCM diff の head 側では編集対象が編集でき、SCM diff の base 側、Cell Diff Panel、HTML report では編集・追加・削除・リネーム系 UI が使えないこと。
+- 通常 table、ファイル系 table、fallback 表示がそれぞれ期待する形式で読めること。
 - 差分ビューでセル変更、行追加、行削除、block 追加、block 削除、sheet 追加、sheet 削除が読み分けられること。
 - SCM diff、Cell Diff Panel、HTML report で差分の意味が矛盾しないこと。
 
@@ -58,10 +60,10 @@ cp test/fixtures/ntf-samples/*.ntf.yaml /tmp/ntf-yaml-manual/
 
 | Fixture | 用途 |
 | --- | --- |
-| `test/fixtures/manual/table-ui-current-spec.ntf.yaml` | 通常エディタの通常 table、RawRows、raw block、sheet・block 操作確認 |
-| `test/fixtures/manual/rawrows-ui-case.ntf.yaml` | RawRows 単独確認 |
-| `test/fixtures/manual/cell-diff-ui-base.ntf.yaml` | table / RawRows の差分確認 base |
-| `test/fixtures/manual/cell-diff-ui-head.ntf.yaml` | table / RawRows の差分確認 head |
+| `test/fixtures/manual/table-ui-current-spec.ntf.yaml` | 通常エディタの通常 table、ファイル系 table、fallback 表示、sheet・block 操作確認 |
+| `test/fixtures/manual/rawrows-ui-case.ntf.yaml` | ファイル系 table 単独確認 |
+| `test/fixtures/manual/cell-diff-ui-base.ntf.yaml` | table / ファイル系 table の差分確認 base |
+| `test/fixtures/manual/cell-diff-ui-head.ntf.yaml` | table / ファイル系 table の差分確認 head |
 | `test/fixtures/manual/branch-coverage-diff-base.ntf.yaml` | sheet / block 差分確認 base |
 | `test/fixtures/manual/branch-coverage-diff-head.ntf.yaml` | sheet / block 差分確認 head |
 | `test/fixtures/ntf-samples/web-project-form.ntf.yaml` | 実データに近い通常 table 確認 |
@@ -70,23 +72,23 @@ cp test/fixtures/ntf-samples/*.ntf.yaml /tmp/ntf-yaml-manual/
 
 | ID | ビュー種別 | 編集可否 | ブロック種別 | 差分種別 |
 | --- | --- | --- | --- | --- |
-| MT-01 | 通常エディタ | 編集可能 | 通常 table / RawRows / raw block | なし |
+| MT-01 | 通常エディタ | 編集可能 | 通常 table / ファイル系 table / fallback 表示 | なし |
 | MT-02 | 通常エディタ | 編集可能 | 通常 table | なし |
-| MT-03 | 通常エディタ | 編集可能 | RawRows | なし |
-| MT-04 | 通常エディタ | 編集可能 | raw block | なし |
+| MT-03 | 通常エディタ | 編集可能 | ファイル系 table | なし |
+| MT-04 | 通常エディタ | 編集可能 | fallback 表示 | なし |
 | MT-05 | 通常エディタ | 編集可能 | sheet・block 操作 | なし |
-| MT-06 | SCM diff | readonly | 通常 table / RawRows | セル変更 / 行追加 / 行削除 / RawRows 差分 |
-| MT-07 | SCM diff | readonly | sheet・block | block 追加 / block 削除 / sheet 追加 / sheet 削除 |
-| MT-08 | Cell Diff Panel | readonly | 通常 table / RawRows | セル変更 / 行追加 / 行削除 / RawRows 差分 / unified before-after |
+| MT-06 | SCM diff | base readonly / head 編集可能 | 通常 table / ファイル系 table | セル変更 / 行追加 / 行削除 / ファイル系 table 差分 |
+| MT-07 | SCM diff | base readonly / head 編集可能 | sheet・block | block 追加 / block 削除 / sheet 追加 / sheet 削除 |
+| MT-08 | Cell Diff Panel | readonly | 通常 table / ファイル系 table | セル変更 / 行追加 / 行削除 / ファイル系 table 差分 / unified before-after |
 | MT-09 | Cell Diff Panel | readonly | sheet・block | block 追加 / block 削除 / sheet 追加 / sheet 削除 |
-| MT-10 | HTML report | readonly | 通常 table / RawRows | セル変更 / 行追加 / 行削除 / RawRows 差分 / unified before-after |
+| MT-10 | HTML report | readonly | 通常 table / ファイル系 table | セル変更 / 行追加 / 行削除 / ファイル系 table 差分 / unified before-after |
 | MT-11 | HTML report | readonly | sheet・block | block 追加 / block 削除 / sheet 追加 / sheet 削除 |
 
 ## 共通準備
 
 SCM diff、Cell Diff Panel、HTML report は一時 repository を作って確認する。
 
-table / RawRows 差分:
+table / ファイル系 table 差分:
 
 ```sh
 tmp=/tmp/ntf-yaml-scm-diff-manual
@@ -136,7 +138,7 @@ Fixture: `test/fixtures/manual/table-ui-current-spec.ntf.yaml`
 
 - `NTF YAML Table Editor` が開く。
 - sheet list から sheet を切り替えられる。
-- `LIST_MAP`、`SETUP_TABLE`、`EXPECTED_TABLE`、RawRows、raw block が表示される。
+- 通常 table、ファイル系 table、fallback 表示が表示される。
 - blank Webview や script error が出ない。
 
 ### MT-02 通常 table を編集できる
@@ -161,7 +163,7 @@ Sheet: `tableUi`
 - セル変更、行追加、列追加、列名変更、行削除、列削除が保存される。
 - 対象外の sheet / block が消えない。
 
-### MT-03 RawRows を編集できる
+### MT-03 ファイル系 table を編集できる
 
 Fixture: `/tmp/ntf-yaml-manual/table-ui-current-spec.ntf.yaml`
 
@@ -170,7 +172,7 @@ Sheet: `tableUi`
 手順:
 
 1. `EXPECTED_VARIABLE=./tmp/result.csv` を表示する。
-2. RawRows のセルを 1 つ変更する。
+2. ファイル系 table のセルを 1 つ変更する。
 3. 行を追加する。
 4. 列を追加する。
 5. 行を 1 つ削除する。
@@ -180,10 +182,10 @@ Sheet: `tableUi`
 
 期待結果:
 
-- RawRows のセル変更、行追加、列追加、行削除、列削除が保存される。
+- ファイル系 table のセル変更、行追加、列追加、行削除、列削除が保存される。
 - 対象外の block が消えない。
 
-### MT-04 raw block を壊さず保持する
+### MT-04 fallback 表示を壊さず保持する
 
 Fixture: `/tmp/ntf-yaml-manual/table-ui-current-spec.ntf.yaml`
 
@@ -191,15 +193,15 @@ Sheet: `tableUi`
 
 手順:
 
-1. `EXPECTED_FIXED[1]=./tmp/fixed.dat` を表示する。
+1. fallback 表示になる YAML 形状を含む block を表示する。
 2. 他の通常 table のセルを 1 つ変更する。
 3. `Save YAML` を押す。
 4. text editor で保存後 YAML を確認する。
 
 期待結果:
 
-- `EXPECTED_FIXED` が raw block として表示される。
-- `EXPECTED_FIXED` の内容が消えない。
+- fallback 表示の内容が消えない。
+- `VARIABLE` / `FIXED` 系 block は fallback 表示ではなく、ファイル系 table として表示される。
 
 ### MT-05 sheet / block を操作できる
 
@@ -221,13 +223,13 @@ Fixture: `/tmp/ntf-yaml-manual/table-ui-current-spec.ntf.yaml`
 - sheet と block の追加、リネーム、削除が保存される。
 - 操作対象外の sheet / block が消えない。
 
-### MT-06 SCM diff で table / RawRows 差分を読む
+### MT-06 SCM diff で table / ファイル系 table 差分を読む
 
 Fixture: `cell-diff-ui-base.ntf.yaml` と `cell-diff-ui-head.ntf.yaml`
 
 手順:
 
-1. 共通準備の table / RawRows 差分 repository を Extension Development Host で開く。
+1. 共通準備の table / ファイル系 table 差分 repository を Extension Development Host で開く。
 2. Source Control view の Changes から `scenario.ntf.yaml` を開く。
 3. 左右ペインの `LIST_MAP=requestParams` を確認する。
 4. 左右ペインの `EXPECTED_VARIABLE=./tmp/result.csv` を確認する。
@@ -236,9 +238,10 @@ Fixture: `cell-diff-ui-base.ntf.yaml` と `cell-diff-ui-head.ntf.yaml`
 
 - VS Code の diff editor 上で左右ペインが表示される。
 - 拡張側の split / unified 切り替え UI は出ない。
-- 保存、追加、削除、リネーム系操作は使えない。
+- base 側では保存、追加、削除、リネーム系操作は使えない。
+- head 側では通常エディタと同じ編集操作が使える。
 - 通常 table のセル変更、行追加、行削除が読める。
-- RawRows のセル変更、行追加が読める。
+- ファイル系 table のセル変更、行追加が読める。
 
 ### MT-07 SCM diff で sheet / block 差分を読む
 
@@ -257,15 +260,16 @@ Fixture: `branch-coverage-diff-base.ntf.yaml` と `branch-coverage-diff-head.ntf
 - 削除 block が base 側で読める。
 - 追加 block が head 側で読める。
 - 変更 block のセル変更が読める。
-- 保存、追加、削除、リネーム系操作は使えない。
+- base 側では保存、追加、削除、リネーム系操作は使えない。
+- head 側では通常エディタと同じ編集操作が使える。
 
-### MT-08 Cell Diff Panel で table / RawRows 差分を読む
+### MT-08 Cell Diff Panel で table / ファイル系 table 差分を読む
 
 Fixture: `cell-diff-ui-base.ntf.yaml` と `cell-diff-ui-head.ntf.yaml`
 
 手順:
 
-1. 共通準備の table / RawRows 差分 repository を Extension Development Host で開く。
+1. 共通準備の table / ファイル系 table 差分 repository を Extension Development Host で開く。
 2. Source Control view の `scenario.ntf.yaml` を右クリックする。
 3. `NTF YAML: Open Cell Diff` を実行する。
 4. split 表示で `LIST_MAP=requestParams` と `EXPECTED_VARIABLE=./tmp/result.csv` を確認する。
@@ -277,7 +281,7 @@ Fixture: `cell-diff-ui-base.ntf.yaml` と `cell-diff-ui-head.ntf.yaml`
 - split 表示では base/head が readonly table として表示される。
 - unified 表示では変更セルの before / after がセル内に表示される。
 - 通常 table のセル変更、行追加、行削除が読める。
-- RawRows のセル変更、行追加が読める。
+- ファイル系 table のセル変更、行追加が読める。
 - 保存、追加、削除、リネーム系操作は使えない。
 
 ### MT-09 Cell Diff Panel で sheet / block 差分を読む
@@ -299,7 +303,7 @@ Fixture: `branch-coverage-diff-base.ntf.yaml` と `branch-coverage-diff-head.ntf
 - split / unified 表示で差分の意味が矛盾しない。
 - 保存、追加、削除、リネーム系操作は使えない。
 
-### MT-10 HTML report で table / RawRows 差分を読む
+### MT-10 HTML report で table / ファイル系 table 差分を読む
 
 Fixture: `cell-diff-ui-base.ntf.yaml` と `cell-diff-ui-head.ntf.yaml`
 
@@ -314,7 +318,7 @@ Fixture: `cell-diff-ui-base.ntf.yaml` と `cell-diff-ui-head.ntf.yaml`
 
 - HTML report が開ける。
 - 通常 table のセル変更、行追加、行削除が読める。
-- RawRows のセル変更、行追加が読める。
+- ファイル系 table のセル変更、行追加が読める。
 - 編集操作は使えない。
 - VS Code 専用の `Export HTML` / `Export All` 操作は report 内に出ない。
 

@@ -1,53 +1,51 @@
-# NTF YAML Editor Glossary
+# NTF YAML Editor 用語集
 
-This document is the terminology source of truth for the NTF YAML Editor codebase.
-Use these names when discussing, refactoring, naming files, or naming code concepts.
+この文書は、NTF YAML Editor で使う用語の基準である。
+設計、レビュー、リファクタリング、コード上の命名で同じ意味を使うために置く。
 
-## Functional Areas
+## 機能領域
 
-| Term | Definition |
+| 用語 | 意味 |
 | --- | --- |
-| NTF YAML Model | The core model layer that parses NTF YAML into the editor's internal structure and serializes it back to canonical YAML. |
-| NTF YAML Analysis | The validation layer used by diagnostics and CLI lint. It detects structural issues such as duplicate sheets or blocks, missing required columns, empty blocks, and broken `testShots` references. |
-| Table Editor | The VS Code custom editor experience for viewing and editing `.ntf.yaml` files as tables. |
-| Webview UI | The browser-side UI that renders and edits sheets, blocks, rows, columns, and cells. |
-| Cell Diff | The model-aware diff engine that compares YAML by sheet, block, row, and cell instead of raw text lines. |
-| Git Diff Context | The layer that resolves VS Code `git://` URIs, working tree files, index files, and arbitrary Git refs into base/head YAML text for Cell Diff. |
-| Cell Diff Panel | The extension-owned diff panel opened by `NTF YAML: Open Cell Diff`. It supports horizontal split, vertical split, unified view, ref editing, HTML export, and Export All. |
-| SCM Diff | The VS Code diff editor integration where VS Code owns the two-pane frame and invokes the custom editor separately for the base and head panes. |
-| Standalone HTML Report | A static HTML diff report that can be opened outside VS Code. |
-| CLI | The `ntf-yaml` command line entry point for `convert`, `lint`, `format`, and `diff`. |
-| Excel Convert | The CLI feature that delegates `.xlsx` and `.xls` conversion to the Python tools and outputs NTF YAML. |
-| Test/Packaging | Unit tests, E2E tests, screenshot capture, and VSIX packaging support. |
+| NTF YAML Core | NTF YAML を読み取り、sheet / block / row / cell として扱える内部表現へ解釈する領域。 |
+| NTF YAML Analysis | NTF YAML の構造や参照関係を検査する処理の総称。 |
+| Table Editor | `.ntf.yaml` を表として表示・編集する VS Code custom editor の体験。 |
+| Webview UI | sheet / block / row / cell を browser 側で描画・操作する UI。 |
+| Cell Diff | YAML をテキスト行ではなく、sheet / block / row / cell の単位で比較する差分機能。 |
+| Git Diff Context | VS Code の `git://` URI、working tree、index、任意 Git ref から base/head の YAML text を取り出す処理。 |
+| Cell Diff Panel | `NTF YAML: Open Cell Diff` で開く拡張機能所有の diff panel。左右分割、上下分割、統合表示、ref 編集、HTML export、Export All を扱う。 |
+| SCM Diff | VS Code SCM から変更ファイルを開いたときの diff editor 連携。左右ペインは VS Code が管理し、拡張は base/head それぞれの custom editor を描画する。 |
+| Standalone HTML Report | VS Code 外で開ける静的 HTML の diff report。 |
+| CLI | `ntf-yaml` コマンド。`convert`, `lint`, `format`, `diff` を持つ。 |
+| Excel Convert | `.xlsx` / `.xls` 変換を Python tool に委譲し、NTF YAML を出力する CLI 機能。 |
 
-## Domain Terms
+## ドメイン用語
 
-| Term | Definition |
+| 用語 | 意味 |
 | --- | --- |
-| NTF YAML | The YAML representation of Nablarch Testing Framework test data. This project targets this format, not generic YAML editing. |
-| Canonical Form | The normalized YAML output shared by converter output, editor save, and CLI format. |
-| Model | The internal data structure returned by `parseYaml()`, currently shaped as `{ sheets: [...] }`. |
-| Sheet | A top-level YAML key. It corresponds to an NTF Excel sheet. |
-| Block | A named data unit under a Sheet, such as `LIST_MAP=...`, `SETUP_TABLE[1]=...`, or `EXPECTED_VARIABLE[1]=...`. |
-| Table Block | A block represented as rows with named columns. This includes `LIST_MAP`, `SETUP_TABLE`, `EXPECTED_TABLE`, and `EXPECTED_COMPLETE_TABLE`. |
-| Raw Rows Block | A block represented as array rows without named columns. This includes `SETUP_VARIABLE` and `EXPECTED_VARIABLE`. |
-| Raw Block | A block that the editor does not interpret as a table or raw rows. This includes `SETUP_FIXED`, `EXPECTED_FIXED`, `MESSAGE`, `EXPECTED_REQUEST_HEADER_MESSAGES`, `EXPECTED_REQUEST_BODY_MESSAGES`, `RESPONSE_HEADER_MESSAGES`, and `RESPONSE_BODY_MESSAGES`; the content is preserved and displayed as raw text where possible. |
-| Row | One row inside a block. In a Table Block it is an object; in a Raw Rows Block it is an array. |
-| Cell | A value at the intersection of a row and column. |
-| Column Order | The preferred column order for a Table Block. It affects table rendering and serialization. |
-| Diagnostic | A warning or error produced from NTF YAML Analysis. Diagnostics are surfaced in VS Code and by CLI lint. |
-| Diff Report | The intermediate diff representation for base/head model comparison, grouped by file, sheet, block, row, and cell. |
-| Diff Status | One of `added`, `deleted`, `changed`, or `unchanged`. |
-| Base | The comparison source side of a diff. |
-| Head | The comparison target side of a diff. |
-| Working Tree | The current filesystem content of a file in a Git repository. |
-| Index | The Git staging area. The implementation also accepts VS Code Git's `~` ref convention for the index. |
+| NTF YAML | Nablarch Testing Framework のテストデータを YAML で表現したもの。このプロジェクトは汎用 YAML ではなく NTF YAML を対象にする。 |
+| 生 YAML | ファイルに保存されている文字列そのもの。コメント、空行、クォート、並び、インデントなどの表記を含む。 |
+| Model | `parseYaml()` が生 YAML から作る内部表現。現状は `{ sheets: [...] }` の形を取り、表示・編集・diff の入力として使う。 |
+| Canonical Form | converter output、editor save、CLI format の YAML 表記を揃えるという設計目標を指す言葉。 |
+| Sheet | top-level YAML key。NTF Excel の sheet に対応する。 |
+| Block | Sheet 配下の名前付きデータ単位。例: `LIST_MAP=...`, `SETUP_TABLE[1]=...`, `EXPECTED_VARIABLE[1]=...`。 |
+| Table Block | ファイル系 block 以外の NTF block を、通常の object row の表として扱う表示・編集・diff 経路。 |
+| File Rows Block | ファイル定義とファイル内容を row 配列として扱う block。可変長ファイルと固定長ファイルを含む。 |
+| Variable File Block | 可変長ファイルを表す file rows block。`SETUP_VARIABLE`, `EXPECTED_VARIABLE` を含む。 |
+| Fixed-length File Block | 固定長ファイルを表す file rows block。`SETUP_FIXED`, `EXPECTED_FIXED` を含む。ディレクティブ行以外は可変長ファイルと同じ表構造として扱う。 |
+| Raw Block | YAML 形状が通常の表または file rows として扱えない場合の fallback 表示。NTF block 種別の標準分類としては扱わない。 |
+| Block の扱い | block を通常 table、file rows、fallback 表示のどの経路に通すかの判断。生 YAML の独立要素ではない。 |
+| Row | block 内の 1 行。Table Block では object、File Rows Block では array を基本形にする。 |
+| Cell | row と column の交点にある値。 |
+| Diagnostic | NTF YAML Analysis が出す warning / error。 |
+| Diff Report | base/head の比較結果を file / sheet / block / row / cell にまとめた中間表現。diff 表示の入力になる。 |
+| Diff Status | `added`, `deleted`, `changed`, `unchanged` のいずれか。 |
 
-## View Terms
+## ビュー用語
 
-| Term | Definition |
+| 用語 | 意味 |
 | --- | --- |
-| Normal Editor | Opening an NTF YAML file from Explorer as a single custom editor pane. |
-| SCM Diff | Clicking a changed file in VS Code SCM, where VS Code creates the diff editor and the extension renders each side independently. |
-| Cell Diff | Opening the extension-owned Cell Diff Panel with two panes or unified display inside one webview. |
-| HTML Report | Exported static HTML rendered with the same Cell Diff concepts but without VS Code controls. |
+| Normal Editor | Explorer などから NTF YAML file を単一 custom editor pane として開くビュー。 |
+| SCM Diff | VS Code SCM から変更ファイルをクリックしたときに、VS Code が作る左右 diff editor。 |
+| Cell Diff | 拡張機能所有の Cell Diff Panel で、2 ペインまたは統合表示として開くビュー。 |
+| HTML Report | export された静的 HTML の diff report。 |
