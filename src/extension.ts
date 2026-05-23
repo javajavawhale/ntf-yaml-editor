@@ -1,32 +1,44 @@
-const vscode = require("vscode");
-const fs = require("fs");
-const path = require("path");
-const { analyzeYaml, parseYaml, serializeYaml } = require("./lib/ntfYamlModel");
-const { createDiffReport, diffGitRefs, renderSummaryHtmlReport } = require("./lib/ntfYamlDiff");
-const { createDocumentDiffReport, createRefDiffReport, createReportFromResource, diffWorkingTreeAllFiles } = require("./lib/ntfYamlGitDiffContext");
-const { parseGitQuery } = require("./lib/gitUri");
-const { locateDiagnosticLine } = require("./lib/ntfYamlDiagnostics");
-const {
+import * as vscode from "vscode";
+import * as fs from "fs";
+import * as path from "path";
+import { analyzeYaml, parseYaml, serializeYaml } from "./lib/ntfYamlModel";
+import { createDiffReport, diffGitRefs, renderSummaryHtmlReport } from "./lib/ntfYamlDiff";
+import {
+  createDocumentDiffReport,
+  createRefDiffReport,
+  createReportFromResource,
+  diffWorkingTreeAllFiles,
+} from "./lib/ntfYamlGitDiffContext";
+import { parseGitQuery } from "./lib/gitUri";
+import { locateDiagnosticLine } from "./lib/ntfYamlDiagnostics";
+import {
   collectResourceUris,
   isNtfYamlUri,
   backingFilePath,
-  isInsidePath
-} = require("./lib/ntfYamlExtensionUtils");
-const {
+  isInsidePath,
+} from "./lib/ntfYamlExtensionUtils";
+import {
   renderHtml,
   renderHtmlDiffPanel,
-  renderStandaloneHtmlDiffPanel
-} = require("./lib/ntfYamlWebviewHtml");
+  renderStandaloneHtmlDiffPanel,
+} from "./lib/ntfYamlWebviewHtml";
+import type { NtfDiagnostic } from "./lib/ntfYamlModel";
+import type { DiffReport } from "./lib/ntfYamlDiff";
 
-function activate(context) {
+// tsc compiles this to out/extension.js, so __dirname = <project>/out.
+// extensionRoot points one level up to reach project root where
+// lib/ntfYamlModel.js (UMD) and media/*.js live.
+const extensionRoot = path.resolve(__dirname, "..");
+
+export function activate(context: vscode.ExtensionContext): void {
   const diagnostics = vscode.languages.createDiagnosticCollection("ntf-yaml");
   context.subscriptions.push(diagnostics);
   registerDiagnostics(context, diagnostics);
 
   const provider = new NtfYamlEditorProvider(context);
-  const editorOptions = {
+  const editorOptions: { webviewOptions: vscode.WebviewPanelOptions; supportsMultipleEditorsPerDocument: boolean } = {
     webviewOptions: { retainContextWhenHidden: true },
-    supportsMultipleEditorsPerDocument: false
+    supportsMultipleEditorsPerDocument: false,
   };
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider("ntfYaml.editor", provider, editorOptions),
@@ -36,9 +48,7 @@ function activate(context) {
   context.subscriptions.push(
     vscode.commands.registerCommand("ntfYaml.openAsTable", async () => {
       const editor = vscode.window.activeTextEditor;
-      if (!editor) {
-        return;
-      }
+      if (!editor) return;
       await vscode.commands.executeCommand(
         "vscode.openWith",
         editor.document.uri,
@@ -57,19 +67,19 @@ function activate(context) {
       const baseRef = await vscode.window.showInputBox({
         title: "NTF YAML Cell Diff",
         prompt: "Base Git ref",
-        value: "HEAD~1"
+        value: "HEAD~1",
       });
       if (!baseRef) return;
       const headRef = await vscode.window.showInputBox({
         title: "NTF YAML Cell Diff",
         prompt: "Head Git ref",
-        value: "HEAD"
+        value: "HEAD",
       });
       if (!headRef) return;
       const outputName = await vscode.window.showInputBox({
         title: "NTF YAML Cell Diff",
         prompt: "Output HTML file",
-        value: "ntf-yaml-diff.html"
+        value: "ntf-yaml-diff.html",
       });
       if (!outputName) return;
       try {
@@ -80,13 +90,13 @@ function activate(context) {
         await vscode.window.showTextDocument(document, { preview: false });
         vscode.window.showInformationMessage(`NTF YAML diff report written: ${outputName}`);
       } catch (error) {
-        vscode.window.showErrorMessage(`NTF YAML diff failed: ${error.message}`);
+        vscode.window.showErrorMessage(`NTF YAML diff failed: ${(error as Error).message}`);
       }
     })
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("ntfYaml.openCellDiff", async (...resources) => {
+    vscode.commands.registerCommand("ntfYaml.openCellDiff", async (...resources: unknown[]) => {
       try {
         const result = await createCellDiffReportFromCommand(resources);
         if (!result) {
@@ -95,79 +105,79 @@ function activate(context) {
         }
         openCellDiffPanel(context, result.report, result.uri, result.repositoryPath);
       } catch (error) {
-        vscode.window.showErrorMessage(`NTF YAML cell diff failed: ${error.message}`);
+        vscode.window.showErrorMessage(`NTF YAML cell diff failed: ${(error as Error).message}`);
       }
     })
   );
 
-  if (process.env.NTF_YAML_EDITOR_ENABLE_E2E_COMMANDS === "1") {
+  if (process.env["NTF_YAML_EDITOR_ENABLE_E2E_COMMANDS"] === "1") {
     context.subscriptions.push(
-      vscode.commands.registerCommand("ntfYaml.e2e.renderHtml", async text => {
-        return renderHtml(__dirname, undefined, String(text ?? ""));
+      vscode.commands.registerCommand("ntfYaml.e2e.renderHtml", async (text: unknown) => {
+        return renderHtml(extensionRoot, undefined, String(text ?? ""));
       }),
-      vscode.commands.registerCommand("ntfYaml.e2e.renderDiffPanelHtml", async options => {
+      vscode.commands.registerCommand("ntfYaml.e2e.renderDiffPanelHtml", async (options: Record<string, unknown>) => {
         const report = createDiffReport({
-          path: options?.path || "case.ntf.yaml",
-          baseRef: options?.baseRef || "HEAD",
-          headRef: options?.headRef || "working tree",
-          baseText: String(options?.baseText ?? ""),
-          headText: String(options?.headText ?? "")
+          path: String(options?.["path"] || "case.ntf.yaml"),
+          baseRef: String(options?.["baseRef"] || "HEAD"),
+          headRef: String(options?.["headRef"] || "working tree"),
+          baseText: String(options?.["baseText"] ?? ""),
+          headText: String(options?.["headText"] ?? ""),
         });
-        return renderHtmlDiffPanel(__dirname, undefined, report, {
-          allowDiffControls: options?.allowDiffControls
+        return renderHtmlDiffPanel(extensionRoot, undefined, report, {
+          allowDiffControls: options?.["allowDiffControls"] as boolean | undefined,
         });
       }),
-      vscode.commands.registerCommand("ntfYaml.e2e.renderStandaloneDiffHtml", async options => {
+      vscode.commands.registerCommand("ntfYaml.e2e.renderStandaloneDiffHtml", async (options: Record<string, unknown>) => {
         const report = createDiffReport({
-          path: options?.path || "case.ntf.yaml",
-          baseRef: options?.baseRef || "HEAD",
-          headRef: options?.headRef || "working tree",
-          baseText: String(options?.baseText ?? ""),
-          headText: String(options?.headText ?? "")
+          path: String(options?.["path"] || "case.ntf.yaml"),
+          baseRef: String(options?.["baseRef"] || "HEAD"),
+          headRef: String(options?.["headRef"] || "working tree"),
+          baseText: String(options?.["baseText"] ?? ""),
+          headText: String(options?.["headText"] ?? ""),
         });
-        return renderStandaloneHtmlDiffPanel(__dirname, report);
+        return renderStandaloneHtmlDiffPanel(extensionRoot, report);
       }),
-      vscode.commands.registerCommand("ntfYaml.e2e.renderRefDiffPanelHtml", async options => {
+      vscode.commands.registerCommand("ntfYaml.e2e.renderRefDiffPanelHtml", async (options: Record<string, unknown>) => {
         const report = createRefDiffReport({
-          repositoryPath: String(options?.repositoryPath || ""),
-          relativePath: String(options?.relativePath || ""),
-          baseRef: String(options?.baseRef || "HEAD"),
-          headRef: String(options?.headRef || "working tree")
+          repositoryPath: String(options?.["repositoryPath"] || ""),
+          relativePath: String(options?.["relativePath"] || ""),
+          baseRef: String(options?.["baseRef"] || "HEAD"),
+          headRef: String(options?.["headRef"] || "working tree"),
         });
         if (!report) return "";
-        return renderHtmlDiffPanel(__dirname, undefined, report, {
-          allowDiffControls: options?.allowDiffControls
+        return renderHtmlDiffPanel(extensionRoot, undefined, report, {
+          allowDiffControls: options?.["allowDiffControls"] as boolean | undefined,
         });
       }),
-      vscode.commands.registerCommand("ntfYaml.e2e.exportStandaloneDiffHtml", async options => {
+      vscode.commands.registerCommand("ntfYaml.e2e.exportStandaloneDiffHtml", async (options: Record<string, unknown>) => {
         const report = createRefDiffReport({
-          repositoryPath: String(options?.repositoryPath || ""),
-          relativePath: String(options?.relativePath || ""),
-          baseRef: String(options?.baseRef || "HEAD"),
-          headRef: String(options?.headRef || "working tree")
+          repositoryPath: String(options?.["repositoryPath"] || ""),
+          relativePath: String(options?.["relativePath"] || ""),
+          baseRef: String(options?.["baseRef"] || "HEAD"),
+          headRef: String(options?.["headRef"] || "working tree"),
         });
         if (!report) return false;
-        fs.writeFileSync(String(options?.outputPath || ""), renderStandaloneHtmlDiffPanel(__dirname, report));
+        fs.writeFileSync(String(options?.["outputPath"] || ""), renderStandaloneHtmlDiffPanel(extensionRoot, report));
         return true;
       }),
-      vscode.commands.registerCommand("ntfYaml.e2e.exportAllStandaloneDiffHtml", async options => {
-        const outDir = String(options?.outputDir || "");
+      vscode.commands.registerCommand("ntfYaml.e2e.exportAllStandaloneDiffHtml", async (options: Record<string, unknown>) => {
+        const outDir = String(options?.["outputDir"] || "");
         const reports = diffWorkingTreeAllFiles({
-          repositoryPath: String(options?.repositoryPath || ""),
-          baseRef: String(options?.baseRef || "HEAD"),
-          headRef: String(options?.headRef || "working tree")
+          repositoryPath: String(options?.["repositoryPath"] || ""),
+          baseRef: String(options?.["baseRef"] || "HEAD"),
+          headRef: String(options?.["headRef"] || "working tree"),
         });
         fs.mkdirSync(outDir, { recursive: true });
-        const written = [];
+        const written: string[] = [];
         for (const report of reports) {
           if (!report?.files?.[0]) continue;
           const fileName = (report.files[0].path || "diff").replace(/[\\/]/g, "_") + "-diff.html";
-          fs.writeFileSync(path.join(outDir, fileName), renderStandaloneHtmlDiffPanel(__dirname, report));
+          fs.writeFileSync(path.join(outDir, fileName), renderStandaloneHtmlDiffPanel(extensionRoot, report));
           written.push(fileName);
         }
         return written.sort();
       }),
-      vscode.commands.registerCommand("ntfYaml.e2e.roundTripFile", async uri => {
+      vscode.commands.registerCommand("ntfYaml.e2e.roundTripFile", async (uri: vscode.Uri) => {
         const document = await vscode.workspace.openTextDocument(uri);
         const nextText = serializeYaml(parseYaml(document.getText()));
         const edit = new vscode.WorkspaceEdit();
@@ -183,22 +193,27 @@ function activate(context) {
   }
 }
 
-function registerDiagnostics(context, collection) {
-  function update(document) {
+// ── Diagnostics ────────────────────────────────────────────────────────────
+
+function registerDiagnostics(
+  context: vscode.ExtensionContext,
+  collection: vscode.DiagnosticCollection
+): void {
+  function update(document: vscode.TextDocument): void {
     if (!isYamlDocument(document)) {
       collection.delete(document.uri);
       return;
     }
-    let items = [];
+    let items: vscode.Diagnostic[] = [];
     try {
       items = analyzeYaml(document.getText()).map(item => toVsCodeDiagnostic(document, item));
     } catch (error) {
       items = [
         new vscode.Diagnostic(
           new vscode.Range(0, 0, 0, 1),
-          `NTF YAML analysis failed: ${error.message}`,
+          `NTF YAML analysis failed: ${(error as Error).message}`,
           vscode.DiagnosticSeverity.Error
-        )
+        ),
       ];
     }
     collection.set(document.uri, items);
@@ -214,12 +229,12 @@ function registerDiagnostics(context, collection) {
   );
 }
 
-function isYamlDocument(document) {
+function isYamlDocument(document: vscode.TextDocument): boolean {
   const name = document.uri.fsPath.toLowerCase();
   return name.endsWith(".yaml") || name.endsWith(".yml");
 }
 
-function toVsCodeDiagnostic(document, item) {
+function toVsCodeDiagnostic(document: vscode.TextDocument, item: NtfDiagnostic): vscode.Diagnostic {
   const range = locateDiagnosticRange(document, item.path || []);
   const severity = item.severity === "error"
     ? vscode.DiagnosticSeverity.Error
@@ -229,23 +244,34 @@ function toVsCodeDiagnostic(document, item) {
   return diagnostic;
 }
 
-function locateDiagnosticRange(document, diagnosticPath) {
+function locateDiagnosticRange(document: vscode.TextDocument, diagnosticPath: string[]): vscode.Range {
   const line = locateDiagnosticLine(document.getText(), diagnosticPath || []);
   return new vscode.Range(line.line, 0, line.line, line.length);
 }
 
-class NtfYamlEditorProvider {
-  constructor(context) {
-    this.context = context;
-    this.editors = new Set();
-    this.sidebarWidth = 240;
+// ── Editor provider ────────────────────────────────────────────────────────
+
+interface EditorHandle {
+  document: vscode.TextDocument;
+  updateWebview: () => void;
+  setSidebarWidth: (width: number) => void;
+}
+
+class NtfYamlEditorProvider implements vscode.CustomTextEditorProvider {
+  private readonly editors = new Set<EditorHandle>();
+  private sidebarWidth = 240;
+
+  constructor(private readonly context: vscode.ExtensionContext) {
     context.subscriptions.push(
       vscode.workspace.onDidChangeTextDocument(event => this.updateRelatedEditors(event.document.uri)),
       vscode.workspace.onDidSaveTextDocument(document => this.updateRelatedEditors(document.uri))
     );
   }
 
-  async resolveCustomTextEditor(document, webviewPanel) {
+  async resolveCustomTextEditor(
+    document: vscode.TextDocument,
+    webviewPanel: vscode.WebviewPanel
+  ): Promise<void> {
     webviewPanel.webview.options = { enableScripts: true };
     const diffSide = document.uri.scheme === "git" ? "base" : "head";
     const diffReport = createEditorDiffReport(document);
@@ -256,40 +282,40 @@ class NtfYamlEditorProvider {
     const isScmDiffHead = diffSide === "head" && [...this.editors].some(editor => {
       if (editor.document.uri.scheme !== "git") return false;
       const gitPath = parseGitQuery(editor.document.uri.query)?.path;
-      return gitPath && path.resolve(gitPath) === path.resolve(document.uri.fsPath);
+      return gitPath && path.resolve(gitPath as string) === path.resolve(document.uri.fsPath);
     });
     const webviewDiffReport = (diffSide === "base" || isScmDiffHead) ? diffReport : null;
-    webviewPanel.webview.html = renderHtml(__dirname, webviewPanel.webview, document.getText(), {
+    webviewPanel.webview.html = renderHtml(extensionRoot, webviewPanel.webview, document.getText(), {
       initialText,
       diffReport,
       webviewDiffReport,
       readOnly: document.uri.scheme !== "file",
       diffSide,
-      sidebarWidth: this.sidebarWidth
+      sidebarWidth: this.sidebarWidth,
     });
 
-    const updateWebview = () => {
+    const updateWebview = (): void => {
       const nextDiffReport = createEditorDiffReport(document);
       webviewPanel.webview.postMessage({
         type: "update",
         text: nextDiffReport
           ? (diffSide === "base" ? nextDiffReport.baseText : nextDiffReport.headText)
           : document.getText(),
-        diffReport: (diffSide === "base" || isScmDiffHead) ? nextDiffReport : null
+        diffReport: (diffSide === "base" || isScmDiffHead) ? nextDiffReport : null,
       });
     };
 
-    const editor = {
+    const editor: EditorHandle = {
       document,
       updateWebview,
-      setSidebarWidth: width => webviewPanel.webview.postMessage({ type: "setSidebarWidth", width })
+      setSidebarWidth: width => webviewPanel.webview.postMessage({ type: "setSidebarWidth", width }),
     };
     this.editors.add(editor);
     webviewPanel.onDidDispose(() => this.editors.delete(editor));
 
-    webviewPanel.webview.onDidReceiveMessage(async message => {
+    webviewPanel.webview.onDidReceiveMessage(async (message: { type: string; width?: number; text?: string }) => {
       if (message.type === "sidebarResize") {
-        this.updateSidebarWidth(message.width);
+        this.updateSidebarWidth(message.width ?? 0);
         return;
       }
       if (message.type !== "save" || document.uri.scheme !== "file") {
@@ -300,13 +326,13 @@ class NtfYamlEditorProvider {
         document.positionAt(0),
         document.positionAt(document.getText().length)
       );
-      edit.replace(document.uri, fullRange, message.text);
+      edit.replace(document.uri, fullRange, message.text ?? "");
       await vscode.workspace.applyEdit(edit);
       await document.save();
     });
   }
 
-  updateSidebarWidth(width) {
+  updateSidebarWidth(width: number): void {
     const nextWidth = Math.max(140, Math.min(420, Math.round(Number(width))));
     if (!Number.isFinite(nextWidth)) return;
     this.sidebarWidth = nextWidth;
@@ -315,7 +341,7 @@ class NtfYamlEditorProvider {
     }
   }
 
-  updateRelatedEditors(uri) {
+  updateRelatedEditors(uri: vscode.Uri): void {
     const changedPath = backingFilePath(uri);
     for (const editor of this.editors) {
       const editorPath = backingFilePath(editor.document.uri);
@@ -329,19 +355,23 @@ class NtfYamlEditorProvider {
   }
 }
 
-async function createCellDiffReportFromCommand(resources) {
+// ── Cell diff command ──────────────────────────────────────────────────────
+
+async function createCellDiffReportFromCommand(
+  resources: unknown[]
+): Promise<{ report: DiffReport; uri: vscode.Uri; repositoryPath: string } | null> {
   const candidates = collectResourceUris(resources);
   const uri = candidates.find(isNtfYamlUri) || vscode.window.activeTextEditor?.document?.uri;
   if (!uri || !isNtfYamlUri(uri)) return null;
   const repositoryPath = await gitRepositoryPathFor(uri);
-  let report;
+  let report: DiffReport | null;
   if (uri.scheme === "git") {
     const document = await vscode.workspace.openTextDocument(uri);
     report = createDocumentDiffReport({
       uri,
       text: document.getText(),
       workspaceFolder: repositoryPath,
-      repositoryPath
+      repositoryPath,
     });
   } else {
     report = createReportFromResource(uri, { workspaceFolder: repositoryPath, repositoryPath });
@@ -350,31 +380,35 @@ async function createCellDiffReportFromCommand(resources) {
   return { report, uri, repositoryPath };
 }
 
-function createEditorDiffReport(document) {
+function createEditorDiffReport(document: vscode.TextDocument): DiffReport | null {
   try {
     const folder = workspaceFolderFor(document.uri);
     return createDocumentDiffReport({
       uri: document.uri,
       text: document.getText(),
-      workspaceFolder: folder?.uri.fsPath || ""
+      workspaceFolder: folder?.uri.fsPath || "",
     });
   } catch {
     return null;
   }
 }
 
-function workspaceFolderFor(uri) {
+function workspaceFolderFor(uri: vscode.Uri): vscode.WorkspaceFolder | undefined {
   return vscode.workspace.getWorkspaceFolder(uri)
     || vscode.workspace.workspaceFolders?.find(folder => uri.fsPath?.startsWith(folder.uri.fsPath));
 }
 
-async function gitRepositoryPathFor(uri) {
-  const fileUri = uri.scheme === "git" ? vscode.Uri.file(parseGitQuery(uri.query).path || uri.fsPath) : uri;
+async function gitRepositoryPathFor(uri: vscode.Uri): Promise<string> {
+  const fileUri = uri.scheme === "git"
+    ? vscode.Uri.file((parseGitQuery(uri.query).path as string | undefined) || uri.fsPath)
+    : uri;
   try {
     const extension = vscode.extensions.getExtension("vscode.git");
     const gitExtension = extension?.isActive ? extension.exports : await extension?.activate();
     const git = gitExtension?.getAPI?.(1);
-    const repository = git?.repositories?.find(repo => isInsideUri(fileUri, repo.rootUri));
+    const repository = git?.repositories?.find(
+      (repo: { rootUri: vscode.Uri }) => isInsideUri(fileUri, repo.rootUri)
+    );
     if (repository?.rootUri?.fsPath) {
       return repository.rootUri.fsPath;
     }
@@ -384,11 +418,18 @@ async function gitRepositoryPathFor(uri) {
   return workspaceFolderFor(fileUri)?.uri.fsPath || "";
 }
 
-function isInsideUri(uri, rootUri) {
+function isInsideUri(uri: vscode.Uri, rootUri: vscode.Uri): boolean {
   return isInsidePath(uri?.fsPath || "", rootUri?.fsPath || "");
 }
 
-function openCellDiffPanel(context, report, fileUri, repositoryPath) {
+// ── Cell diff panel ────────────────────────────────────────────────────────
+
+function openCellDiffPanel(
+  context: vscode.ExtensionContext,
+  report: DiffReport,
+  fileUri: vscode.Uri,
+  repositoryPath: string
+): void {
   const panel = vscode.window.createWebviewPanel(
     "ntfYaml.cellDiff",
     "NTF YAML Cell Diff",
@@ -398,7 +439,7 @@ function openCellDiffPanel(context, report, fileUri, repositoryPath) {
 
   let currentReport = report;
 
-  function refreshPanel() {
+  function refreshPanel(): void {
     try {
       const repoPath = repositoryPath || currentReport.repositoryPath;
       const relPath = currentReport.files[0]?.path || "";
@@ -406,30 +447,30 @@ function openCellDiffPanel(context, report, fileUri, repositoryPath) {
         repositoryPath: repoPath,
         relativePath: relPath,
         baseRef: currentReport.baseRef || "HEAD",
-        headRef: currentReport.headRef || "working tree"
+        headRef: currentReport.headRef || "working tree",
       });
       if (newReport) {
         currentReport = newReport;
-        panel.webview.html = renderHtmlDiffPanel(__dirname, panel.webview, currentReport);
+        panel.webview.html = renderHtmlDiffPanel(extensionRoot, panel.webview, currentReport);
       }
-    } catch { }
+    } catch { /* ignore */ }
   }
 
   const watchedPath = fileUri
     ? (fileUri.scheme === "git"
-      ? (parseGitQuery(fileUri.query).path || fileUri.fsPath)
+      ? ((parseGitQuery(fileUri.query).path as string | undefined) || fileUri.fsPath)
       : fileUri.fsPath)
     : "";
   const saveWatcher = vscode.workspace.onDidSaveTextDocument(doc => {
     const docPath = doc.uri.scheme === "file" ? doc.uri.fsPath
-      : doc.uri.scheme === "git" ? (parseGitQuery(doc.uri.query).path || doc.uri.fsPath) : "";
+      : doc.uri.scheme === "git" ? ((parseGitQuery(doc.uri.query).path as string | undefined) || doc.uri.fsPath) : "";
     if (docPath && watchedPath && path.resolve(docPath) === path.resolve(watchedPath)) {
       refreshPanel();
     }
   });
   panel.onDidDispose(() => saveWatcher.dispose());
 
-  panel.webview.onDidReceiveMessage(async message => {
+  panel.webview.onDidReceiveMessage(async (message: { type: string; baseRef?: string; headRef?: string; outputPath?: string; outputDir?: string }) => {
     if (message.type === "changeDiffRefs") {
       try {
         const repoPath = repositoryPath || currentReport.repositoryPath;
@@ -438,26 +479,26 @@ function openCellDiffPanel(context, report, fileUri, repositoryPath) {
           repositoryPath: repoPath,
           relativePath: relPath,
           baseRef: message.baseRef || "HEAD",
-          headRef: message.headRef || "working tree"
+          headRef: message.headRef || "working tree",
         });
         if (!newReport) {
           panel.webview.postMessage({ type: "diffRefError", message: "diff refs could not be resolved" });
           return;
         }
         currentReport = newReport;
-        panel.webview.html = renderHtmlDiffPanel(__dirname, panel.webview, currentReport);
+        panel.webview.html = renderHtmlDiffPanel(extensionRoot, panel.webview, currentReport);
       } catch (err) {
-        panel.webview.postMessage({ type: "diffRefError", message: err.message });
+        panel.webview.postMessage({ type: "diffRefError", message: (err as Error).message });
       }
     } else if (message.type === "exportHtml") {
       const relPath = currentReport.files[0]?.path || "diff";
       const defaultName = relPath.replace(/[\\/]/g, "_") + "-diff.html";
       const saveUri = await vscode.window.showSaveDialog({
         defaultUri: vscode.Uri.file(path.join(currentReport.repositoryPath || ".", defaultName)),
-        filters: { HTML: ["html"] }
+        filters: { HTML: ["html"] },
       });
       if (saveUri) {
-        fs.writeFileSync(saveUri.fsPath, renderStandaloneHtmlDiffPanel(__dirname, currentReport));
+        fs.writeFileSync(saveUri.fsPath, renderStandaloneHtmlDiffPanel(extensionRoot, currentReport));
         vscode.window.showInformationMessage(`NTF YAML diff exported: ${path.basename(saveUri.fsPath)}`);
       }
     } else if (message.type === "exportAllHtml") {
@@ -465,7 +506,7 @@ function openCellDiffPanel(context, report, fileUri, repositoryPath) {
         canSelectFolders: true,
         canSelectFiles: false,
         canSelectMany: false,
-        openLabel: "HTML出力先フォルダを選択"
+        openLabel: "HTML出力先フォルダを選択",
       });
       if (!folderUris?.[0]) return;
       const outDir = folderUris[0].fsPath;
@@ -476,19 +517,17 @@ function openCellDiffPanel(context, report, fileUri, repositoryPath) {
         const reports = diffWorkingTreeAllFiles({ repositoryPath: repoPath, baseRef, headRef });
         let written = 0;
         for (const r of reports) {
-          if (!r.files[0]) continue;
+          if (!r?.files[0]) continue;
           const fileName = (r.files[0].path || "diff").replace(/[\\/]/g, "_") + "-diff.html";
-          fs.writeFileSync(path.join(outDir, fileName), renderStandaloneHtmlDiffPanel(__dirname, r));
+          fs.writeFileSync(path.join(outDir, fileName), renderStandaloneHtmlDiffPanel(extensionRoot, r));
           written++;
         }
         vscode.window.showInformationMessage(`NTF YAML diff: ${written}件のHTMLを出力しました: ${outDir}`);
       } catch (err) {
-        vscode.window.showErrorMessage(`NTF YAML Export All failed: ${err.message}`);
+        vscode.window.showErrorMessage(`NTF YAML Export All failed: ${(err as Error).message}`);
       }
     }
   }, undefined, context.subscriptions);
 
-  panel.webview.html = renderHtmlDiffPanel(__dirname, panel.webview, report);
+  panel.webview.html = renderHtmlDiffPanel(extensionRoot, panel.webview, report);
 }
-
-module.exports = { activate };

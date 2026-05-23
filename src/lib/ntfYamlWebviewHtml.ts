@@ -1,7 +1,23 @@
-const fs = require("fs");
-const path = require("path");
+import * as fs from "fs";
+import * as path from "path";
+import type * as vscode from "vscode";
+import type { DiffReport } from "./ntfYamlDiff";
 
-function renderHtmlDiffPanel(extensionRoot, webview, report, options = {}) {
+export interface RenderHtmlOptions {
+  initialText?: string;
+  diffReport?: DiffReport | null;
+  webviewDiffReport?: DiffReport | null;
+  readOnly?: boolean;
+  diffSide?: string;
+  sidebarWidth?: number;
+}
+
+export function renderHtmlDiffPanel(
+  extensionRoot: string,
+  webview: vscode.Webview | undefined,
+  report: DiffReport,
+  options: { allowDiffControls?: boolean } = {}
+): string {
   const nonce = getNonce();
   const baseState = JSON.stringify(report.baseText || "").replace(/</g, "\\u003c");
   const headState = JSON.stringify(report.headText || "").replace(/</g, "\\u003c");
@@ -35,7 +51,7 @@ function renderHtmlDiffPanel(extensionRoot, webview, report, options = {}) {
       layoutToggleHtml,
       '<button id="diff-export-html" class="diff-control-btn secondary">Export HTML</button>',
       '<button id="diff-export-all" class="diff-control-btn secondary" title="変更のある全YAMLファイルを1ファイル1HTMLで出力">Export All</button>',
-      '<span id="diff-ref-error" class="diff-panel-error"></span>'
+      '<span id="diff-ref-error" class="diff-panel-error"></span>',
     ].join("")
     : layoutToggleHtml;
   const panelHeaderHtml = `<div class="diff-panel-header">
@@ -173,14 +189,21 @@ ${editorCss}
 </html>`;
 }
 
-function renderStandaloneHtmlDiffPanel(extensionRoot, report) {
+export function renderStandaloneHtmlDiffPanel(extensionRoot: string, report: DiffReport): string {
   return renderHtmlDiffPanel(extensionRoot, undefined, report, { allowDiffControls: false });
 }
 
-function renderHtml(extensionRoot, webview, initialText, options = {}) {
+export function renderHtml(
+  extensionRoot: string,
+  webview: vscode.Webview | undefined,
+  initialText: string,
+  options: RenderHtmlOptions = {}
+): string {
   const nonce = getNonce();
   const initialState = JSON.stringify(options.initialText ?? initialText).replace(/</g, "\\u003c");
-  const webviewDiffReport = options.webviewDiffReport !== undefined ? options.webviewDiffReport : (options.diffReport || null);
+  const webviewDiffReport = options.webviewDiffReport !== undefined
+    ? options.webviewDiffReport
+    : (options.diffReport || null);
   const initialDiffReport = JSON.stringify(webviewDiffReport).replace(/</g, "\\u003c");
   const initialReadOnly = options.readOnly ? "true" : "false";
   const initialDiffSide = JSON.stringify(options.diffSide || (options.readOnly ? "base" : "head"));
@@ -233,7 +256,7 @@ ${editorCss}
 </html>`;
 }
 
-function getNonce() {
+function getNonce(): string {
   let text = "";
   const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   for (let i = 0; i < 32; i++) {
@@ -242,16 +265,10 @@ function getNonce() {
   return text;
 }
 
-function escapeHtmlAttribute(value) {
+function escapeHtmlAttribute(value: string | null | undefined): string {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
-
-module.exports = {
-  renderHtml,
-  renderHtmlDiffPanel,
-  renderStandaloneHtmlDiffPanel
-};

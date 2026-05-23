@@ -21,17 +21,17 @@ const {
   main: runCli,
   parseDiffArgs,
   selectConverter
-} = require("../bin/ntf-yaml");
+} = require("../out/bin/ntf-yaml");
 const {
   createDiffReport,
   renderSummaryHtmlReport
-} = require("../lib/ntfYamlDiff");
+} = require("../out/lib/ntfYamlDiff");
 const {
   createDocumentDiffReport,
   createRefDiffReport,
   diffWorkingTreeAllFiles,
   parseGitQuery
-} = require("../lib/ntfYamlGitDiffContext");
+} = require("../out/lib/ntfYamlGitDiffContext");
 
 const extensionRoot = path.resolve(__dirname, "..");
 const repoRoot = path.resolve(extensionRoot, "..");

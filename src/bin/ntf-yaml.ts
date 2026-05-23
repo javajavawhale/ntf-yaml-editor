@@ -1,44 +1,43 @@
 #!/usr/bin/env node
 
-const fs = require("fs");
-const path = require("path");
-const { spawnSync } = require("child_process");
-const {
-  analyzeYaml,
-  parseYaml,
-  serializeYaml
-} = require("../lib/ntfYamlModel");
-const {
-  diffGitRefs,
-  writeSummaryHtmlReport
-} = require("../lib/ntfYamlDiff");
+import * as fs from "fs";
+import * as path from "path";
+import { spawnSync, SpawnSyncReturns } from "child_process";
+import { analyzeYaml, parseYaml, serializeYaml } from "../lib/ntfYamlModel";
+import { diffGitRefs, writeSummaryHtmlReport } from "../lib/ntfYamlDiff";
 
-function main(argv) {
+// tsc compiles this to out/bin/ntf-yaml.js (__dirname = <project>/out/bin).
+// Go two levels up to reach the project root where tools/ lives.
+const PROJECT_ROOT = path.resolve(__dirname, "../..");
+
+interface Deps {
+  resolveTool(name: string): string;
+  runPython(args: string[]): SpawnSyncReturns<string>;
+}
+
+export function main(argv: string[]): number {
   const [command, ...args] = argv;
   if (!command || command === "help" || command === "--help" || command === "-h") {
     printHelp();
     return 0;
   }
-
-  if (command === "lint") {
-    return lint(args);
-  }
-  if (command === "format") {
-    return format(args);
-  }
-  if (command === "convert") {
-    return convert(args);
-  }
-  if (command === "diff") {
-    return diff(args);
-  }
+  if (command === "lint") return lint(args);
+  if (command === "format") return format(args);
+  if (command === "convert") return convert(args);
+  if (command === "diff") return diff(args);
 
   console.error(`Unknown command: ${command}`);
   printHelp();
   return 2;
 }
 
-function diff(args) {
+interface DiffArgs {
+  baseRef: string;
+  headRef: string;
+  output: string;
+}
+
+export function diff(args: string[]): number {
   const options = parseDiffArgs(args);
   if (!options.baseRef || !options.headRef) {
     console.error("diff requires --base <git-ref> and --head <git-ref>.");
@@ -47,15 +46,15 @@ function diff(args) {
   const report = diffGitRefs({
     baseRef: options.baseRef,
     headRef: options.headRef,
-    cwd: process.cwd()
+    cwd: process.cwd(),
   });
   writeSummaryHtmlReport(report, options.output);
   console.log(`ntf-yaml diff: wrote ${options.output}`);
   return 0;
 }
 
-function parseDiffArgs(args) {
-  const options = { baseRef: "", headRef: "", output: "ntf-yaml-diff.html" };
+export function parseDiffArgs(args: string[]): DiffArgs {
+  const options: DiffArgs = { baseRef: "", headRef: "", output: "ntf-yaml-diff.html" };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--base") {
@@ -74,7 +73,13 @@ function parseDiffArgs(args) {
   return options;
 }
 
-function convert(args, deps = defaultDeps()) {
+interface ConvertArgs {
+  source: string;
+  output: string;
+  lint: boolean;
+}
+
+export function convert(args: string[], deps: Deps = defaultDeps()): number {
   const options = parseConvertArgs(args);
   if (!options.source) {
     console.error("convert requires an Excel source file.");
@@ -106,7 +111,7 @@ function convert(args, deps = defaultDeps()) {
 
   const yamlText = options.output
     ? fs.readFileSync(options.output, "utf8")
-    : result.stdout;
+    : result.stdout ?? "";
   if (!options.output) {
     process.stdout.write(yamlText);
   }
@@ -129,8 +134,8 @@ function convert(args, deps = defaultDeps()) {
   return 0;
 }
 
-function parseConvertArgs(args) {
-  const options = { source: "", output: "", lint: false };
+export function parseConvertArgs(args: string[]): ConvertArgs {
+  const options: ConvertArgs = { source: "", output: "", lint: false };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "-o" || arg === "--output") {
@@ -146,25 +151,25 @@ function parseConvertArgs(args) {
   return options;
 }
 
-function selectConverter(source) {
+export function selectConverter(source: string): string {
   const ext = path.extname(source).toLowerCase();
   if (ext === ".xlsx") return "xlsx_to_ntf_yaml.py";
   if (ext === ".xls") return "xls_to_ntf_yaml.py";
   return "";
 }
 
-function defaultDeps() {
+function defaultDeps(): Deps {
   return {
-    resolveTool(name) {
-      return path.resolve(__dirname, "..", "tools", name);
+    resolveTool(name: string): string {
+      return path.resolve(PROJECT_ROOT, "tools", name);
     },
-    runPython(args) {
+    runPython(args: string[]): SpawnSyncReturns<string> {
       return spawnSync("python3", args, { encoding: "utf8" });
-    }
+    },
   };
 }
 
-function lint(args) {
+function lint(args: string[]): number {
   if (!args.length) {
     console.error("lint requires at least one YAML file.");
     return 2;
@@ -194,7 +199,7 @@ function lint(args) {
   return errorCount ? 1 : 0;
 }
 
-function format(args) {
+function format(args: string[]): number {
   const write = args[0] === "--write";
   const file = write ? args[1] : args[0];
   if (!file) {
@@ -212,7 +217,7 @@ function format(args) {
   return 0;
 }
 
-function printHelp() {
+function printHelp(): void {
   const name = path.basename(process.argv[1] || "ntf-yaml");
   console.log([
     `Usage: ${name} <command> [args]`,
@@ -224,7 +229,7 @@ function printHelp() {
     "  format [--write] <file>",
     "                       Re-serialize NTF YAML through the shared model.",
     "  diff --base <ref> --head <ref> [-o file.html]",
-    "                       Generate a local cell diff HTML report."
+    "                       Generate a local cell diff HTML report.",
   ].join("\n"));
 }
 
@@ -232,9 +237,7 @@ if (require.main === module) {
   try {
     process.exitCode = main(process.argv.slice(2));
   } catch (error) {
-    console.error(error.message);
+    console.error((error as Error).message);
     process.exitCode = 2;
   }
 }
-
-module.exports = { main, convert, diff, parseConvertArgs, parseDiffArgs, selectConverter };

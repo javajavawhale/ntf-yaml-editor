@@ -3,7 +3,7 @@ const test = require("node:test");
 const { JSDOM } = require("jsdom");
 
 const model = require("../lib/ntfYamlModel");
-const { createDiffReport } = require("../lib/ntfYamlDiff");
+const { createDiffReport } = require("../out/lib/ntfYamlDiff");
 const { createNtfYamlEditorApp } = require("../media/ntfYamlEditorWebview");
 
 function createHarness(initialText = sampleYaml(), options = {}) {

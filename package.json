@@ -22,17 +22,19 @@
   "extensionDependencies": [
     "vscode.git"
   ],
-  "main": "./extension.js",
+  "main": "./out/extension.js",
   "bin": {
-    "ntf-yaml": "./bin/ntf-yaml.js"
+    "ntf-yaml": "./out/bin/ntf-yaml.js"
   },
   "scripts": {
-    "test": "npm run test:unit && npm run test:ui && npm run test:e2e",
-    "test:unit": "node --test test/*.test.js",
-    "test:ui": "node scripts/capture-ui-screenshots.js",
+    "compile": "tsc -p tsconfig.json",
+    "compile:watch": "tsc -p tsconfig.json --watch",
+    "test": "npm run compile && npm run test:unit && npm run test:ui && npm run test:e2e",
+    "test:unit": "npm run compile && node --test test/*.test.js",
+    "test:ui": "npm run compile && node scripts/capture-ui-screenshots.js",
     "test:e2e": "node ./test/e2e/runTest.js",
-    "perf:diff": "node scripts/perf-diff-report.js",
-    "ui:screenshots": "node scripts/capture-ui-screenshots.js",
+    "perf:diff": "npm run compile && node out/scripts/perf-diff-report.js",
+    "ui:screenshots": "npm run compile && node scripts/capture-ui-screenshots.js",
     "package:vsix": "npm run test:unit && node -e \"require('fs').mkdirSync('dist', { recursive: true })\" && vsce package --allow-missing-repository --out dist/ntf-yaml-editor-0.0.1.vsix"
   },
   "contributes": {
@@ -112,9 +114,12 @@
     }
   },
   "devDependencies": {
+    "@types/node": "^25.9.1",
+    "@types/vscode": "^1.120.0",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.9.1",
     "jsdom": "^29.1.1",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "typescript": "^6.0.3"
   }
 }
