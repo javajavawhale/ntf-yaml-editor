@@ -1,8 +1,118 @@
 # NTF YAML Editor 手動テスト計画
 
-この文書は、仕様変更後の NTF YAML Editor を人間が確認するための手動テスト計画である。自動テストでは拾いにくい VS Code 上のワークフローと、ビュー種別ごとの表示・編集可否・差分表示を確認する。
+この文書は、NTF YAML Editor を人間が確認するための手動テスト計画である。ISTQB のベストプラクティスに従い、仕様から導出したテスト条件（Test Conditions）を軸に構成する。
 
-## 前提
+---
+
+## 1. テスト方針
+
+### 1.1 テスト対象
+
+| ビュー | 説明 |
+|--------|------|
+| 通常エディタ | Explorer で `.ntf.yaml` を開く。`renderHtml`（diffReport なし） |
+| SCM diff | SCM パネルでファイルをクリック → VS Code diff editor が左右各1回 `resolveCustomTextEditor` を呼ぶ。左=base（readonly）、右=head（編集可） |
+| Cell Diff Panel | `NTF YAML: Open Cell Diff` コマンド → 1 webview 内 2 ペイン、split/unified 切り替え付き |
+| HTML report | Cell Diff Panel の Export HTML / Export All → スタンドアロン静的 HTML |
+
+### 1.2 テスト対象外
+
+- 自動テストでカバーされるユニット挙動（パース・シリアライズ・diff ロジック）
+- VS Code 本体の SCM UI・Git 操作
+- パフォーマンス（大規模ファイル）
+- CLI サブコマンド（`ntf-yaml lint / format / convert`）
+
+### 1.3 優先度基準
+
+| 優先度 | 基準 |
+|--------|------|
+| P1 | 主要機能が壊れると利用不能になる。リリース前に必ず確認する |
+| P2 | 品質に影響するが代替手段がある。余裕があれば確認する |
+| P3 | 改善的。次サイクル以降でよい |
+
+### 1.4 完了条件
+
+- P1 ケース（15件）を全て実行し、PASS / FAIL / SKIP を記録した
+- FAIL ケースには現象・再現手順・期待結果・実際の結果を記録した
+- UX 懸念を `blocker` / `before-broader-trial` / `backlog` に分類した
+
+---
+
+## 2. テスト基盤（Test Basis）
+
+### ブロック種別
+
+| 種別 | ブロック名プレフィックス | 表示形式 |
+|------|----------------------|---------|
+| Table Block | `LIST_MAP` / `SETUP_TABLE` / `EXPECTED_TABLE` / `EXPECTED_COMPLETE_TABLE` | key-value 行テーブル |
+| RawRows Block | `SETUP_VARIABLE` / `EXPECTED_VARIABLE` / `SETUP_FIXED` / `EXPECTED_FIXED` | 配列テーブル |
+| Fallback | 上記以外、または上記だが配列形式でない YAML 内容 | raw テキスト表示 |
+
+---
+
+## 3. テスト条件（Test Conditions）
+
+仕様から導出した原子的条件。各テストケースはカバーする条件を明示する。
+
+### C-EDIT（編集可否）
+
+| ID | 条件 |
+|----|------|
+| C-EDIT-01 | 通常エディタは編集可能（Save YAML・Add Sheet・行/列/block/sheet 操作 UI が表示される） |
+| C-EDIT-02 | SCM diff base 側は readonly（Save YAML・行/列操作 UI が非表示） |
+| C-EDIT-03 | SCM diff head 側は編集可能（通常エディタと同じ操作 UI） |
+| C-EDIT-04 | Cell Diff Panel は readonly |
+| C-EDIT-05 | HTML report は readonly |
+
+### C-BLOCK（ブロック表示）
+
+| ID | 条件 |
+|----|------|
+| C-BLOCK-01 | Table Block は key-value 行テーブルとして表示される |
+| C-BLOCK-02 | RawRows Block は配列テーブルとして表示される |
+| C-BLOCK-03 | Fallback ブロックは raw テキストとして表示される |
+
+### C-DIFF（差分表示）
+
+| ID | 条件 |
+|----|------|
+| C-DIFF-01 | セル変更は changed（黄）ハイライト、tooltip に before 値が表示される |
+| C-DIFF-02 | 行追加は added（緑）ハイライトで表示される |
+| C-DIFF-03 | 行削除は deleted（赤）ハイライトで表示される（base 側に残る） |
+| C-DIFF-04 | block 追加は added ハイライト、block 削除は deleted ハイライトで表示される |
+| C-DIFF-05 | sheet 追加は added ハイライト、sheet 削除は deleted ハイライトで表示される |
+| C-DIFF-06 | RawRows Block の差分は added / changed / deleted ハイライトで表示される |
+| C-DIFF-07 | unified 表示でセル変更は before 打ち消し線 + after 強調表示（緑）で表示される |
+
+### C-VIEW（ビュー固有）
+
+| ID | 条件 |
+|----|------|
+| C-VIEW-01 | SCM diff は VS Code diff フレームワークが左右ペインを管理し、拡張側に split 切り替え UI は出ない |
+| C-VIEW-02 | Cell Diff Panel は 1 webview 内で横 split / 縦 split / unified を切り替えられる |
+| C-VIEW-03 | HTML report は横 split / 縦 split / unified を切り替えられる |
+| C-VIEW-04 | スタンドアロン HTML report に Export HTML / Export All ボタンは存在しない |
+| C-VIEW-05 | split 表示で base / head のラベルが正しく表示される |
+
+### C-OP（操作 → 保存反映）
+
+| ID | 条件 |
+|----|------|
+| C-OP-01 | セル値編集（null sentinel `~` 保持含む）→ 保存で YAML に反映される |
+| C-OP-02 | 行追加・削除 → 保存で YAML に反映される |
+| C-OP-03 | 列追加・削除・リネーム → 保存で YAML に反映される |
+| C-OP-04 | 行ドラッグ並び替え → 保存で YAML に反映される |
+| C-OP-05 | 列ドラッグ並び替え → 保存で YAML に反映される |
+| C-OP-06 | block 追加・削除・リネーム → 保存で YAML に反映される |
+| C-OP-07 | block ドラッグ並び替え → 保存で YAML に反映される |
+| C-OP-08 | sheet 追加・削除・リネーム → 保存で YAML に反映される |
+| C-OP-09 | sheet ドラッグ並び替え → 保存で YAML に反映される |
+
+---
+
+## 4. テスト環境
+
+### 4.1 前提
 
 手動確認の前に自動テストを通す。
 
@@ -16,332 +126,431 @@ npm test
 2. `F5` で Extension Development Host を起動する。
 3. Extension Development Host 側で対象 fixture を開く。
 
-編集を伴う確認では scratch copy を使う。
+### 4.2 テストデータ一覧
+
+| Fixture | 用途 | 主な要素 |
+|---------|------|---------|
+| `test/fixtures/manual/editor-comprehensive.ntf.yaml` | 通常エディタ確認（参照専用） | Table Block × 3、RawRows Block × 2、Fallback（FIXED）、2 シート |
+| `test/fixtures/manual/diff-all-base.ntf.yaml` | 差分確認 base | changedSheet（変更行・削除行・削除 block）、deletedSheet、stableSheet |
+| `test/fixtures/manual/diff-all-head.ntf.yaml` | 差分確認 head | addedSheet、changedSheet（変更行・追加行・追加 block）、stableSheet |
+| `test/fixtures/ntf-samples/web-project-form.ntf.yaml` | 実データ参照 | 列数・行数の多い LIST_MAP、日本語列名 |
+
+### 4.3 セットアップ
+
+**scratch copy（TC-NE-02〜06 用）**
 
 ```sh
 mkdir -p /tmp/ntf-yaml-manual
-cp test/fixtures/manual/*.ntf.yaml /tmp/ntf-yaml-manual/
-cp test/fixtures/ntf-samples/*.ntf.yaml /tmp/ntf-yaml-manual/
+cp test/fixtures/manual/editor-comprehensive.ntf.yaml /tmp/ntf-yaml-manual/
 ```
 
-## 確定方針
-
-- `.ntf.yaml` は `NTF YAML Table Editor` で開く。
-- 通常エディタは編集可能である。
-- SCM diff は base 側を readonly、head 側を編集可能として扱う。
-- Cell Diff Panel、HTML report は readonly として扱う。
-- scm diff は VS Code の diff editor が左右ペインを管理する。拡張側では分割切り替え UI を出さない。
-- Cell Diff Panel と HTML report は 1 webview 内で split / unified 表示を切り替える。
-- ファイル指定を持つ `VARIABLE` / `FIXED` 系 block はファイル系 table として扱う。
-- `VARIABLE` / `FIXED` 系以外の NTF block は通常 table として扱う。
-- prefix ごとの特別な表示区分は作らない。
-- 表として扱えない YAML 形状は fallback 表示として扱い、NTF block 種別の標準分類にはしない。
-
-## 洗い出し観点
-
-手動ケースは次の 4 軸の組み合わせで洗い出す。
-
-| 軸 | 分岐 |
-| --- | --- |
-| ビュー種別 | 通常エディタ / SCM diff / Cell Diff Panel / HTML report |
-| 編集可否 | 編集可能 / readonly |
-| ブロック種別 | 通常 table / ファイル系 table / fallback 表示 / sheet・block 操作 |
-| 差分種別 | セル変更 / 行追加 / 行削除 / block 追加 / block 削除 / sheet 追加 / sheet 削除 / ファイル系 table 差分 / unified before-after |
-
-## 検証観点
-
-- ビュー種別ごとの責務が混ざっていないこと。
-- 通常エディタと SCM diff の head 側では編集対象が編集でき、SCM diff の base 側、Cell Diff Panel、HTML report では編集・追加・削除・リネーム系 UI が使えないこと。
-- 通常 table、ファイル系 table、fallback 表示がそれぞれ期待する形式で読めること。
-- 差分ビューでセル変更、行追加、行削除、block 追加、block 削除、sheet 追加、sheet 削除が読み分けられること。
-- SCM diff、Cell Diff Panel、HTML report で差分の意味が矛盾しないこと。
-
-## テストデータ
-
-| Fixture | 用途 |
-| --- | --- |
-| `test/fixtures/manual/table-ui-current-spec.ntf.yaml` | 通常エディタの通常 table、ファイル系 table、fallback 表示、sheet・block 操作確認 |
-| `test/fixtures/manual/rawrows-ui-case.ntf.yaml` | ファイル系 table 単独確認 |
-| `test/fixtures/manual/cell-diff-ui-base.ntf.yaml` | table / ファイル系 table の差分確認 base |
-| `test/fixtures/manual/cell-diff-ui-head.ntf.yaml` | table / ファイル系 table の差分確認 head |
-| `test/fixtures/manual/branch-coverage-diff-base.ntf.yaml` | sheet / block 差分確認 base |
-| `test/fixtures/manual/branch-coverage-diff-head.ntf.yaml` | sheet / block 差分確認 head |
-| `test/fixtures/ntf-samples/web-project-form.ntf.yaml` | 実データに近い通常 table 確認 |
-
-## ケース一覧
-
-| ID | ビュー種別 | 編集可否 | ブロック種別 | 差分種別 |
-| --- | --- | --- | --- | --- |
-| MT-01 | 通常エディタ | 編集可能 | 通常 table / ファイル系 table / fallback 表示 | なし |
-| MT-02 | 通常エディタ | 編集可能 | 通常 table | なし |
-| MT-03 | 通常エディタ | 編集可能 | ファイル系 table | なし |
-| MT-04 | 通常エディタ | 編集可能 | fallback 表示 | なし |
-| MT-05 | 通常エディタ | 編集可能 | sheet・block 操作 | なし |
-| MT-06 | SCM diff | base readonly / head 編集可能 | 通常 table / ファイル系 table | セル変更 / 行追加 / 行削除 / ファイル系 table 差分 |
-| MT-07 | SCM diff | base readonly / head 編集可能 | sheet・block | block 追加 / block 削除 / sheet 追加 / sheet 削除 |
-| MT-08 | Cell Diff Panel | readonly | 通常 table / ファイル系 table | セル変更 / 行追加 / 行削除 / ファイル系 table 差分 / unified before-after |
-| MT-09 | Cell Diff Panel | readonly | sheet・block | block 追加 / block 削除 / sheet 追加 / sheet 削除 |
-| MT-10 | HTML report | readonly | 通常 table / ファイル系 table | セル変更 / 行追加 / 行削除 / ファイル系 table 差分 / unified before-after |
-| MT-11 | HTML report | readonly | sheet・block | block 追加 / block 削除 / sheet 追加 / sheet 削除 |
-
-## 共通準備
-
-SCM diff、Cell Diff Panel、HTML report は一時 repository を作って確認する。
-
-table / ファイル系 table 差分:
+**差分確認 repository（TC-SCM / TC-CDP / TC-HTML 用）**
 
 ```sh
-tmp=/tmp/ntf-yaml-scm-diff-manual
+tmp=/tmp/ntf-yaml-diff-manual
 rm -rf "$tmp"
 mkdir -p "$tmp"
-cp test/fixtures/manual/cell-diff-ui-base.ntf.yaml "$tmp/scenario.ntf.yaml"
+cp test/fixtures/manual/diff-all-base.ntf.yaml "$tmp/scenario.ntf.yaml"
 cd "$tmp"
 git init
 git config user.email ntf-yaml@example.test
 git config user.name "NTF YAML Test"
 git add scenario.ntf.yaml
 git commit -m base
-cp /home/happy/nablarch/vscode-ntf-yaml-editor/test/fixtures/manual/cell-diff-ui-head.ntf.yaml "$tmp/scenario.ntf.yaml"
+cp /home/happy/nablarch/vscode-ntf-yaml-editor/test/fixtures/manual/diff-all-head.ntf.yaml "$tmp/scenario.ntf.yaml"
 code "$tmp"
 ```
 
-sheet / block 差分:
+Extension Development Host でこの repository を開き、SCM diff・Cell Diff Panel・HTML report の各ケースを実施する。
 
-```sh
-tmp=/tmp/ntf-yaml-branch-diff-manual
-rm -rf "$tmp"
-mkdir -p "$tmp"
-cp test/fixtures/manual/branch-coverage-diff-base.ntf.yaml "$tmp/scenario.ntf.yaml"
-cd "$tmp"
-git init
-git config user.email ntf-yaml@example.test
-git config user.name "NTF YAML Test"
-git add scenario.ntf.yaml
-git commit -m base
-cp /home/happy/nablarch/vscode-ntf-yaml-editor/test/fixtures/manual/branch-coverage-diff-head.ntf.yaml "$tmp/scenario.ntf.yaml"
-code "$tmp"
-```
+---
 
-## テストケース
+## 5. テストケース
 
-### MT-01 通常エディタで主要ブロックを開く
+ステップごとに「操作」と「期待結果」を記す。失敗時は行番号と実際の結果を記録すること。
 
-Fixture: `test/fixtures/manual/table-ui-current-spec.ntf.yaml`
+---
 
-手順:
+### 5.1 通常エディタ（TC-NE）
 
-1. Extension Development Host で fixture を開く。
-2. `tableUi` sheet を表示する。
-3. `wideTable` sheet に切り替える。
+---
 
-期待結果:
+#### TC-NE-01　起動・全ブロック種別表示・sheet 切り替え
 
-- `NTF YAML Table Editor` が開く。
-- sheet list から sheet を切り替えられる。
-- 通常 table、ファイル系 table、fallback 表示が表示される。
-- blank Webview や script error が出ない。
+**優先度**: P1　**カバー条件**: C-BLOCK-01, C-BLOCK-02, C-BLOCK-03
 
-### MT-02 通常 table を編集できる
+**Fixture**: `test/fixtures/manual/editor-comprehensive.ntf.yaml`（Extension Development Host で直接開く）
 
-Fixture: `/tmp/ntf-yaml-manual/table-ui-current-spec.ntf.yaml`
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | fixture を Explorer で開く | `NTF YAML Table Editor` タブが開く。スクリプトエラーや blank webview が出ない |
+| 2 | sidebar の sheet list を確認する | `tableUi`・`wideTable` の 2 シートが表示される |
+| 3 | `tableUi` sheet を選択する | `LIST_MAP=requestParams`（Table Block）・`SETUP_TABLE=PROJECT`・`EXPECTED_TABLE=PROJECT` が key-value 行テーブルとして表示される（C-BLOCK-01） |
+| 4 | `EXPECTED_VARIABLE=./tmp/result.csv` を確認する | 配列テーブル（`text-encoding` / `field-separator` / `header` / `data` / `end` の行）として表示される（C-BLOCK-02） |
+| 5 | `EXPECTED_FIXED[1]=./tmp/fixed.dat` を確認する | raw テキストまたは特殊ファイル形式の表示になり、通常 Table Block とは異なる形式で表示される（C-BLOCK-03） |
+| 6 | sidebar で `wideTable` sheet をクリックする | `LIST_MAP=wideRows` が 11 列のテーブルとして表示される。`日本語列` が正しく表示される |
 
-Sheet: `tableUi`
+---
 
-手順:
+#### TC-NE-02　Table Block 編集・保存
 
-1. `LIST_MAP=requestParams` のセル値を 1 つ変更する。
-2. 行を追加する。
-3. 列を追加する。
-4. 既存列名を 1 つ変更する。
-5. 行を 1 つ削除する。
-6. 列を 1 つ削除する。
-7. `Save YAML` を押す。
-8. text editor で保存後 YAML を確認する。
+**優先度**: P1　**カバー条件**: C-EDIT-01, C-OP-01, C-OP-02, C-OP-03
 
-期待結果:
+**Fixture**: `/tmp/ntf-yaml-manual/editor-comprehensive.ntf.yaml`（scratch copy）
 
-- セル変更、行追加、列追加、列名変更、行削除、列削除が保存される。
-- 対象外の sheet / block が消えない。
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | scratch copy を Extension Development Host で開く | `NTF YAML Table Editor` が開く。`Save YAML`・`Add Sheet` ボタンが表示される（C-EDIT-01） |
+| 2 | `LIST_MAP=requestParams` の `"[no]": "1"` 行の `name` セルをクリックして値を変更する | セルが編集モードになり、変更値が反映される |
+| 3 | `"[no]": "2"` 行の `value` セル（`~`）をクリックして `abc` に変更する | `abc` が表示される |
+| 4 | `abc` を削除して空文字にし、`Save YAML` を押す | 保存フィードバックが表示される |
+| 5 | text editor で YAML を開き、該当セルを確認する | 元が `~` のセルを空にした場合、`""` または `~` のいずれかが意図通りに保存されていること（C-OP-01） |
+| 6 | 行追加ボタンをクリックする | 末尾に空行が追加される |
+| 7 | `"[no]": "1"` 行の削除ボタンをクリックする | 行が消える |
+| 8 | `Save YAML` を押して YAML を確認する | 追加・削除が YAML に反映されている。他の block・sheet は変わっていない（C-OP-02） |
+| 9 | 列追加ボタンをクリックする | 右端に空列が追加される |
+| 10 | 列ヘッダをクリックしてリネームする | 列名が変わる |
+| 11 | その列の削除ボタンをクリックする | 列が消える |
+| 12 | `Save YAML` を押して YAML を確認する | 列操作が YAML に反映されている（C-OP-03） |
 
-### MT-03 ファイル系 table を編集できる
+---
 
-Fixture: `/tmp/ntf-yaml-manual/table-ui-current-spec.ntf.yaml`
+#### TC-NE-03　RawRows Block 編集・保存
 
-Sheet: `tableUi`
+**優先度**: P1　**カバー条件**: C-BLOCK-02, C-OP-01, C-OP-02, C-OP-03
 
-手順:
+**Fixture**: `/tmp/ntf-yaml-manual/editor-comprehensive.ntf.yaml`（scratch copy）
 
-1. `EXPECTED_VARIABLE=./tmp/result.csv` を表示する。
-2. ファイル系 table のセルを 1 つ変更する。
-3. 行を追加する。
-4. 列を追加する。
-5. 行を 1 つ削除する。
-6. 列を 1 つ削除する。
-7. `Save YAML` を押す。
-8. text editor で保存後 YAML を確認する。
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | `EXPECTED_VARIABLE=./tmp/result.csv` の `data` 行のセルをクリックして値を変更する | セルが編集モードになり、変更値が反映される（C-BLOCK-02） |
+| 2 | `header` 行の `memo` セルを `~` に変更する | `~` が表示される |
+| 3 | `Save YAML` を押して YAML を確認する | 変更が `[ ... ]` 配列形式で保存されている。`~` は null sentinel として保存される（C-OP-01） |
+| 4 | 行追加ボタンをクリックする | 配列行が末尾に追加される |
+| 5 | 追加した行の削除ボタンをクリックする | 行が消える |
+| 6 | 列追加・列削除を実施する | 配列の幅が変わる |
+| 7 | `Save YAML` を押して YAML を確認する | 行・列操作が YAML の配列形式に反映されている（C-OP-02, C-OP-03） |
 
-期待結果:
+---
 
-- ファイル系 table のセル変更、行追加、列追加、行削除、列削除が保存される。
-- 対象外の block が消えない。
+#### TC-NE-04　ドラッグ並び替え・保存
 
-### MT-04 fallback 表示を壊さず保持する
+**優先度**: P2　**カバー条件**: C-OP-04, C-OP-05, C-OP-07, C-OP-09
 
-Fixture: `/tmp/ntf-yaml-manual/table-ui-current-spec.ntf.yaml`
+**Fixture**: `/tmp/ntf-yaml-manual/editor-comprehensive.ntf.yaml`（scratch copy）
 
-Sheet: `tableUi`
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | `LIST_MAP=requestParams` の 2 行目をドラッグして 1 行目と入れ替える | 行順が入れ替わる |
+| 2 | `Save YAML` を押して YAML を確認する | YAML 内の行順が変わっている（C-OP-04） |
+| 3 | `name` 列ヘッダをドラッグして `value` の左に移動する | 列順が変わる |
+| 4 | `Save YAML` を押して YAML を確認する | YAML 内の列順が変わっている（C-OP-05） |
+| 5 | `SETUP_TABLE=PROJECT` block をドラッグして `LIST_MAP=requestParams` の上に移動する | block 順が変わる |
+| 6 | `Save YAML` を押して YAML を確認する | YAML 内の block 順が変わっている（C-OP-07） |
+| 7 | sidebar で `wideTable` を `tableUi` の上にドラッグする | sheet 順が変わる |
+| 8 | `Save YAML` を押して YAML を確認する | YAML 内の sheet 順が変わっている（C-OP-09） |
 
-手順:
+---
 
-1. fallback 表示になる YAML 形状を含む block を表示する。
-2. 他の通常 table のセルを 1 つ変更する。
-3. `Save YAML` を押す。
-4. text editor で保存後 YAML を確認する。
+#### TC-NE-05　block / sheet 追加・削除・リネーム・保存
 
-期待結果:
+**優先度**: P1　**カバー条件**: C-OP-06, C-OP-08
 
-- fallback 表示の内容が消えない。
-- `VARIABLE` / `FIXED` 系 block は fallback 表示ではなく、ファイル系 table として表示される。
+**Fixture**: `/tmp/ntf-yaml-manual/editor-comprehensive.ntf.yaml`（scratch copy）
 
-### MT-05 sheet / block を操作できる
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | block 追加ドロップダウンから `LIST_MAP` を選んで追加する | 新しい `LIST_MAP=` block が末尾に追加される |
+| 2 | block 名をリネームする（例: `LIST_MAP=newBlock`） | block 名が変わる |
+| 3 | `Save YAML` を押して YAML を確認する | 新 block が YAML に存在する（C-OP-06） |
+| 4 | 追加した block の削除ボタンをクリックする | block が消える |
+| 5 | `Save YAML` を押して YAML を確認する | 削除した block が YAML から消えている。他 block は変わっていない（C-OP-06） |
+| 6 | `Add Sheet` ボタンをクリックして新 sheet を追加する | 新 sheet が sidebar に追加される |
+| 7 | 新 sheet 名をリネームする | sheet 名が変わる |
+| 8 | `Save YAML` を押して YAML を確認する | 新 sheet が YAML に存在する（C-OP-08） |
+| 9 | 新 sheet の削除ボタン（×）をクリックする | sheet が消える |
+| 10 | `Save YAML` を押して YAML を確認する | 削除した sheet が YAML から消えている。他 sheet は変わっていない（C-OP-08） |
 
-Fixture: `/tmp/ntf-yaml-manual/table-ui-current-spec.ntf.yaml`
+---
 
-手順:
+#### TC-NE-06　外部ファイル変更による webview 自動更新
 
-1. `New sheet` から sheet を追加する。
-2. 追加 sheet に `LIST_MAP` block を追加する。
-3. sheet 名を変更する。
-4. block 名を変更する。
-5. block を削除する。
-6. sheet を削除する。
-7. `Save YAML` を押す。
-8. text editor で保存後 YAML を確認する。
+**優先度**: P2　**カバー条件**: C-EDIT-01
 
-期待結果:
+**Fixture**: `/tmp/ntf-yaml-manual/editor-comprehensive.ntf.yaml`（scratch copy）
 
-- sheet と block の追加、リネーム、削除が保存される。
-- 操作対象外の sheet / block が消えない。
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | scratch copy を Extension Development Host で開く | `NTF YAML Table Editor` が開く |
+| 2 | 別ターミナルまたはテキストエディタで scratch copy を直接編集して保存する（例: `name` の値を変更） | webview が自動更新され、変更値が反映される |
+| 3 | VS Code のテキストエディタで保存した場合も同様に確認する | webview が更新される |
 
-### MT-06 SCM diff で table / ファイル系 table 差分を読む
+---
 
-Fixture: `cell-diff-ui-base.ntf.yaml` と `cell-diff-ui-head.ntf.yaml`
+### 5.2 SCM diff（TC-SCM）
 
-手順:
+事前に「**4.3 セットアップ：差分確認 repository**」を実施し、Extension Development Host で repository を開いておく。
 
-1. 共通準備の table / ファイル系 table 差分 repository を Extension Development Host で開く。
-2. Source Control view の Changes から `scenario.ntf.yaml` を開く。
-3. 左右ペインの `LIST_MAP=requestParams` を確認する。
-4. 左右ペインの `EXPECTED_VARIABLE=./tmp/result.csv` を確認する。
+---
 
-期待結果:
+#### TC-SCM-01　diff editor 起動・左右ペイン確認
 
-- VS Code の diff editor 上で左右ペインが表示される。
-- 拡張側の split / unified 切り替え UI は出ない。
-- base 側では保存、追加、削除、リネーム系操作は使えない。
-- head 側では通常エディタと同じ編集操作が使える。
-- 通常 table のセル変更、行追加、行削除が読める。
-- ファイル系 table のセル変更、行追加が読める。
+**優先度**: P1　**カバー条件**: C-VIEW-01, C-EDIT-02, C-EDIT-03, C-VIEW-05
 
-### MT-07 SCM diff で sheet / block 差分を読む
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | SCM パネルの Changes から `scenario.ntf.yaml` をクリックする | VS Code の diff editor が開き、左右ペインに `NTF YAML Table Editor` が表示される |
+| 2 | 拡張側 UI に split / unified 切り替えボタンが**ない**ことを確認する | split 切り替え UI は出ない（C-VIEW-01） |
+| 3 | 左ペイン（base）を確認する | `Save YAML`・行追加・列追加などの編集 UI が表示されない（C-EDIT-02） |
+| 4 | 右ペイン（head）を確認する | `Save YAML`・行追加・列追加などの編集 UI が表示される（C-EDIT-03） |
+| 5 | 左ペインの上部ラベルと右ペインの上部ラベルを確認する | base / head のブランチ名や ref が正しく表示される（C-VIEW-05） |
 
-Fixture: `branch-coverage-diff-base.ntf.yaml` と `branch-coverage-diff-head.ntf.yaml`
+---
 
-手順:
+#### TC-SCM-02　Table / RawRows 差分ハイライト確認
 
-1. 共通準備の sheet / block 差分 repository を Extension Development Host で開く。
-2. Source Control view の Changes から `scenario.ntf.yaml` を開く。
-3. 左右ペインで sheet list と各 block を確認する。
+**優先度**: P1　**カバー条件**: C-DIFF-01, C-DIFF-02, C-DIFF-03, C-DIFF-06, C-BLOCK-01, C-BLOCK-02
 
-期待結果:
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | 右ペインの `changedSheet` → `LIST_MAP=requestParams` を確認する | `"[no]": "1"` 行の `name` セルが changed（黄）ハイライトされている（C-DIFF-01） |
+| 2 | changed セルにホバーする | tooltip に before 値（`before`）が表示される（C-DIFF-01） |
+| 3 | 右ペインで `"[no]": "3"` 行を確認する | added（緑）ハイライトで表示される（C-DIFF-02） |
+| 4 | 左ペインで `"[no]": "2"` 行（`delete me`）を確認する | deleted（赤）ハイライトで表示される（C-DIFF-03） |
+| 5 | 右ペインの `EXPECTED_VARIABLE=./tmp/result.csv` を確認する | 変更行・追加行が changed / added ハイライトで表示される（C-DIFF-06, C-BLOCK-02） |
+| 6 | `SETUP_TABLE=PROJECT`・`EXPECTED_TABLE=PROJECT` ブロックが Table Block として表示されることを確認する | key-value 行テーブル表示（C-BLOCK-01） |
 
-- 削除 sheet が base 側で読める。
-- 追加 sheet が head 側で読める。
-- 削除 block が base 側で読める。
-- 追加 block が head 側で読める。
-- 変更 block のセル変更が読める。
-- base 側では保存、追加、削除、リネーム系操作は使えない。
-- head 側では通常エディタと同じ編集操作が使える。
+---
 
-### MT-08 Cell Diff Panel で table / ファイル系 table 差分を読む
+#### TC-SCM-03　block / sheet 追加・削除ハイライト確認
 
-Fixture: `cell-diff-ui-base.ntf.yaml` と `cell-diff-ui-head.ntf.yaml`
+**優先度**: P2　**カバー条件**: C-DIFF-04, C-DIFF-05
 
-手順:
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | 右ペインで `EXPECTED_TABLE=ADDED_BLOCK` を確認する | added（緑）ハイライトで表示される（C-DIFF-04） |
+| 2 | 左ペインで `SETUP_TABLE=DELETED_BLOCK` を確認する | deleted（赤）ハイライトで表示される（C-DIFF-04） |
+| 3 | 右ペインの sheet list で `addedSheet` を確認する | added ハイライトで表示される（C-DIFF-05） |
+| 4 | 左ペインの sheet list で `deletedSheet` を確認する | deleted ハイライトで表示される（C-DIFF-05） |
+| 5 | 左右ペインの `stableSheet` を確認する | ハイライトなし（unchanged）で表示される |
 
-1. 共通準備の table / ファイル系 table 差分 repository を Extension Development Host で開く。
-2. Source Control view の `scenario.ntf.yaml` を右クリックする。
-3. `NTF YAML: Open Cell Diff` を実行する。
-4. split 表示で `LIST_MAP=requestParams` と `EXPECTED_VARIABLE=./tmp/result.csv` を確認する。
-5. unified 表示に切り替えて同じ block を確認する。
+---
 
-期待結果:
+#### TC-SCM-04　head 側で編集・保存・差分更新確認
 
-- `NTF YAML Cell Diff` panel が開く。
-- split 表示では base/head が readonly table として表示される。
-- unified 表示では変更セルの before / after がセル内に表示される。
-- 通常 table のセル変更、行追加、行削除が読める。
-- ファイル系 table のセル変更、行追加が読める。
-- 保存、追加、削除、リネーム系操作は使えない。
+**優先度**: P1　**カバー条件**: C-EDIT-03, C-OP-01
 
-### MT-09 Cell Diff Panel で sheet / block 差分を読む
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | 右ペインの `changedSheet` → `LIST_MAP=requestParams` の `"[no]": "1"` の `status` セルを変更する | セルが編集モードになり値を変更できる（C-EDIT-03） |
+| 2 | `Save YAML` を押す | 保存フィードバックが表示される |
+| 3 | 変更後、セルのハイライト状態を確認する | changed セルのハイライトが更新される、または保存内容が diff に反映される（C-OP-01） |
 
-Fixture: `branch-coverage-diff-base.ntf.yaml` と `branch-coverage-diff-head.ntf.yaml`
+---
 
-手順:
+### 5.3 Cell Diff Panel（TC-CDP）
 
-1. 共通準備の sheet / block 差分 repository を Extension Development Host で開く。
-2. Source Control view の `scenario.ntf.yaml` を右クリックする。
-3. `NTF YAML: Open Cell Diff` を実行する。
-4. split 表示で sheet list と各 block を確認する。
-5. unified 表示に切り替えて各 sheet / block を確認する。
+事前に「**4.3 セットアップ：差分確認 repository**」を実施しておく。
 
-期待結果:
+---
 
-- 削除 sheet、追加 sheet、削除 block、追加 block が読める。
-- 変更 block のセル変更が読める。
-- split / unified 表示で差分の意味が矛盾しない。
-- 保存、追加、削除、リネーム系操作は使えない。
+#### TC-CDP-01　3 経路からのパネル起動確認
 
-### MT-10 HTML report で table / ファイル系 table 差分を読む
+**優先度**: P1　**カバー条件**: —
 
-Fixture: `cell-diff-ui-base.ntf.yaml` と `cell-diff-ui-head.ntf.yaml`
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | SCM パネルの `scenario.ntf.yaml` を右クリック → `NTF YAML: Open Cell Diff` を実行する | `NTF YAML Cell Diff` パネルが開く |
+| 2 | パネルを閉じる | — |
+| 3 | Explorer で `scenario.ntf.yaml` を右クリック → `NTF YAML: Open Cell Diff` を実行する | パネルが開く |
+| 4 | パネルを閉じる | — |
+| 5 | scenario.ntf.yaml をテキストエディタで開き、タブ右上のボタン `NTF YAML: Open Cell Diff` をクリックする | パネルが開く |
 
-手順:
+---
 
-1. MT-08 の Cell Diff Panel を開く。
-2. `Export HTML` を実行する。
-3. 生成された HTML を開く。
-4. split 表示と unified 表示で `LIST_MAP=requestParams` と `EXPECTED_VARIABLE=./tmp/result.csv` を確認する。
+#### TC-CDP-02　split 表示で全差分種別一覧確認
 
-期待結果:
+**優先度**: P1　**カバー条件**: C-DIFF-01〜06, C-BLOCK-01, C-BLOCK-02, C-VIEW-05
 
-- HTML report が開ける。
-- 通常 table のセル変更、行追加、行削除が読める。
-- ファイル系 table のセル変更、行追加が読める。
-- 編集操作は使えない。
-- VS Code 専用の `Export HTML` / `Export All` 操作は report 内に出ない。
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | TC-CDP-01 でパネルを開き、split 横方向表示になっていることを確認する | 左（base）・右（head）の 2 ペインが横並びで表示される |
+| 2 | 左右ペインの上部ラベルを確認する | base / head のラベルが正しく表示される（C-VIEW-05） |
+| 3 | 右ペインの `changedSheet` → `LIST_MAP=requestParams` を確認する | `"[no]": "1"` の `name` セルが changed（黄）ハイライト（C-DIFF-01） |
+| 4 | changed セルにホバーする | tooltip に before 値が表示される（C-DIFF-01） |
+| 5 | 右ペインで `"[no]": "3"` 行を確認する | added（緑）ハイライト（C-DIFF-02） |
+| 6 | 左ペインで `"[no]": "2"` 行を確認する | deleted（赤）ハイライト（C-DIFF-03） |
+| 7 | `EXPECTED_TABLE=ADDED_BLOCK` / `SETUP_TABLE=DELETED_BLOCK` を確認する | added / deleted ハイライト（C-DIFF-04） |
+| 8 | sheet list の `addedSheet` / `deletedSheet` を確認する | added / deleted ハイライト（C-DIFF-05） |
+| 9 | `EXPECTED_VARIABLE=./tmp/result.csv` を確認する | 配列テーブル形式で差分がハイライト（C-DIFF-06, C-BLOCK-02） |
+| 10 | `LIST_MAP=requestParams` が key-value 行テーブルで表示されていることを確認する | Table Block 表示（C-BLOCK-01） |
 
-### MT-11 HTML report で sheet / block 差分を読む
+---
 
-Fixture: `branch-coverage-diff-base.ntf.yaml` と `branch-coverage-diff-head.ntf.yaml`
+#### TC-CDP-03　unified 表示での before/after 確認
 
-手順:
+**優先度**: P1　**カバー条件**: C-DIFF-07, C-VIEW-02
 
-1. MT-09 の Cell Diff Panel を開く。
-2. `Export HTML` を実行する。
-3. 生成された HTML を開く。
-4. split 表示と unified 表示で sheet list と各 block を確認する。
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | パネル上部の unified 表示ボタンをクリックする | unified ペインに切り替わる（C-VIEW-02） |
+| 2 | `LIST_MAP=requestParams` の `"[no]": "1"` 行の `name` セルを確認する | before 値が打ち消し線付きで表示され、after 値が緑の強調表示で表示される（C-DIFF-07） |
+| 3 | 追加行・削除行を確認する | added / deleted ハイライトで表示される |
 
-期待結果:
+---
 
-- 削除 sheet、追加 sheet、削除 block、追加 block が読める。
-- 変更 block のセル変更が読める。
-- 編集操作は使えない。
-- VS Code 専用の `Export HTML` / `Export All` 操作は report 内に出ない。
+#### TC-CDP-04　split ↔ unified 切り替え（状態遷移）
 
-## 完了条件
+**優先度**: P1　**カバー条件**: C-VIEW-02
 
-- MT-01 から MT-11 を実行した、または skip 理由を記録した。
-- 失敗ケースには fixture、ビュー種別、block、操作、期待結果、実際の結果を記録した。
-- UX 懸念を `blocker`、`before broader trial`、`backlog` のいずれかに分類した。
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | パネルが split 横方向の状態から、縦 split ボタンをクリックする | 2 ペインが縦並びに切り替わる（C-VIEW-02） |
+| 2 | unified ボタンをクリックする | unified 表示に切り替わる |
+| 3 | split 横方向ボタンをクリックする | 横 split に戻る |
+| 4 | 各状態でコンテンツ（差分ハイライト）が崩れていないことを確認する | 表示が壊れない |
+
+---
+
+#### TC-CDP-05　readonly 確認
+
+**優先度**: P1　**カバー条件**: C-EDIT-04
+
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | split 表示の左右ペインで `Save YAML`・`Add Sheet` ボタンを探す | 表示されない（C-EDIT-04） |
+| 2 | 任意のセルをクリックして編集を試みる | 編集モードにならない |
+| 3 | 行追加・列追加ボタンを探す | 表示されない |
+| 4 | unified 表示に切り替えて同様に確認する | 編集 UI が出ない |
+
+---
+
+#### TC-CDP-06　ref 変更
+
+**優先度**: P2　**カバー条件**: —
+
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | パネルの base ref 入力欄に別の commit SHA や ref を入力して確定する | 差分が再計算され、パネルが更新される |
+| 2 | 存在しない ref を入力する | エラーメッセージが表示され、パネルは破綻しない |
+
+---
+
+#### TC-CDP-07　ファイル保存による自動更新
+
+**優先度**: P2　**カバー条件**: —
+
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | Cell Diff Panel を開いた状態で、VS Code のテキストエディタで `scenario.ntf.yaml`（working tree）を編集して保存する | Cell Diff Panel の diff が自動更新される |
+| 2 | `NTF YAML Table Editor` の head 側で編集して `Save YAML` を押す | Cell Diff Panel の diff が自動更新される |
+
+---
+
+#### TC-CDP-08　Export HTML（単体）+ Export All
+
+**優先度**: P1　**カバー条件**: C-VIEW-04
+
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | パネルの `Export HTML` ボタンをクリックし、保存先を選んで保存する | HTML ファイルが保存される（C-VIEW-04） |
+| 2 | 生成された HTML ファイルをブラウザで開く | TC-HTML-01〜03 を実施する前提となる HTML が確認できる |
+| 3 | `Export All` ボタンをクリックし、出力先フォルダを選んで保存する | 変更ファイル数分の HTML が保存される |
+
+---
+
+### 5.4 HTML Report（TC-HTML）
+
+TC-CDP-08 で生成したスタンドアロン HTML を使用する。ブラウザで開いて確認する。
+
+---
+
+#### TC-HTML-01　split ↔ unified 切り替え + 全差分種別確認
+
+**優先度**: P1　**カバー条件**: C-VIEW-03, C-DIFF-01〜07
+
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | HTML をブラウザで開く | 差分が表示される。split 横方向がデフォルト表示 |
+| 2 | `LIST_MAP=requestParams` の changed セルを確認する | changed（黄）ハイライト（C-DIFF-01） |
+| 3 | 追加行・削除行を確認する | added / deleted ハイライト（C-DIFF-02, C-DIFF-03） |
+| 4 | `EXPECTED_TABLE=ADDED_BLOCK` / `SETUP_TABLE=DELETED_BLOCK` を確認する | added / deleted ハイライト（C-DIFF-04） |
+| 5 | sheet の added / deleted を確認する | ハイライト表示（C-DIFF-05） |
+| 6 | `EXPECTED_VARIABLE=./tmp/result.csv` の差分を確認する | 配列形式の diff が表示される（C-DIFF-06） |
+| 7 | 縦 split ボタンをクリックする | 縦 split に切り替わる（C-VIEW-03） |
+| 8 | unified ボタンをクリックする | unified 表示に切り替わる |
+| 9 | changed セルの before 打ち消し + after 強調を確認する | 正しく表示される（C-DIFF-07） |
+| 10 | 横 split ボタンに戻す | 表示が壊れていない（C-VIEW-03） |
+
+---
+
+#### TC-HTML-02　readonly 確認
+
+**優先度**: P1　**カバー条件**: C-EDIT-05
+
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | HTML の左右ペインで `Save YAML`・`Add Sheet` ボタンを探す | 表示されない（C-EDIT-05） |
+| 2 | セルをクリックして編集を試みる | 編集モードにならない |
+
+---
+
+#### TC-HTML-03　VS Code 固有 UI の非表示確認
+
+**優先度**: P1　**カバー条件**: C-VIEW-04（逆）
+
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 1 | HTML 内に `Export HTML`・`Export All` ボタンが存在しないことを確認する | ボタンが見当たらない（C-VIEW-04） |
+| 2 | ページソースを開いて `exportHtml` / `exportAllHtml` を検索する | 存在しない |
+
+---
+
+## 6. カバレッジマトリクス
+
+全 29 テスト条件とケースの対応。
+
+| 条件 | TC-NE | TC-SCM | TC-CDP | TC-HTML |
+|------|-------|--------|--------|---------|
+| C-EDIT-01 | NE-01, NE-02, NE-03, NE-04, NE-05 | — | — | — |
+| C-EDIT-02 | — | SCM-01 | — | — |
+| C-EDIT-03 | — | SCM-01, SCM-04 | — | — |
+| C-EDIT-04 | — | — | CDP-05 | — |
+| C-EDIT-05 | — | — | — | HTML-02 |
+| C-BLOCK-01 | NE-01, NE-02 | SCM-02 | CDP-02 | HTML-01 |
+| C-BLOCK-02 | NE-01, NE-03 | SCM-02 | CDP-02 | HTML-01 |
+| C-BLOCK-03 | NE-01 | — | — | — |
+| C-DIFF-01 | — | SCM-02 | CDP-02, CDP-03 | HTML-01 |
+| C-DIFF-02 | — | SCM-02 | CDP-02 | HTML-01 |
+| C-DIFF-03 | — | SCM-02 | CDP-02 | HTML-01 |
+| C-DIFF-04 | — | SCM-03 | CDP-02 | HTML-01 |
+| C-DIFF-05 | — | SCM-03 | CDP-02 | HTML-01 |
+| C-DIFF-06 | — | SCM-02 | CDP-02 | HTML-01 |
+| C-DIFF-07 | — | — | CDP-03 | HTML-01 |
+| C-VIEW-01 | — | SCM-01 | — | — |
+| C-VIEW-02 | — | — | CDP-03, CDP-04 | — |
+| C-VIEW-03 | — | — | — | HTML-01 |
+| C-VIEW-04 | — | — | CDP-08 | HTML-03 |
+| C-VIEW-05 | — | SCM-01 | CDP-02 | — |
+| C-OP-01 | NE-02, NE-03 | SCM-04 | — | — |
+| C-OP-02 | NE-02, NE-03 | — | — | — |
+| C-OP-03 | NE-02, NE-03 | — | — | — |
+| C-OP-04 | NE-04 | — | — | — |
+| C-OP-05 | NE-04 | — | — | — |
+| C-OP-06 | NE-05 | — | — | — |
+| C-OP-07 | NE-04 | — | — | — |
+| C-OP-08 | NE-05 | — | — | — |
+| C-OP-09 | NE-04 | — | — | — |
+
+---
+
+## 7. 欠陥記録テンプレート
+
+| 項目 | 内容 |
+|------|------|
+| **ケース ID** | TC-XX-XX |
+| **再現手順** | ステップ番号と操作内容 |
+| **期待結果** | ケース記載の期待結果 |
+| **実際の結果** | 実際に起きたこと（スクリーンショット推奨） |
+| **深刻度** | `blocker` / `before-broader-trial` / `backlog` |
+| **環境** | OS・VS Code バージョン・拡張バージョン |

@@ -1,0 +1,35 @@
+changedSheet:
+  LIST_MAP=requestParams: #ListMap
+    - "[no]": "1"
+      name: "before"
+      status: "same"
+      note: "cell will change"
+    - "[no]": "2"
+      name: "delete me"
+      status: "base only"
+      note: "row will be deleted"
+
+  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows
+    - [ "text-encoding", "UTF-8" ]
+    - [ "field-separator", "," ]
+    - [ "header", "id", "city" ]
+    - [ "data", "001", "Tokyo" ]
+    - [ "data", "002", "Osaka" ]
+
+  SETUP_TABLE=DELETED_BLOCK: #ListMap
+    - ID: "1"
+      NAME: "this block will be deleted"
+
+  EXPECTED_TABLE=STABLE_BLOCK: #ListMap
+    - ID: "1"
+      VALUE: "no change here"
+
+deletedSheet:
+  LIST_MAP=content: #ListMap
+    - no: "1"
+      name: "this sheet will be deleted"
+
+stableSheet:
+  LIST_MAP=noChange: #ListMap
+    - no: "1"
+      name: "unchanged"

@@ -1,6 +1,0 @@
-case1:
-  EXPECTED_VARIABLE=./tmp/result.csv: #RawRows
-    - [ "id", "city" ]
-    - [ "001", "Tokyo" ]
-    - [ "002", "Osaka" ]
-

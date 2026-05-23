@@ -38,8 +38,8 @@ npm run test:unit
 | `docs/rawrows-diff-spec.md` | 採用する | 可 | ファイル系 table と固定長ファイルの共有 diff 方針に更新する。 |
 | `test/fixtures/diff-scenarios/cell-diff-base.ntf.yaml` | 採用しない | 削除済み | base 内容は `test/fixtures/diff-scenarios/README.md` の手順内で作成する。 |
 | `test/fixtures/diff-scenarios/cell-diff-head.ntf.yaml` | 修正して採用する | README 更新後 | SCM diff を作るための上書き用 fixture として扱う。仕様根拠にはしない。 |
-| `test/fixtures/manual/cell-diff-ui-head.ntf.yaml` | 採用する | 可 | 手動確認 fixture のファイル系 table 表記ゆれを調整している。仕様根拠ではなく手動確認データとして扱う。 |
-| `test/fixtures/manual/rawrows-ui-case.ntf.yaml` | 採用する | 可 | 手動確認 fixture の差分が分かりやすくなるデータ追加。仕様根拠ではなく手動確認データとして扱う。 |
+| `test/fixtures/manual/cell-diff-ui-head.ntf.yaml` | 廃止 | — | `diff-all-head.ntf.yaml` に統合済み（manual-test-plan.md 再構成に伴い廃止）。 |
+| `test/fixtures/manual/rawrows-ui-case.ntf.yaml` | 廃止 | — | `editor-comprehensive.ntf.yaml` に統合済み（manual-test-plan.md 再構成に伴い廃止）。 |
 | `test_fixtures_diff-scenarios_cell-diff-head.ntf.yaml-diff.html` | 採用しない | 削除済み | 生成 HTML は仕様根拠にしない。必要な場合は fixture から再生成し、コミットしない。 |
 
 ## 恒久対応タスク

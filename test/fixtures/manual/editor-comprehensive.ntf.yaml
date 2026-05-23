@@ -8,8 +8,13 @@ tableUi:
     - "[no]": "2"
       name: "expected_variable"
       value: ~
-      note: "contains null sentinel"
+      note: "null sentinel row"
       optional: "日本語"
+    - "[no]": "3"
+      name: "empty cells"
+      value: ""
+      note: ""
+      optional: ""
 
   SETUP_TABLE=PROJECT: #ListMap
     - ID: "1"
@@ -28,9 +33,14 @@ tableUi:
     - [ "text-encoding", "UTF-8" ]
     - [ "field-separator", "," ]
     - [ "header", "id", "city", "memo" ]
-    - [ "data", "001", "Tokyo", "base" ]
+    - [ "data", "001", "Tokyo", "base row" ]
     - [ "data", "002", "Osaka" ]
     - [ "end" ]
+
+  SETUP_VARIABLE=./tmp/input.csv: #RawRows
+    - [ "id", "name", "value" ]
+    - [ "001", "alpha", "1" ]
+    - [ "002", "beta", "2" ]
 
   EXPECTED_FIXED[1]=./tmp/fixed.dat: #FixedLengthFile
     text-encoding: "ms932"
