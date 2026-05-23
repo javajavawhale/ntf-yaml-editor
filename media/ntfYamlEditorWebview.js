@@ -763,7 +763,6 @@
     }
 
     function findDiffBlock(sheetName, blockName) {
-      const file = diffReport?.files?.[0];
       return diffHelper.findDiffBlock(diffReport, sheetName, blockName);
     }
 
