@@ -163,11 +163,11 @@ const tests = [
         ""
       ].join("\n"));
 
-      assert.match(html, /Save YAML/);
-      assert.match(html, /Add Row/);
-      assert.match(html, /Add Column/);
+      assert.match(html, /保存/);
+      assert.match(html, /行追加/);
+      assert.match(html, /列追加/);
       assert.match(html, /renderRawRowsTable/);
-      assert.match(html, /NTF YAML/);
+      assert.match(html, /NTF YAML Editor/);
     }
   },
   {

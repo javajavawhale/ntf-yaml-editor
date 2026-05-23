@@ -91,7 +91,7 @@
       attachSidebarResize(aside);
 
       const title = document.createElement("h1");
-      title.textContent = "NTF YAML";
+      title.textContent = "NTF YAML Editor";
       aside.append(title);
       if (!readOnly) {
         aside.append(renderSaveControl());
@@ -194,7 +194,7 @@
       toolbar.className = "side-toolbar";
       const save = document.createElement("button");
       save.dataset.action = "save";
-      save.textContent = "Save YAML";
+      save.textContent = "保存";
       save.onclick = () => vscode.postMessage({ type: "save", model: state });
       toolbar.append(save);
       return toolbar;
@@ -206,7 +206,7 @@
       const button = document.createElement("button");
       button.className = "secondary";
       button.dataset.action = "add-sheet";
-      button.textContent = "Add Sheet";
+      button.textContent = "シート追加";
       const add = () => {
         const sheet = withId({ name: "", blocks: [] });
         state.sheets.push(sheet);
@@ -275,7 +275,7 @@
       const button = document.createElement("button");
       button.className = "secondary";
       button.dataset.action = "add-block";
-      button.textContent = "Add Block";
+      button.textContent = "ブロック追加";
       const add = () => {
         const name = helper.uniqueName(kind.value + "=", sheet.blocks.map(block => block.name));
         sheet.blocks.push(withId({
@@ -318,7 +318,7 @@
         const addRow = document.createElement("button");
         addRow.className = "secondary";
         addRow.dataset.action = "add-row";
-        addRow.textContent = "Add Row";
+        addRow.textContent = "行追加";
         addRow.onclick = () => {
           const row = {};
           for (const col of columns(block)) {
@@ -330,7 +330,7 @@
         const addColumn = document.createElement("button");
         addColumn.className = "secondary";
         addColumn.dataset.action = "add-column";
-        addColumn.textContent = "Add Column";
+        addColumn.textContent = "列追加";
         addColumn.onclick = () => {
           const col = helper.uniqueName("col", columns(block));
           for (const row of block.rows) { row[col] = ""; }
@@ -347,7 +347,7 @@
         const addRow = document.createElement("button");
         addRow.className = "secondary";
         addRow.dataset.action = "add-row";
-        addRow.textContent = "Add Row";
+        addRow.textContent = "行追加";
         addRow.onclick = () => {
           const width = helper.rawWidth(block);
           block.rows.push(Array.from({ length: Math.max(width, 1) }, () => ""));
@@ -356,7 +356,7 @@
         const addColumn = document.createElement("button");
         addColumn.className = "secondary";
         addColumn.dataset.action = "add-column";
-        addColumn.textContent = "Add Column";
+        addColumn.textContent = "列追加";
         addColumn.onclick = () => {
           if (!block.rows.length) {
             block.rows.push([""]);
@@ -879,7 +879,7 @@
       attachSidebarResize(aside);
 
       const title = document.createElement("h1");
-      title.textContent = "NTF YAML";
+      title.textContent = "NTF YAML Editor";
       aside.append(title);
 
       const diffSheets = diffFile?.sheets || [];

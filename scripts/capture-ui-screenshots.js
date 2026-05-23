@@ -3,7 +3,8 @@
 const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
-const { createDiffReport } = require("../lib/ntfYamlDiff");
+const { createDiffReport } = require("../out/lib/ntfYamlDiff");
+const { parseYaml } = require("../out/lib/ntfYamlModel");
 
 const root = path.resolve(__dirname, "..");
 const outDir = path.join(root, "test-artifacts", "ui-screenshots");
@@ -16,8 +17,6 @@ if (!chromium) {
 }
 
 fs.mkdirSync(htmlDir, { recursive: true });
-
-const modelScript = fs.readFileSync(path.join(root, "lib", "ntfYamlModel.js"), "utf8");
 const helperScript = fs.readFileSync(path.join(root, "media", "ntfYamlEditorHelpers.js"), "utf8");
 const diffHelperScript = fs.readFileSync(path.join(root, "media", "ntfYamlEditorDiffHelpers.js"), "utf8");
 const webviewScript = fs.readFileSync(path.join(root, "media", "ntfYamlEditorWebview.js"), "utf8");
@@ -426,11 +425,10 @@ function renderAppHtml(options) {
       ${runtimeScript()}
       globalThis.NtfYamlEditorWebview.createNtfYamlEditorApp({
         root: document.getElementById("root"),
-        initialText: ${json(options.initialText)},
+        initialModel: ${json(parseYaml(options.initialText))},
         initialDiffReport: ${json(options.diffReport || null)},
         readOnly: ${options.readOnly ? "true" : "false"},
         diffSide: ${json(options.diffSide)},
-        model: globalThis.NtfYamlModel,
         vscode: acquireVsCodeApi(),
         window
       });
@@ -484,31 +482,28 @@ function renderCellDiffHtml(report, options) {
       const diffReport = ${json(report)};
       globalThis.NtfYamlEditorWebview.createNtfYamlEditorApp({
         root: document.getElementById("base-root"),
-        initialText: ${json(report.baseText)},
+        initialModel: ${json(parseYaml(report.baseText))},
         initialDiffReport: diffReport,
         readOnly: true,
         diffSide: "base",
-        model: globalThis.NtfYamlModel,
         vscode: acquireVsCodeApi(),
         window
       });
       globalThis.NtfYamlEditorWebview.createNtfYamlEditorApp({
         root: document.getElementById("head-root"),
-        initialText: ${json(report.headText)},
+        initialModel: ${json(parseYaml(report.headText))},
         initialDiffReport: diffReport,
         readOnly: true,
         diffSide: "head",
-        model: globalThis.NtfYamlModel,
         vscode: acquireVsCodeApi(),
         window
       });
       globalThis.NtfYamlEditorWebview.createNtfYamlEditorApp({
         root: document.getElementById("unified-root"),
-        initialText: ${json(report.headText)},
+        initialModel: ${json(parseYaml(report.headText))},
         initialDiffReport: diffReport,
         readOnly: true,
         diffSide: "unified",
-        model: globalThis.NtfYamlModel,
         vscode: acquireVsCodeApi(),
         window
       });
@@ -553,7 +548,6 @@ function htmlDocument(title, body, options = {}) {
 function runtimeScript() {
   return [
     "window.acquireVsCodeApi = window.acquireVsCodeApi || function() { return { postMessage() {} }; };",
-    modelScript,
     helperScript,
     diffHelperScript,
     webviewScript
