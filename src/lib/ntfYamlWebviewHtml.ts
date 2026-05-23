@@ -1,13 +1,29 @@
-const fs = require("fs");
-const path = require("path");
+import * as fs from "fs";
+import * as path from "path";
+import type * as vscode from "vscode";
+import type { DiffReport } from "./ntfYamlDiff";
+import { parseYaml } from "./ntfYamlModel";
 
-function renderHtmlDiffPanel(extensionRoot, webview, report, options = {}) {
+export interface RenderHtmlOptions {
+  initialText?: string;
+  diffReport?: DiffReport | null;
+  webviewDiffReport?: DiffReport | null;
+  readOnly?: boolean;
+  diffSide?: string;
+  sidebarWidth?: number;
+}
+
+export function renderHtmlDiffPanel(
+  extensionRoot: string,
+  webview: vscode.Webview | undefined,
+  report: DiffReport,
+  options: { allowDiffControls?: boolean } = {}
+): string {
   const nonce = getNonce();
-  const baseState = JSON.stringify(report.baseText || "").replace(/</g, "\\u003c");
-  const headState = JSON.stringify(report.headText || "").replace(/</g, "\\u003c");
+  const baseModelState = JSON.stringify(parseYaml(report.baseText || "")).replace(/</g, "\\u003c");
+  const headModelState = JSON.stringify(parseYaml(report.headText || "")).replace(/</g, "\\u003c");
   const diffReportState = JSON.stringify(report).replace(/</g, "\\u003c");
   const includeHeaderControls = options.allowDiffControls !== false;
-  const modelScript = fs.readFileSync(path.join(extensionRoot, "lib", "ntfYamlModel.js"), "utf8");
   const webviewHelpersScript = fs.readFileSync(path.join(extensionRoot, "media", "ntfYamlEditorHelpers.js"), "utf8");
   const webviewDiffHelpersScript = fs.readFileSync(path.join(extensionRoot, "media", "ntfYamlEditorDiffHelpers.js"), "utf8");
   const webviewScript = fs.readFileSync(path.join(extensionRoot, "media", "ntfYamlEditorWebview.js"), "utf8");
@@ -35,7 +51,7 @@ function renderHtmlDiffPanel(extensionRoot, webview, report, options = {}) {
       layoutToggleHtml,
       '<button id="diff-export-html" class="diff-control-btn secondary">Export HTML</button>',
       '<button id="diff-export-all" class="diff-control-btn secondary" title="変更のある全YAMLファイルを1ファイル1HTMLで出力">Export All</button>',
-      '<span id="diff-ref-error" class="diff-panel-error"></span>'
+      '<span id="diff-ref-error" class="diff-panel-error"></span>',
     ].join("")
     : layoutToggleHtml;
   const panelHeaderHtml = `<div class="diff-panel-header">
@@ -128,7 +144,6 @@ ${editorCss}
     </div>
   </div>
   <script nonce="${nonce}">
-    ${modelScript}
     ${webviewHelpersScript}
     ${webviewDiffHelpersScript}
     ${webviewScript}
@@ -137,34 +152,31 @@ ${editorCss}
     ${headerScript}
     globalThis.NtfYamlEditorWebview.createNtfYamlEditorApp({
       root: document.getElementById("base-root"),
-      initialText: ${baseState},
+      initialModel: ${baseModelState},
       initialDiffReport: diffReport,
       readOnly: true,
       diffSide: "base",
       allowDiffControls: false,
-      model: globalThis.NtfYamlModel,
       vscode,
       window
     });
     globalThis.NtfYamlEditorWebview.createNtfYamlEditorApp({
       root: document.getElementById("head-root"),
-      initialText: ${headState},
+      initialModel: ${headModelState},
       initialDiffReport: diffReport,
       readOnly: true,
       diffSide: "head",
       allowDiffControls: false,
-      model: globalThis.NtfYamlModel,
       vscode,
       window
     });
     globalThis.NtfYamlEditorWebview.createNtfYamlEditorApp({
       root: document.getElementById("unified-root"),
-      initialText: ${headState},
+      initialModel: ${headModelState},
       initialDiffReport: diffReport,
       readOnly: true,
       diffSide: "unified",
       allowDiffControls: false,
-      model: globalThis.NtfYamlModel,
       vscode,
       window
     });
@@ -173,19 +185,26 @@ ${editorCss}
 </html>`;
 }
 
-function renderStandaloneHtmlDiffPanel(extensionRoot, report) {
+export function renderStandaloneHtmlDiffPanel(extensionRoot: string, report: DiffReport): string {
   return renderHtmlDiffPanel(extensionRoot, undefined, report, { allowDiffControls: false });
 }
 
-function renderHtml(extensionRoot, webview, initialText, options = {}) {
+export function renderHtml(
+  extensionRoot: string,
+  webview: vscode.Webview | undefined,
+  initialText: string,
+  options: RenderHtmlOptions = {}
+): string {
   const nonce = getNonce();
-  const initialState = JSON.stringify(options.initialText ?? initialText).replace(/</g, "\\u003c");
-  const webviewDiffReport = options.webviewDiffReport !== undefined ? options.webviewDiffReport : (options.diffReport || null);
+  const initialModel = parseYaml(options.initialText ?? initialText);
+  const initialModelState = JSON.stringify(initialModel).replace(/</g, "\\u003c");
+  const webviewDiffReport = options.webviewDiffReport !== undefined
+    ? options.webviewDiffReport
+    : (options.diffReport || null);
   const initialDiffReport = JSON.stringify(webviewDiffReport).replace(/</g, "\\u003c");
   const initialReadOnly = options.readOnly ? "true" : "false";
   const initialDiffSide = JSON.stringify(options.diffSide || (options.readOnly ? "base" : "head"));
   const initialSidebarWidth = JSON.stringify(options.sidebarWidth || 240);
-  const modelScript = fs.readFileSync(path.join(extensionRoot, "lib", "ntfYamlModel.js"), "utf8");
   const webviewHelpersScript = fs.readFileSync(path.join(extensionRoot, "media", "ntfYamlEditorHelpers.js"), "utf8");
   const webviewDiffHelpersScript = fs.readFileSync(path.join(extensionRoot, "media", "ntfYamlEditorDiffHelpers.js"), "utf8");
   const webviewScript = fs.readFileSync(path.join(extensionRoot, "media", "ntfYamlEditorWebview.js"), "utf8");
@@ -212,19 +231,17 @@ ${editorCss}
   ${scmHeader}
   <div id="root"></div>
   <script nonce="${nonce}">
-    ${modelScript}
     ${webviewHelpersScript}
     ${webviewDiffHelpersScript}
     ${webviewScript}
     const vscode = acquireVsCodeApi();
     globalThis.NtfYamlEditorWebview.createNtfYamlEditorApp({
       root: document.getElementById("root"),
-      initialText: ${initialState},
+      initialModel: ${initialModelState},
       initialDiffReport: ${initialDiffReport},
       readOnly: ${initialReadOnly},
       diffSide: ${initialDiffSide},
       sidebarWidth: ${initialSidebarWidth},
-      model: globalThis.NtfYamlModel,
       vscode,
       window
     });
@@ -233,7 +250,7 @@ ${editorCss}
 </html>`;
 }
 
-function getNonce() {
+function getNonce(): string {
   let text = "";
   const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   for (let i = 0; i < 32; i++) {
@@ -242,16 +259,10 @@ function getNonce() {
   return text;
 }
 
-function escapeHtmlAttribute(value) {
+function escapeHtmlAttribute(value: string | null | undefined): string {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
-
-module.exports = {
-  renderHtml,
-  renderHtmlDiffPanel,
-  renderStandaloneHtmlDiffPanel
-};

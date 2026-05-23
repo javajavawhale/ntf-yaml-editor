@@ -1,14 +1,14 @@
 const assert = require("assert");
 const test = require("node:test");
 
-const { parseGitQuery } = require("../lib/gitUri");
-const { locateDiagnosticLine } = require("../lib/ntfYamlDiagnostics");
+const { parseGitQuery } = require("../out/lib/gitUri");
+const { locateDiagnosticLine } = require("../out/lib/ntfYamlDiagnostics");
 const {
   collectResourceUris,
   isNtfYamlUri,
   backingFilePath,
   isInsidePath
-} = require("../lib/ntfYamlExtensionUtils");
+} = require("../out/lib/ntfYamlExtensionUtils");
 
 test("parseGitQuery handles encoded and malformed query values", () => {
   const encoded = encodeURIComponent(JSON.stringify({ path: "/tmp/case.ntf.yaml", ref: "HEAD" }));
