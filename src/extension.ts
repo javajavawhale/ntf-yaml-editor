@@ -215,11 +215,26 @@ class NtfYamlEditorProvider implements vscode.CustomTextEditorProvider {
   ): Promise<void> {
     webviewPanel.webview.options = { enableScripts: true };
     const viewContext = editorViewContextForUri(document.uri);
+
+    // SCM diff の head ペイン（file://）が editors set にすでにある状態で
+    // 同一ファイルを通常エディタで開いた場合、diff report を表示しない。
+    // isStandalone は resolveCustomTextEditor 呼び出し時点の editors set を使い
+    // 一度だけ判定する（呼び出し後に add する自身のエントリは含まれないため安全）。
+    // shouldUseWebviewDiffReport は updateWebview 内で毎回動的に呼ぶ。
+    // これにより VS Code が file:// を git:// より先に開いた場合でも、
+    // git:// が開いて updateRelatedEditors が走った後に正しく diff が表示される。
+    const isStandalone = document.uri.scheme === "file" && [...this.editors].some(e => {
+      if (e.document.uri.scheme !== "file") return false;
+      const ePath = backingFilePath(e.document.uri);
+      const dPath = backingFilePath(document.uri);
+      return Boolean(ePath && dPath && path.resolve(ePath) === path.resolve(dPath));
+    });
+
     const diffReport = createEditorDiffReport(document);
     const initialText = diffReport
       ? (viewContext.diffSide === "base" ? diffReport.baseText : diffReport.headText)
       : document.getText();
-    const webviewDiffReport = this.shouldUseWebviewDiffReport(document) ? diffReport : null;
+    const webviewDiffReport = !isStandalone && this.shouldUseWebviewDiffReport(document) ? diffReport : null;
     webviewPanel.webview.html = renderHtml(extensionRoot, webviewPanel.webview, document.getText(), {
       initialText,
       diffReport,
@@ -237,7 +252,7 @@ class NtfYamlEditorProvider implements vscode.CustomTextEditorProvider {
       webviewPanel.webview.postMessage({
         type: "update",
         model: parseYaml(nextText),
-        diffReport: this.shouldUseWebviewDiffReport(document) ? nextDiffReport : null,
+        diffReport: !isStandalone && this.shouldUseWebviewDiffReport(document) ? nextDiffReport : null,
       });
     };
 

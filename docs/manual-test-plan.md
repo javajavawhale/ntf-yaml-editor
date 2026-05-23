@@ -202,9 +202,9 @@ Extension Development Host でこの repository を開き、SCM diff・Cell Diff
 |---|------|---------|
 | 1 | scratch copy を Extension Development Host で開く | `NTF YAML Table Editor` が開く。`Save YAML`・`Add Sheet` ボタンが表示される（C-EDIT-01） |
 | 2 | `LIST_MAP=requestParams` の `"[no]": "1"` 行の `name` セルをクリックして値を変更する | セルが編集モードになり、変更値が反映される |
-| 3 | `"[no]": "2"` 行の `value` セル（`~`）をクリックして `abc` に変更する | `abc` が表示される |
-| 4 | `abc` を削除して空文字にし、`Save YAML` を押す | 保存フィードバックが表示される |
-| 5 | text editor で YAML を開き、該当セルを確認する | 元が `~` のセルを空にした場合、`""` または `~` のいずれかが意図通りに保存されていること（C-OP-01） |
+| 3 | `"[no]": "2"` 行の `value` セルをクリックして `abc` に変更する | `abc` が表示される |
+| 4 | `abc` を削除して空文字にし、`Save YAML` を押す | — |
+| 5 | text editor で YAML を確認する | 変更が YAML に反映されている（C-OP-01） |
 | 6 | 行追加ボタンをクリックする | 末尾に空行が追加される |
 | 7 | `"[no]": "1"` 行の削除ボタンをクリックする | 行が消える |
 | 8 | `Save YAML` を押して YAML を確認する | 追加・削除が YAML に反映されている。他の block・sheet は変わっていない（C-OP-02） |
