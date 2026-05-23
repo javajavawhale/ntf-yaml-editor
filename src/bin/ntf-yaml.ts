@@ -4,7 +4,8 @@ import * as fs from "fs";
 import * as path from "path";
 import { spawnSync, SpawnSyncReturns } from "child_process";
 import { analyzeYaml, parseYaml, serializeYaml } from "../lib/ntfYamlModel";
-import { diffGitRefs, writeSummaryHtmlReport } from "../lib/ntfYamlDiff";
+import { diffGitRefs } from "../lib/ntfYamlGitDiffContext";
+import { writeSummaryHtmlReport } from "../lib/ntfYamlDiffHtml";
 
 // tsc compiles this to out/bin/ntf-yaml.js (__dirname = <project>/out/bin).
 // Go two levels up to reach the project root where tools/ lives.

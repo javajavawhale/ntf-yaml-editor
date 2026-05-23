@@ -24,8 +24,8 @@ const {
 } = require("../out/bin/ntf-yaml");
 const {
   createDiffReport,
-  renderSummaryHtmlReport
 } = require("../out/lib/ntfYamlDiff");
+const { renderSummaryHtmlReport } = require("../out/lib/ntfYamlDiffHtml");
 const {
   createDocumentDiffReport,
   createRefDiffReport,

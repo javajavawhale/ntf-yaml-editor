@@ -2,11 +2,13 @@ import * as vscode from "vscode";
 import * as fs from "fs";
 import * as path from "path";
 import { parseYaml, serializeYaml } from "./lib/ntfYamlModel";
-import { createDiffReport, diffGitRefs, renderSummaryHtmlReport } from "./lib/ntfYamlDiff";
+import { createDiffReport } from "./lib/ntfYamlDiff";
+import { renderSummaryHtmlReport } from "./lib/ntfYamlDiffHtml";
 import {
   createDocumentDiffReport,
   createRefDiffReport,
   createReportFromResource,
+  diffGitRefs,
   diffWorkingTreeAllFiles,
 } from "./lib/ntfYamlGitDiffContext";
 import { parseGitQuery } from "./lib/gitUri";

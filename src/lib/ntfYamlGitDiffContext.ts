@@ -1,7 +1,14 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as childProcess from "child_process";
-import { createDiffReport, type DiffReport, type DiffStatus } from "./ntfYamlDiff";
+import { parseYaml } from "./ntfYamlModel";
+import {
+  createDiffReport,
+  diffFile,
+  summarize,
+  type DiffReport,
+  type DiffStatus,
+} from "./ntfYamlDiff";
 import { parseGitQuery } from "./gitUri";
 import type * as vscode from "vscode";
 
@@ -65,6 +72,45 @@ export interface DiffAllFilesOptions {
   repositoryPath: string;
   baseRef?: string;
   headRef?: string;
+}
+
+export interface DiffGitRefsOptions {
+  baseRef: string;
+  headRef: string;
+  cwd?: string;
+}
+
+export function diffGitRefs(options: DiffGitRefsOptions): DiffReport {
+  const cwd = options.cwd || process.cwd();
+  const baseRef = options.baseRef;
+  const headRef = options.headRef;
+  const baseSha = git(["rev-parse", baseRef], cwd).trim();
+  const headSha = git(["rev-parse", headRef], cwd).trim();
+  const statusText = git(["diff", "--name-status", "-M", baseRef, headRef, "--", "*.yaml", "*.yml"], cwd);
+  const fileEntries = parseNameStatus(statusText).map(file => {
+    const oldPath = file.oldPath || file.path;
+    const baseText = file.status === "added" ? "" : gitShow(cwd, baseRef, oldPath);
+    const headText = file.status === "deleted" ? "" : gitShow(cwd, headRef, file.path);
+    return diffFile({
+      path: file.path,
+      oldPath,
+      status: file.status,
+      baseModel: baseText ? parseYaml(baseText) : { sheets: [] },
+      headModel: headText ? parseYaml(headText) : { sheets: [] },
+    });
+  });
+  return {
+    baseRef,
+    baseSha,
+    headRef,
+    headSha,
+    repositoryPath: cwd,
+    generatedAt: new Date().toISOString(),
+    files: fileEntries,
+    summary: summarize(fileEntries),
+    baseText: "",
+    headText: "",
+  };
 }
 
 export function diffWorkingTreeAllFiles(options: DiffAllFilesOptions): (DiffReport | null)[] {
@@ -239,6 +285,25 @@ function statusFromRefFiles(baseFile: RefFile, headFile: RefFile): DiffStatus {
   if (baseFile.exists && !headFile.exists) return "deleted";
   if (!baseFile.exists && headFile.exists) return "added";
   return "changed";
+}
+
+interface NameStatusEntry {
+  status: DiffStatus;
+  path: string;
+  oldPath: string;
+}
+
+export function parseNameStatus(text: string): NameStatusEntry[] {
+  return text.split(/\r?\n/).filter(Boolean).map(line => {
+    const parts = line.split("\t");
+    const code = parts[0];
+    if (code.startsWith("R")) {
+      return { status: "changed", oldPath: parts[1], path: parts[2] };
+    }
+    if (code === "A") return { status: "added", path: parts[1], oldPath: parts[1] };
+    if (code === "D") return { status: "deleted", path: parts[1], oldPath: parts[1] };
+    return { status: "changed", path: parts[1], oldPath: parts[1] };
+  });
 }
 
 function gitObjectExists(cwd: string, objectRef: string): boolean {
