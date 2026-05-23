@@ -14,8 +14,9 @@ import {
   collectResourceUris,
   isNtfYamlUri,
   backingFilePath,
-  hasGitPairForFileUri,
+  editorViewContextForUri,
   isInsidePath,
+  shouldUseWebviewDiffReport,
 } from "./lib/ntfYamlExtensionUtils";
 import {
   renderHtml,
@@ -211,30 +212,30 @@ class NtfYamlEditorProvider implements vscode.CustomTextEditorProvider {
     webviewPanel: vscode.WebviewPanel
   ): Promise<void> {
     webviewPanel.webview.options = { enableScripts: true };
-    const diffSide = document.uri.scheme === "git" ? "base" : "head";
+    const viewContext = editorViewContextForUri(document.uri);
     const diffReport = createEditorDiffReport(document);
     const initialText = diffReport
-      ? (diffSide === "base" ? diffReport.baseText : diffReport.headText)
+      ? (viewContext.diffSide === "base" ? diffReport.baseText : diffReport.headText)
       : document.getText();
-    const webviewDiffReport = (diffSide === "base" || this.isScmDiffHeadDocument(document)) ? diffReport : null;
+    const webviewDiffReport = this.shouldUseWebviewDiffReport(document) ? diffReport : null;
     webviewPanel.webview.html = renderHtml(extensionRoot, webviewPanel.webview, document.getText(), {
       initialText,
       diffReport,
       webviewDiffReport,
-      readOnly: document.uri.scheme !== "file",
-      diffSide,
+      readOnly: viewContext.readOnly,
+      diffSide: viewContext.diffSide,
       sidebarWidth: this.sidebarWidth,
     });
 
     const updateWebview = (): void => {
       const nextDiffReport = createEditorDiffReport(document);
       const nextText = nextDiffReport
-        ? (diffSide === "base" ? nextDiffReport.baseText : nextDiffReport.headText)
+        ? (viewContext.diffSide === "base" ? nextDiffReport.baseText : nextDiffReport.headText)
         : document.getText();
       webviewPanel.webview.postMessage({
         type: "update",
         model: parseYaml(nextText),
-        diffReport: (diffSide === "base" || this.isScmDiffHeadDocument(document)) ? nextDiffReport : null,
+        diffReport: this.shouldUseWebviewDiffReport(document) ? nextDiffReport : null,
       });
     };
 
@@ -291,8 +292,8 @@ class NtfYamlEditorProvider implements vscode.CustomTextEditorProvider {
     }
   }
 
-  private isScmDiffHeadDocument(document: vscode.TextDocument): boolean {
-    return hasGitPairForFileUri(document.uri, [...this.editors].map(editor => editor.document.uri));
+  private shouldUseWebviewDiffReport(document: vscode.TextDocument): boolean {
+    return shouldUseWebviewDiffReport(document.uri, [...this.editors].map(editor => editor.document.uri));
   }
 }
 

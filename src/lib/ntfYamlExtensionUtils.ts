@@ -50,6 +50,23 @@ export function hasGitPairForFileUri(fileUri: vscode.Uri, candidateUris: vscode.
   });
 }
 
+export interface EditorViewContext {
+  diffSide: "base" | "head";
+  readOnly: boolean;
+}
+
+export function editorViewContextForUri(uri: vscode.Uri): EditorViewContext {
+  return {
+    diffSide: uri.scheme === "git" ? "base" : "head",
+    readOnly: uri.scheme !== "file",
+  };
+}
+
+export function shouldUseWebviewDiffReport(uri: vscode.Uri, candidateUris: vscode.Uri[]): boolean {
+  const context = editorViewContextForUri(uri);
+  return context.diffSide === "base" || hasGitPairForFileUri(uri, candidateUris);
+}
+
 export function isInsidePath(filePath: string, rootPath: string): boolean {
   if (!filePath || !rootPath) return false;
   const relative = path.relative(rootPath, filePath);
