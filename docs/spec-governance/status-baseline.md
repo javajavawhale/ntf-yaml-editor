@@ -40,11 +40,11 @@ npm run test:unit
 | `test/fixtures/diff-scenarios/cell-diff-head.ntf.yaml` | 修正して採用する | README 更新後 | SCM diff を作るための上書き用 fixture として扱う。仕様根拠にはしない。 |
 | `test/fixtures/manual/cell-diff-ui-head.ntf.yaml` | 採用する | 可 | 手動確認 fixture のファイル系 table 表記ゆれを調整している。仕様根拠ではなく手動確認データとして扱う。 |
 | `test/fixtures/manual/rawrows-ui-case.ntf.yaml` | 採用する | 可 | 手動確認 fixture の差分が分かりやすくなるデータ追加。仕様根拠ではなく手動確認データとして扱う。 |
-| `test_fixtures_diff-scenarios_cell-diff-head.ntf.yaml-diff.html` | 採用しない | 不可 | 生成 HTML は仕様根拠にしない。採用済み fixture から再生成する必要がある場合だけ更新する。 |
+| `test_fixtures_diff-scenarios_cell-diff-head.ntf.yaml-diff.html` | 採用しない | 削除済み | 生成 HTML は仕様根拠にしない。必要な場合は fixture から再生成し、コミットしない。 |
 
 ## 恒久対応タスク
 
 - 固定長ファイルブロックの表示・編集・保存・diff 方針を `docs/file-block-display-spec.md` と `docs/rawrows-diff-spec.md` へ反映する。
 - diff scenario fixture は、確認直前に head 内容で上書きして SCM diff を作る運用として README を更新する。
 - 固定長関連テストは、編集保存を含む仕様テストとして扱う。
-- 生成 HTML は、ソースとして管理する必要があるかを判断し、必要な場合でも根拠 fixture と生成手順を明記する。
+- 生成 HTML はソースとして管理しない。必要な場合は fixture から再生成し、コミットしない。

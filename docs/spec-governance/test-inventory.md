@@ -25,7 +25,7 @@
 | `test/fixtures/ntf-samples/` | representative NTF YAML | example 由来 | `/home/happy/nablarch/samples/nablarch-example-*` | 最優先の仕様根拠として維持。 |
 | `test/fixtures/manual/` | 手動 UI 確認 | 手動確認用 | `docs/manual-test-plan.md` | 自動テスト根拠にしない。手順更新時に合わせる。 |
 | `test/fixtures/diff-scenarios/` | SCM diff 手動 scenario | 手動確認用 | 確認直前に head 内容で上書きして diff を作るための入力 | SCM diff が見えることを確認できればよい。仕様根拠にしない。 |
-| `test_fixtures_diff-scenarios_cell-diff-head.ntf.yaml-diff.html` | 生成 HTML | 採用しない | 生成物 | 仕様根拠にしない。必要なら生成手順付きで再生成。 |
+| `test_fixtures_diff-scenarios_cell-diff-head.ntf.yaml-diff.html` | 生成 HTML | 採用しない | 生成物 | 削除済み。必要なら fixture から再生成し、コミットしない。 |
 
 ## 追加・修正候補
 

@@ -1,27 +1,33 @@
-deletedSheet:
-  LIST_MAP=deletedSheetRows: #ListMap
-    - no: "1"
-      name: "deleted sheet row"
-
 changedSheet:
   LIST_MAP=changedRows: #ListMap
-    - no: "1"
-      name: "before cell"
+    - name: "aftr cell for ref check"
       note: "same"
-    - no: "2"
-      name: "deleted row"
-      note: "base only"
+      1o: "1"
+      "ｓｓ": "あ"
+    - name: "１"
+      note: ""
+      1o: ""
+      "ｓｓ": ""
+    - name: ""
+      note: ""
+      1o: "２"
+      "ｓｓ": ""
+    - name: ""
+      note: "３"
+      1o: ""
+      "ｓｓ": ""
 
-  SETUP_TABLE=DELETED_BLOCK: #ListMap
+  SETUP_TABLE=DELETE_BLOCK: #ListMap
     - ID: "1"
-      NAME: "deleted block row"
+      NAME: "changed block row"
 
-blockOnlySheet:
-  LIST_MAP=stableBlock: #ListMap
-    - no: "1"
-      name: "stable"
+  EXPECTED_TABLE=ADDED_FO_REF_CHECK: #ListMap
+    - ID: "9"
+      VALUE: "added block for ref check"
 
-  EXPECTED_TABLE=CHANGED_BLOCK: #ListMap
-    - ID: "1"
-      VALUE: "before block cell"
+  SETUP_TABLE=3: #ListMap
+    - no: ""
 
+sasaki:
+  SETUP_TABLE=: #ListMap
+    - no: "ss"

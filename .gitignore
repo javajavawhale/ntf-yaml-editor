@@ -3,3 +3,4 @@ node_modules/
 *.vsix
 test-artifacts/
 out/
+test_fixtures_*-diff.html
