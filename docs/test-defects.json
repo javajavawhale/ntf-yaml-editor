@@ -1,0 +1,34 @@
+{
+  "defects": [
+    {
+      "id": "D-001",
+      "title": "ブロックヘッダ右上に白い欠けが出る",
+      "category": "T01",
+      "severity": "中",
+      "status": "修正済",
+      "description": "SCM diff の両ペインで、ブロックカードの右上領域が白く欠けて表示される。",
+      "steps": "1. SCM diff を開く\n2. changedSheet の LIST_MAP=requestParams ブロックを確認する",
+      "actual": "ブロックの右上の角付近に白いエリアが出る",
+      "expected": "ブロックヘッダの背景色が角丸に沿ってきれいに収まる",
+      "fix_strategy": ".block-header に border-top-left-radius: 7px; border-top-right-radius: 7px を追加する。.block の border-radius: 8px に対して border 1px 分を引いた内側半径。",
+      "fix_notes": ".block-header に border-top-left-radius / border-top-right-radius: 7px を追加。overflow:visible は行操作バーのために維持。",
+      "created_at": "2026-05-24",
+      "updated_at": "2026-05-24"
+    },
+    {
+      "id": "D-002",
+      "title": "ブロックヘッダの角丸がカードと不一致",
+      "category": "T01",
+      "severity": "中",
+      "status": "修正済",
+      "description": "SCM diff の両ペインで、ブロックヘッダの着色部分（diff 色）がカードの border-radius と異なる形（四角）ではみ出して見える。",
+      "steps": "1. SCM diff を開く\n2. diff 状態のブロック（added / changed / deleted）のヘッダを確認する",
+      "actual": "ヘッダの色付き背景がカードの角丸に沿わず四角くはみ出す",
+      "expected": "ヘッダの背景がカードの角丸と同じ radius でクリップされる",
+      "fix_strategy": "D-001 と同じ修正。.block-header に border-top-*-radius: 7px を追加する。",
+      "fix_notes": "D-001 と共通修正。border-top-left-radius / border-top-right-radius: 7px の追加で解決。",
+      "created_at": "2026-05-24",
+      "updated_at": "2026-05-24"
+    }
+  ]
+}
