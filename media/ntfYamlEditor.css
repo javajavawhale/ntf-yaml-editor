@@ -1058,6 +1058,32 @@ tr.row-focused .row-action-bar {
     box-shadow: inset 0 0 0 2px var(--diff-changed-border);
 }
 
+/* 構造セル・予備セルへの diff 色上書き（詳細度が高いため末尾に配置）
+   .ntf-table td.table-header-cell (0,2,1) 等より強い (0,3,1) で上書きする */
+.ntf-table td.table-header-cell.diff-cell-added,
+.ntf-table td.raw-key-cell.diff-cell-added,
+.ntf-table td.raw-filler-cell.diff-cell-added { background: var(--diff-added-bg); }
+
+.ntf-table td.table-header-cell.diff-cell-deleted,
+.ntf-table td.raw-key-cell.diff-cell-deleted,
+.ntf-table td.raw-filler-cell.diff-cell-deleted { background: var(--diff-deleted-bg); }
+
+.ntf-table td.table-header-cell.diff-cell-changed,
+.ntf-table td.raw-key-cell.diff-cell-changed,
+.ntf-table td.raw-filler-cell.diff-cell-changed { background: var(--diff-changed-bg); }
+
+.diff-row-added > td.table-header-cell,
+.diff-row-added > td.raw-key-cell,
+.diff-row-added > td.raw-filler-cell { background: #edf8ef; }
+
+.diff-row-deleted > td.table-header-cell,
+.diff-row-deleted > td.raw-key-cell,
+.diff-row-deleted > td.raw-filler-cell { background: #fff1ed; }
+
+.diff-row-changed > td.table-header-cell,
+.diff-row-changed > td.raw-key-cell,
+.diff-row-changed > td.raw-filler-cell { background: var(--diff-changed-soft-bg); }
+
 .cell-unified-diff {
     display: flex;
     flex-direction: column;

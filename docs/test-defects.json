@@ -29,6 +29,21 @@
       "fix_notes": "D-001 と共通修正。border-top-left-radius / border-top-right-radius: 7px の追加で解決。",
       "created_at": "2026-05-24",
       "updated_at": "2026-05-24"
+    },
+    {
+      "id": "D-003",
+      "title": "構造セル・予備セルが diff 色にならない",
+      "category": "T01",
+      "severity": "中",
+      "status": "修正済",
+      "description": "SCM diff の両ペインで、table-header-cell（構造セル）や raw-filler-cell / raw-key-cell（予備セル）が、行レベル・セルレベルの diff ハイライト色にならない。",
+      "steps": "1. SCM diff を開く\n2. changedSheet の diff 行（追加・削除・変更）を確認する\n3. [no] 列などの構造セルや RawRows の予備セルの色を確認する",
+      "actual": "構造セル・予備セルが元の背景色（グレー）のままで diff 色にならない",
+      "expected": "diff 行・diff セルに含まれる構造セル・予備セルも diff 色で上書きされる",
+      "fix_strategy": "CSS 詳細度の問題。.ntf-table td.table-header-cell (0,2,1) 等が .diff-cell-added (0,1,0) より強いため diff 色が負ける。両クラスを組み合わせた (0,3,1) の上書きルールを CSS 末尾に追加する。",
+      "fix_notes": "diff-cell-*/diff-row-* と table-header-cell/raw-key-cell/raw-filler-cell の組み合わせルールを追加。セル・行レベルの 6 パターンをカバー。",
+      "created_at": "2026-05-24",
+      "updated_at": "2026-05-24"
     }
   ]
 }
