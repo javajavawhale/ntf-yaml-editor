@@ -12,9 +12,12 @@
     --danger-bg: #fff4f1;
     --danger-hover-bg: #fde8e4;
     --table-header-bg: #dde3e0;
-    --surface-muted: #f3f5f4;
+    --table-header-hover-bg: #d1d9d5; /* --table-header-bg を同差分で暗く */
+    --surface-muted: #f3f5f4;         /* 通常セルのホバー色（--panel より暗い）*/
     --filler-cell-bg: #f0f3f1;
+    --filler-cell-hover-bg: #e4e9e6;  /* --filler-cell-bg を同差分で暗く */
     --row-action-width: 18px;
+    --column-action-space: 24px;
     --block-padding-x: 10px;
     --z-sticky-row-action: 3;
     --z-sticky-header: 10;
@@ -35,12 +38,15 @@
 html,
 body,
 #root {
+    box-sizing: border-box;
+    width: 100%;
     height: 100%;
+    margin: 0;
+    padding: 0;
     overflow: hidden;
 }
 
 body {
-    margin: 0;
     background: var(--bg);
     color: var(--text);
     font-family: var(--vscode-font-family);
@@ -96,6 +102,24 @@ body.resizing-sidebar {
     padding: 16px;
 }
 
+.app main > .message,
+.app main > .diff-legend,
+.app main > .sheet-header,
+.app main > .add-block-form,
+.app main > .block {
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.app main > .sheet-header,
+.app main > .message {
+    margin-top: 0;
+}
+
+.app main > .block:last-child {
+    margin-bottom: 0;
+}
+
 .app h1,
 .app h2,
 .app h3 {
@@ -133,12 +157,33 @@ body.resizing-sidebar {
     padding: 6px 10px;
     cursor: pointer;
     font: inherit;
+    transition: background 130ms ease, transform 100ms ease;
+}
+
+.app button:hover {
+    background: var(--accent-hover);
+}
+
+.app button:active {
+    background: var(--accent-hover);
+    transform: scale(0.97);
 }
 
 .app button.secondary,
 .diff-panel-shell button.secondary {
     background: white;
     color: var(--accent-strong);
+}
+
+.app button.secondary:hover,
+.diff-panel-shell button.secondary:hover {
+    background: var(--surface-muted);
+}
+
+.app button.secondary:active,
+.diff-panel-shell button.secondary:active {
+    background: var(--surface-muted);
+    transform: scale(0.97);
 }
 
 .app button.danger {
@@ -211,6 +256,10 @@ body.resizing-sidebar {
     flex-wrap: wrap;
 }
 
+.block-actions button:active {
+    transform: none;
+}
+
 .side-form,
 .add-block-form {
     margin: 0 0 12px;
@@ -251,10 +300,23 @@ body.resizing-sidebar {
     color: var(--text);
     border: 1px solid var(--line);
     border-radius: 6px;
-    padding: 6px 36px 6px 8px;
+    padding: 6px 36px 6px 28px;
     margin: 0;
     box-sizing: border-box;
     cursor: pointer;
+    transition: background 130ms ease;
+}
+
+.sheet:hover:not(.active) {
+    background: var(--surface-muted);
+}
+
+.sheet-item > .sheet-drag-handle {
+    position: absolute;
+    top: 50%;
+    left: 8px;
+    z-index: var(--z-action-bar);
+    transform: translateY(-50%);
 }
 
 .sheet:focus-visible {
@@ -301,7 +363,7 @@ body.resizing-sidebar {
     background: white;
     font-weight: 700;
     overflow-wrap: anywhere;
-    min-width: min(50ch, 100%);
+    min-width: min(50ch, calc(100% - 24px));
     max-width: min(720px, 100%);
 }
 
@@ -318,12 +380,10 @@ body.resizing-sidebar {
     overflow: visible;
     width: 100%;
     box-sizing: border-box;
-    padding: 2px var(--block-padding-x) 12px;
+    padding: 0 0 12px;
 }
 
 .table-scroll--with-row-actions {
-    /* padding-left を row-action-width に合わせることで、viewport の負のマージン(-18px)が
-       ちょうど padding 内に収まり、scrollbar がブロック外に出なくなる */
     padding-left: var(--row-action-width);
 }
 
@@ -346,12 +406,15 @@ body.resizing-sidebar {
 .table-viewport {
     overflow-x: auto;
     overflow-y: auto;
-    margin-top: -24px;
+    padding-top: var(--column-action-space);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.table-scroll--with-row-actions .table-viewport {
     margin-left: calc(-1 * var(--row-action-width));
-    padding-top: 24px;
     padding-left: var(--row-action-width);
     width: calc(100% + var(--row-action-width));
-    box-sizing: border-box;
 }
 
 .ntf-table {
@@ -369,6 +432,8 @@ body.resizing-sidebar {
 
 .ntf-table td {
     background: var(--panel);
+    transition: background 130ms ease;
+    --cell-hover-bg: var(--surface-muted);
 }
 
 .ntf-table th {
@@ -437,7 +502,7 @@ body.resizing-sidebar {
     align-items: center;
     gap: 1px;
     position: absolute;
-    bottom: calc(100% - 1px);
+    bottom: calc(100% + 0.5px);
     left: 50%;
     transform: translateX(-50%);
     z-index: var(--z-action-bar);
@@ -492,7 +557,7 @@ body.resizing-sidebar {
     gap: 1px;
     position: absolute;
     top: 50%;
-    right: calc(100% - 1px);
+    right: calc(100% + 0.5px);
     transform: translateY(-50%);
     z-index: var(--z-action-bar);
     width: var(--row-action-width);
@@ -543,6 +608,23 @@ tr.row-focused .row-action-bar {
 .ntf-table[data-focus-locked="true"] tr:not(.row-focused):hover > td:first-child {
     box-shadow: none;
 }
+
+/* Cell hover: --cell-hover-bg で「ホバー時の色」だけを制御する。
+   ホバールール自体はこの1行のみ — 他は全てプロパティの上書きで表現する */
+.ntf-table td:hover { background: var(--cell-hover-bg); }
+
+/* 構造セル: 少し暗く */
+.ntf-table td.table-header-cell     { --cell-hover-bg: var(--table-header-hover-bg); }
+/* diff セル: 各自の色を維持（= ホバーで視覚的変化なし） */
+.ntf-table td.diff-cell-added       { --cell-hover-bg: var(--diff-added-bg); }
+.ntf-table td.diff-cell-deleted     { --cell-hover-bg: var(--diff-deleted-bg); }
+.ntf-table td.diff-cell-changed     { --cell-hover-bg: var(--diff-changed-bg); }
+.ntf-table tr.diff-row-deleted > td { --cell-hover-bg: #fff1ed; }
+.ntf-table tr.diff-row-changed > td { --cell-hover-bg: var(--diff-changed-soft-bg); }
+/* 編集中: 編集対象以外の行はホバーを抑制 */
+.ntf-table.has-focused-cell         tr:not(.row-focused) > td,
+.ntf-table:focus-within             tr:not(.row-focused) > td,
+.ntf-table[data-focus-locked="true"] tr:not(.row-focused) > td { --cell-hover-bg: var(--panel); }
 
 .app button.sheet-delete-button,
 .app button.block-delete-button {
@@ -1050,6 +1132,7 @@ tr.row-focused .row-action-bar {
 
 .rawrows-table .raw-key-cell {
     background: var(--table-header-bg);
+    --cell-hover-bg: var(--table-header-hover-bg);
 }
 
 .rawrows-table .raw-metadata-row .raw-key-cell input {
@@ -1060,6 +1143,7 @@ tr.row-focused .row-action-bar {
     border: 1px solid var(--line);
     background: var(--filler-cell-bg);
     min-width: 0;
+    --cell-hover-bg: var(--filler-cell-hover-bg);
 }
 
 .rawrows-table .raw-filler-cell input:focus {

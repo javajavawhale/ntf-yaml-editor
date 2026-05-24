@@ -71,8 +71,14 @@ function keydownEvent(dom, key) {
 function dragDrop(dom, from, to) {
   const data = new Map();
   const dataTransfer = {
+    types: [],
+    effectAllowed: "all",
+    dropEffect: "none",
     setData(type, value) {
       data.set(type, value);
+      if (!this.types.includes(type)) {
+        this.types.push(type);
+      }
     },
     getData(type) {
       return data.get(type) || "";
@@ -83,6 +89,22 @@ function dragDrop(dom, from, to) {
     Object.defineProperty(event, "dataTransfer", { value: dataTransfer });
     target.dispatchEvent(event);
   }
+}
+
+function rowDragHandle(row) {
+  return row.querySelector(".row-action-bar .drag-handle");
+}
+
+function columnDragHandle(header) {
+  return header.querySelector(".col-action-bar .drag-handle");
+}
+
+function sheetDragHandle(sheetItem) {
+  return sheetItem.querySelector(".sheet-drag-handle");
+}
+
+function blockDragHandle(blockElement) {
+  return blockElement.querySelector(".block-drag-handle");
 }
 
 function pointerEvent(dom, type, clientX) {
@@ -440,9 +462,9 @@ test("webview adds and deletes RawRows rows and columns", () => {
   rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
   rawRows.querySelector('[title="Delete raw column"]').click();
   rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
-  dragDrop(dom, rawRows.querySelectorAll("tbody tr")[1], rawRows.querySelectorAll("tbody tr")[0]);
+  dragDrop(dom, rowDragHandle(rawRows.querySelectorAll("tbody tr")[1]), rawRows.querySelectorAll("tbody tr")[0]);
   rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
-  dragDrop(dom, rawRows.querySelectorAll("thead th")[2], rawRows.querySelectorAll("thead th")[0]);
+  dragDrop(dom, columnDragHandle(rawRows.querySelectorAll("thead th")[2]), rawRows.querySelectorAll("thead th")[0]);
   save(root);
 
   assert.match(serializeYaml(messages[0].model), /EXPECTED_VARIABLE=\.\/tmp\/result\.csv: #RawRows/);
@@ -653,21 +675,134 @@ test("webview reorders sheets, blocks, rows, and columns with drag and drop", ()
     ""
   ].join("\n"));
 
-  dragDrop(dom, root.querySelector('[data-sheet-name="case2"]'), root.querySelector('[data-sheet-name="case1"]'));
+  dragDrop(
+    dom,
+    sheetDragHandle(root.querySelector('[data-sheet-name="case2"]').closest(".sheet-item")),
+    root.querySelector('[data-sheet-name="case1"]').closest(".sheet-item")
+  );
   root.querySelector('[data-sheet-name="case1"]').click();
-  dragDrop(dom, block(root, "LIST_MAP=second"), block(root, "LIST_MAP=first"));
+  dragDrop(dom, blockDragHandle(block(root, "LIST_MAP=second")), block(root, "LIST_MAP=first"));
 
   let first = block(root, "LIST_MAP=first");
-  dragDrop(dom, first.querySelectorAll("tbody tr")[1], first.querySelectorAll("tbody tr")[0]);
+  dragDrop(dom, rowDragHandle(first.querySelectorAll("tbody tr")[1]), first.querySelectorAll("tbody tr")[0]);
   first = block(root, "LIST_MAP=first");
   const headerCells = Array.from(first.querySelectorAll("thead th"));
-  dragDrop(dom, headerCells[1], headerCells[0]);
+  dragDrop(dom, columnDragHandle(headerCells[1]), headerCells[0]);
   save(root);
 
   assert.ok(serializeYaml(messages[0].model).indexOf("case2:") < serializeYaml(messages[0].model).indexOf("case1:"));
   assert.ok(serializeYaml(messages[0].model).indexOf("LIST_MAP=second") < serializeYaml(messages[0].model).indexOf("LIST_MAP=first"));
   assert.ok(serializeYaml(messages[0].model).indexOf('name: "second-row"') < serializeYaml(messages[0].model).indexOf('name: "first-row"'));
   assert.match(serializeYaml(messages[0].model), /    - name: "second-row"\n      no: "2"/);
+});
+
+test("webview only starts drag from action handles", () => {
+  const { root } = createHarness([
+    "case1:",
+    "  LIST_MAP=first: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"first-row\"",
+    "    - no: \"2\"",
+    "      name: \"second-row\"",
+    ""
+  ].join("\n"));
+  const sheetItem = root.querySelector('[data-sheet-name="case1"]').closest(".sheet-item");
+  const first = block(root, "LIST_MAP=first");
+  const row = first.querySelector("tbody tr");
+  const header = first.querySelector("thead th");
+
+  assert.equal(sheetItem.draggable, false);
+  assert.equal(first.draggable, false);
+  assert.equal(row.draggable, false);
+  assert.equal(header.draggable, false);
+  assert.equal(sheetDragHandle(sheetItem).draggable, true);
+  assert.equal(blockDragHandle(first).draggable, true);
+  assert.equal(rowDragHandle(row).draggable, true);
+  assert.equal(columnDragHandle(header).draggable, true);
+});
+
+test("webview keeps cell text drag separate from row and column movement", () => {
+  const { dom, root, messages } = createHarness([
+    "case1:",
+    "  LIST_MAP=first: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"first-row\"",
+    "    - no: \"2\"",
+    "      name: \"second-row\"",
+    ""
+  ].join("\n"));
+  const first = block(root, "LIST_MAP=first");
+  const rows = first.querySelectorAll("tbody tr");
+  const input = rows[1].querySelector('input[data-column="name"]');
+
+  dragDrop(dom, input, rows[0]);
+  save(root);
+
+  assert.ok(serializeYaml(messages[0].model).indexOf('name: "first-row"') < serializeYaml(messages[0].model).indexOf('name: "second-row"'));
+});
+
+test("webview does not start block drag from cell text drags", () => {
+  const { dom, root, messages } = createHarness([
+    "case1:",
+    "  LIST_MAP=first: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"first-row\"",
+    "",
+    "  LIST_MAP=second: #ListMap",
+    "    - no: \"2\"",
+    "      name: \"second-row\"",
+    ""
+  ].join("\n"));
+  const first = block(root, "LIST_MAP=first");
+  const second = block(root, "LIST_MAP=second");
+  const input = second.querySelector('input[data-column="name"]');
+
+  dragDrop(dom, input, first);
+  save(root);
+
+  assert.ok(serializeYaml(messages[0].model).indexOf("LIST_MAP=first") < serializeYaml(messages[0].model).indexOf("LIST_MAP=second"));
+});
+
+test("webview ignores row and column drops on the wrong target type", () => {
+  const { dom, root, messages } = createHarness([
+    "case1:",
+    "  LIST_MAP=first: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"first-row\"",
+    "    - no: \"2\"",
+    "      name: \"second-row\"",
+    ""
+  ].join("\n"));
+  const first = block(root, "LIST_MAP=first");
+  const rows = first.querySelectorAll("tbody tr");
+  const headers = first.querySelectorAll("thead th");
+
+  dragDrop(dom, rowDragHandle(rows[1]), headers[0]);
+  dragDrop(dom, columnDragHandle(headers[1]), rows[0]);
+  save(root);
+
+  const yaml = serializeYaml(messages[0].model);
+  assert.ok(yaml.indexOf('name: "first-row"') < yaml.indexOf('name: "second-row"'));
+  assert.match(yaml, /    - no: "1"\n      name: "first-row"/);
+});
+
+test("webview keeps one active column when switching between column headers", () => {
+  const { dom, root } = createHarness([
+    "case1:",
+    "  LIST_MAP=first: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"first-row\"",
+    ""
+  ].join("\n"));
+  const first = block(root, "LIST_MAP=first");
+  const headers = first.querySelectorAll("thead th");
+
+  headers[0].querySelector('[data-role="column-name"]').focus();
+  headers[1].dispatchEvent(new dom.window.MouseEvent("mouseenter", { bubbles: true, cancelable: true }));
+
+  assert.equal(first.querySelectorAll("th.col-active").length, 1);
+  assert.equal(first.querySelector("th.col-active").dataset.colIndex, "1");
+  assert.equal(first.querySelectorAll("th.col-focused").length, 0);
 });
 
 test("webview renames sheets and LIST_MAP blocks", () => {

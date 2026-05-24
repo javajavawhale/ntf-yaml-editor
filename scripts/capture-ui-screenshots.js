@@ -193,8 +193,15 @@ const pages = [
           type: "touchesLeftEdge",
           element: "tbody tr:first-child .row-action-bar",
           container: "tbody tr:first-child > td:first-child",
-          tolerance: 2,
+          tolerance: 0,
           activate: { focus: "tbody tr:first-child [data-column='no']" }
+        },
+        {
+          type: "touchesTopEdge",
+          element: "th[data-col-index='1'] .col-action-bar",
+          container: "th[data-col-index='1']",
+          tolerance: 0,
+          activate: { hover: "[data-column='name']" }
         },
         {
           type: "outsideAbove",
@@ -206,9 +213,13 @@ const pages = [
           type: "outsideLeft",
           element: "tbody tr:first-child .row-action-bar",
           container: "tbody tr:first-child > td:first-child",
-          tolerance: 2,
+          tolerance: 0,
           activate: { focus: "tbody tr:first-child [data-column='no']" }
         }
+      ],
+      hitChecks: [
+        { selector: "[data-action='add-row']", xRatio: 0.5, yRatio: 0.75 },
+        { selector: "[data-action='add-column']", xRatio: 0.5, yRatio: 0.75 }
       ],
       focusChecks: [
         {
@@ -225,6 +236,12 @@ const pages = [
       styleNot: [
         { selector: ".app aside", property: "overflowY", values: ["auto", "scroll"] },
         { selector: ".sidebar-content", property: "overflowY", values: ["visible", "hidden"] }
+      ],
+      styleIs: [
+        { selector: "body", property: "paddingLeft", value: "0px" },
+        { selector: "body", property: "paddingRight", value: "0px" },
+        { selector: ".app main", property: "paddingLeft", value: "16px" },
+        { selector: ".app main", property: "paddingRight", value: "16px" }
       ],
       hidden: [".diff-legend", ".scm-diff-header"]
     }
@@ -741,7 +758,15 @@ function injectUiRegressionScript(html, checks) {
         }
       } else if (item.type === "touchesLeftEdge") {
         if (Math.abs(er.right - cr.left) > tolerance) {
-          failures.push("expected " + item.element + " right edge to touch " + item.container + " left edge");
+          failures.push("expected " + item.element + " right edge to touch " + item.container + " left edge (delta " + (er.right - cr.left).toFixed(2) + ")");
+        }
+      } else if (item.type === "leftAligned") {
+        if (Math.abs(er.left - cr.left) > tolerance) {
+          failures.push("expected " + item.element + " left edge to align with " + item.container + " left edge (delta " + (er.left - cr.left).toFixed(2) + ")");
+        }
+      } else if (item.type === "touchesTopEdge") {
+        if (Math.abs(er.bottom - cr.top) > tolerance) {
+          failures.push("expected " + item.element + " bottom edge to touch " + item.container + " top edge (delta " + (er.bottom - cr.top).toFixed(2) + ")");
         }
       } else if (item.type === "outsideAbove") {
         if (!(er.top < cr.top - tolerance)) {
@@ -749,10 +774,24 @@ function injectUiRegressionScript(html, checks) {
         }
       } else if (item.type === "outsideLeft") {
         if (!(er.right <= cr.left + tolerance)) {
-          failures.push("expected " + item.element + " outside left of " + item.container);
+          failures.push("expected " + item.element + " outside left of " + item.container + " (delta " + (er.right - cr.left).toFixed(2) + ")");
         }
       }
       cleanupInteractionState();
+    }
+    for (const item of checks.hitChecks || []) {
+      const target = document.querySelector(item.selector);
+      if (!target) {
+        failures.push("expected hit target: " + item.selector);
+        continue;
+      }
+      const rect = target.getBoundingClientRect();
+      const x = rect.left + rect.width * (item.xRatio == null ? 0.5 : Number(item.xRatio));
+      const y = rect.top + rect.height * (item.yRatio == null ? 0.5 : Number(item.yRatio));
+      const hit = document.elementFromPoint(x, y);
+      if (!(hit === target || target.contains(hit))) {
+        failures.push("expected " + item.selector + " to receive hit at " + item.xRatio + "/" + item.yRatio + " but got " + (hit ? hit.tagName + "." + hit.className : "null"));
+      }
     }
     for (const item of checks.styleNot || []) {
       const target = document.querySelector(item.selector);
@@ -763,6 +802,17 @@ function injectUiRegressionScript(html, checks) {
       const actual = window.getComputedStyle(target)[item.property];
       if ((item.values || []).includes(actual)) {
         failures.push("expected " + item.selector + " " + item.property + " not to be " + actual);
+      }
+    }
+    for (const item of checks.styleIs || []) {
+      const target = document.querySelector(item.selector);
+      if (!target) {
+        failures.push("expected style target: " + item.selector);
+        continue;
+      }
+      const actual = window.getComputedStyle(target)[item.property];
+      if (actual !== item.value) {
+        failures.push("expected " + item.selector + " " + item.property + " to be " + item.value + " but got " + actual);
       }
     }
     for (const selector of checks.hidden || []) {
