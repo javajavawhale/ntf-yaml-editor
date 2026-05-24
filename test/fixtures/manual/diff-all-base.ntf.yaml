@@ -8,6 +8,10 @@ changedSheet:
       name: "delete me"
       status: "base only"
       note: "row will be deleted"
+    - "[no]": "4"
+      name: "stable"
+      status: "unchanged"
+      note: "this row stays the same"
 
   EXPECTED_VARIABLE=./tmp/result.csv: #RawRows
     - [ "text-encoding", "UTF-8" ]
