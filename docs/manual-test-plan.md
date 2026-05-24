@@ -76,7 +76,7 @@
 
 | ID | 条件 |
 |----|------|
-| C-DIFF-01 | セル変更は changed（黄）ハイライト、tooltip に before 値が表示される |
+| C-DIFF-01 | セル変更は changed（黄）ハイライトで表示される |
 | C-DIFF-02 | 行追加は added（緑）ハイライトで表示される |
 | C-DIFF-03 | 行削除は deleted（赤）ハイライトで表示される（base 側に残る） |
 | C-DIFF-04 | block 追加は added ハイライト、block 削除は deleted ハイライトで表示される |
@@ -146,22 +146,21 @@ cp test/fixtures/manual/editor-comprehensive.ntf.yaml /tmp/ntf-yaml-manual/
 
 **差分確認 repository（TC-SCM / TC-CDP / TC-HTML 用）**
 
+既に起動済みの Extension Development Host で `vscode-ntf-yaml-editor` repository を開いている前提で、この repository の working tree を一時的に汚して差分を作る。新しい `code` は起動しない。
+
 ```sh
-tmp=/tmp/ntf-yaml-diff-manual
-rm -rf "$tmp"
-mkdir -p "$tmp"
-cp test/fixtures/manual/diff-all-base.ntf.yaml "$tmp/scenario.ntf.yaml"
-cd "$tmp"
-git init
-git config user.email ntf-yaml@example.test
-git config user.name "NTF YAML Test"
-git add scenario.ntf.yaml
-git commit -m base
-cp /home/happy/nablarch/vscode-ntf-yaml-editor/test/fixtures/manual/diff-all-head.ntf.yaml "$tmp/scenario.ntf.yaml"
-code "$tmp"
+cd /home/happy/nablarch/vscode-ntf-yaml-editor
+cp test/fixtures/manual/diff-all-head.ntf.yaml test/fixtures/manual/diff-all-base.ntf.yaml
 ```
 
-Extension Development Host でこの repository を開き、SCM diff・Cell Diff Panel・HTML report の各ケースを実施する。
+これにより、Git の `HEAD` 側は `diff-all-base.ntf.yaml` の base 内容、working tree 側は `diff-all-head.ntf.yaml` の head 内容になる。Extension Development Host は既存ウィンドウのまま、SCM diff・Cell Diff Panel・HTML report の各ケースを実施する。
+
+確認後は次のコマンドで戻す。
+
+```sh
+cd /home/happy/nablarch/vscode-ntf-yaml-editor
+git restore test/fixtures/manual/diff-all-base.ntf.yaml
+```
 
 ---
 
@@ -289,7 +288,7 @@ Extension Development Host でこの repository を開き、SCM diff・Cell Diff
 
 ### 5.2 SCM diff（TC-SCM）
 
-事前に「**4.3 セットアップ：差分確認 repository**」を実施し、Extension Development Host で repository を開いておく。
+事前に「**4.3 セットアップ：差分確認 repository**」を実施し、Extension Development Host でこの repository を開いておく。
 
 ---
 
@@ -299,7 +298,7 @@ Extension Development Host でこの repository を開き、SCM diff・Cell Diff
 
 | # | 操作 | 期待結果 |
 |---|------|---------|
-| 1 | SCM パネルの Changes から `scenario.ntf.yaml` をクリックする | VS Code の diff editor が開き、左右ペインに `NTF YAML Table Editor` が表示される |
+| 1 | SCM パネルの Changes から `test/fixtures/manual/diff-all-base.ntf.yaml` をクリックする | VS Code の diff editor が開き、左右ペインに `NTF YAML Table Editor` が表示される |
 | 2 | 拡張側 UI に split / unified 切り替えボタンが**ない**ことを確認する | split 切り替え UI は出ない（C-VIEW-01） |
 | 3 | 左ペイン（base）を確認する | `Save YAML`・行追加・列追加などの編集 UI が表示されない（C-EDIT-02） |
 | 4 | 右ペイン（head）を確認する | `Save YAML`・行追加・列追加などの編集 UI が表示される（C-EDIT-03） |
@@ -314,11 +313,10 @@ Extension Development Host でこの repository を開き、SCM diff・Cell Diff
 | # | 操作 | 期待結果 |
 |---|------|---------|
 | 1 | 右ペインの `changedSheet` → `LIST_MAP=requestParams` を確認する | `"[no]": "1"` 行の `name` セルが changed（黄）ハイライトされている（C-DIFF-01） |
-| 2 | changed セルにホバーする | tooltip に before 値（`before`）が表示される（C-DIFF-01） |
-| 3 | 右ペインで `"[no]": "3"` 行を確認する | added（緑）ハイライトで表示される（C-DIFF-02） |
-| 4 | 左ペインで `"[no]": "2"` 行（`delete me`）を確認する | deleted（赤）ハイライトで表示される（C-DIFF-03） |
-| 5 | 右ペインの `EXPECTED_VARIABLE=./tmp/result.csv` を確認する | 変更行・追加行が changed / added ハイライトで表示される（C-DIFF-06, C-BLOCK-02） |
-| 6 | `SETUP_TABLE=PROJECT`・`EXPECTED_TABLE=PROJECT` ブロックが Table Block として表示されることを確認する | key-value 行テーブル表示（C-BLOCK-01） |
+| 2 | 右ペインで `"[no]": "4"` 行を確認する | added（緑）ハイライトで表示される（C-DIFF-02） |
+| 3 | 左ペインで `"[no]": "2"` 行（`delete me`）を確認する | deleted（赤）ハイライトで表示される（C-DIFF-03） |
+| 4 | 右ペインの `EXPECTED_VARIABLE=./tmp/result.csv` を確認する | 変更行（001/Kyoto・003/Nara）と追加行（004/NewCity）が changed / added ハイライトで表示される（C-DIFF-06, C-BLOCK-02） |
+| 5 | 左ペインの `SETUP_TABLE=DELETED_BLOCK`・右ペインの `EXPECTED_TABLE=STABLE_BLOCK` ブロックが Table Block として表示されることを確認する | key-value 行テーブル表示（C-BLOCK-01） |
 
 ---
 
@@ -360,11 +358,11 @@ Extension Development Host でこの repository を開き、SCM diff・Cell Diff
 
 | # | 操作 | 期待結果 |
 |---|------|---------|
-| 1 | SCM パネルの `scenario.ntf.yaml` を右クリック → `NTF YAML: Open Cell Diff` を実行する | `NTF YAML Cell Diff` パネルが開く |
+| 1 | SCM パネルの `test/fixtures/manual/diff-all-base.ntf.yaml` を右クリック → `NTF YAML: Open Cell Diff` を実行する | `NTF YAML Cell Diff` パネルが開く |
 | 2 | パネルを閉じる | — |
-| 3 | Explorer で `scenario.ntf.yaml` を右クリック → `NTF YAML: Open Cell Diff` を実行する | パネルが開く |
+| 3 | Explorer で `test/fixtures/manual/diff-all-base.ntf.yaml` を右クリック → `NTF YAML: Open Cell Diff` を実行する | パネルが開く |
 | 4 | パネルを閉じる | — |
-| 5 | scenario.ntf.yaml をテキストエディタで開き、タブ右上のボタン `NTF YAML: Open Cell Diff` をクリックする | パネルが開く |
+| 5 | `test/fixtures/manual/diff-all-base.ntf.yaml` をテキストエディタで開き、タブ右上のボタン `NTF YAML: Open Cell Diff` をクリックする | パネルが開く |
 
 ---
 
@@ -377,13 +375,12 @@ Extension Development Host でこの repository を開き、SCM diff・Cell Diff
 | 1 | TC-CDP-01 でパネルを開き、split 横方向表示になっていることを確認する | 左（base）・右（head）の 2 ペインが横並びで表示される |
 | 2 | 左右ペインの上部ラベルを確認する | base / head のラベルが正しく表示される（C-VIEW-05） |
 | 3 | 右ペインの `changedSheet` → `LIST_MAP=requestParams` を確認する | `"[no]": "1"` の `name` セルが changed（黄）ハイライト（C-DIFF-01） |
-| 4 | changed セルにホバーする | tooltip に before 値が表示される（C-DIFF-01） |
-| 5 | 右ペインで `"[no]": "3"` 行を確認する | added（緑）ハイライト（C-DIFF-02） |
-| 6 | 左ペインで `"[no]": "2"` 行を確認する | deleted（赤）ハイライト（C-DIFF-03） |
-| 7 | `EXPECTED_TABLE=ADDED_BLOCK` / `SETUP_TABLE=DELETED_BLOCK` を確認する | added / deleted ハイライト（C-DIFF-04） |
-| 8 | sheet list の `addedSheet` / `deletedSheet` を確認する | added / deleted ハイライト（C-DIFF-05） |
-| 9 | `EXPECTED_VARIABLE=./tmp/result.csv` を確認する | 配列テーブル形式で差分がハイライト（C-DIFF-06, C-BLOCK-02） |
-| 10 | `LIST_MAP=requestParams` が key-value 行テーブルで表示されていることを確認する | Table Block 表示（C-BLOCK-01） |
+| 4 | 右ペインで `"[no]": "4"` 行を確認する | added（緑）ハイライト（C-DIFF-02） |
+| 5 | 左ペインで `"[no]": "2"` 行を確認する | deleted（赤）ハイライト（C-DIFF-03） |
+| 6 | `EXPECTED_TABLE=ADDED_BLOCK` / `SETUP_TABLE=DELETED_BLOCK` を確認する | added / deleted ハイライト（C-DIFF-04） |
+| 7 | sheet list の `addedSheet` / `deletedSheet` を確認する | added / deleted ハイライト（C-DIFF-05） |
+| 8 | `EXPECTED_VARIABLE=./tmp/result.csv` を確認する | 配列テーブル形式で差分がハイライト（C-DIFF-06, C-BLOCK-02） |
+| 9 | `LIST_MAP=requestParams` が key-value 行テーブルで表示されていることを確認する | Table Block 表示（C-BLOCK-01） |
 
 ---
 
@@ -442,7 +439,7 @@ Extension Development Host でこの repository を開き、SCM diff・Cell Diff
 
 | # | 操作 | 期待結果 |
 |---|------|---------|
-| 1 | Cell Diff Panel を開いた状態で、VS Code のテキストエディタで `scenario.ntf.yaml`（working tree）を編集して保存する | Cell Diff Panel の diff が自動更新される |
+| 1 | Cell Diff Panel を開いた状態で、VS Code のテキストエディタで `test/fixtures/manual/diff-all-base.ntf.yaml`（working tree）を編集して保存する | Cell Diff Panel の diff が自動更新される |
 | 2 | `NTF YAML Table Editor` の head 側で編集して `Save YAML` を押す | Cell Diff Panel の diff が自動更新される |
 
 ---
