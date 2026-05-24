@@ -1,32 +1,18 @@
 <claude-mem-context>
 # Memory Context
 
-# [vscode-ntf-yaml-editor] recent context, 2026-05-06 9:10pm GMT+9
+# [vscode-ntf-yaml-editor] recent context, 2026-05-24 12:29pm GMT+9
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision 🚨security_alert 🔐security_note
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (13,742t read) | 1,505,167t work | 99% savings
+Stats: 50 obs (15,915t read) | 1,524,284t work | 99% savings
 
 ### May 3, 2026
 S32 cc-sddのアンインストールと最新版の再インストール (May 3, 12:36 AM)
 S33 vscode-ntf-yaml-editor への差分表示機能追加 — grill-me ヒアリングで要件を抽出し、機能企画を固める (May 3, 12:55 AM)
-109 12:37p 🔵 vscode-ntf-yaml-editorリポジトリの全体構造確認
-110 12:38p 🟣 kiro steering初期化：vscode-ntf-yaml-editorに4ファイルのステアリング文書を作成
-113 12:51p ⚖️ 次の実装優先課題リスト確定
-112 12:56p ✅ 全5ファイルの日本語化と ## 目的 フレーミング整合が完了
-114 1:06p 🔵 既存コードベースの構造とギャップを確認
-115 1:07p ✅ 手動テスト計画ファイルの継続追記方針を決定
-116 1:26p ✅ vscode-ntf-yaml-editor 全変更のコミット準備完了
-117 1:34p ✅ vscode-ntf-yaml-editor 全変更を git add してコミット直前ステージング完了
-118 " 🟣 コミット完了: "Add NTF YAML cell diff and table editing" (15c75cf)
-119 1:35p ⚖️ プロジェクトルール: manual-test-plan.md への追記を実装と同一作業単位に含める
-120 " 🔵 manual-test-plan.md 最終確定内容: MT-06/MT-07/MT-10 に行列移動・削除の明示手順なし
-121 1:36p ✅ manual-test-plan.md にカテゴリ見出しを追加し ### / #### 階層構造に整理
 ### May 4, 2026
-122 4:53p 🔵 vscode-ntf-yaml-editor の追加・削除・更新機能一覧
-124 " ⚖️ vscode-ntf-yaml-editor UI改善方針の決定（5項目）
 123 4:54p 🔵 NTF YAMLエディタの行・列移動と名前重複防止の実装詳細
 125 5:01p 🔵 SETUP_VARIABLE/EXPECTED_VARIABLE の RawRows 実データ構造の確認
 126 5:03p 🟣 vscode-ntf-yaml-editor UI大規模改修：Save位置移動・空名即時追加・D&D並び替え・RawRows表示改善
@@ -65,8 +51,23 @@ S33 vscode-ntf-yaml-editor への差分表示機能追加 — grill-me ヒアリ
 177 " 🔵 vscode-ntf-yaml-editor: all tests green after SCM probe cleanup — 39 unit + 7 e2e
 178 2:50p 🔵 vscode-ntf-yaml-editor: diff feature design plan — two prototype approaches identified
 179 2:59p 🟣 ntfYamlDiff.js exports new `diffFile` function
+### May 23, 2026
+308 3:41p 🔵 TC-NE-02#11: 列削除ボタンが機能しない不具合を特定
+309 " 🔵 TC-NE-02#11 列削除バグ: コードパス特定 — deleteColumn 後の再レンダリング欠落が疑われる
+310 3:42p 🔵 列削除ハンドラに render() 呼び出しが存在することを確認 — 再レンダリング欠落仮説を棄却
+311 " 🔵 列削除ユニットテスト全通過 — バグは VS Code 実環境固有、CSS の col-action-bar 表示制御が有力候補
+312 3:43p 🔵 col-action-bar の CSS 表示ロジック全容確認 — focus-lock 状態での display:none が実環境バグの根本候補
+313 " 🔵 E2E テストは列削除のインタラクションをカバーしていない — 手動テストのみが TC-NE-02 の検証手段
+314 " 🔴 TC-NE-02#11 列削除バグ修正 — action-bar-delete の mousedown に event.preventDefault() を追加
+315 3:47p 🟣 TC-NE-02#11 修正のリグレッションテスト追加 — 新テスト含む3件全通過
+316 " 🔴 TC-NE-02#11 修正完了 — 全89ユニットテスト通過、差分確定
+317 11:25p 🔵 editor-comprehensive.ntf.yaml fixture was hand-crafted, not converter-generated
+318 11:38p 🔵 git blame traces EXPECTED_FIXED block origin to table-ui-current-spec.ntf.yaml (commit 81f1453a, 2026-05-11)
+319 11:39p 🟣 RawRows auxiliary first cell (補助セル) rendering implemented
+320 " ✅ Spec docs updated with 補助セル (auxiliary cell) concept
+321 " ✅ Test coverage added for auxiliary first cell assertions in webview tests
 
-Access 1505k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 1524k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>
 
 ## Project Terminology

@@ -12,9 +12,10 @@ changedSheet:
   EXPECTED_VARIABLE=./tmp/result.csv: #RawRows
     - [ "text-encoding", "UTF-8" ]
     - [ "field-separator", "," ]
-    - [ "header", "id", "city" ]
-    - [ "data", "001", "Tokyo" ]
-    - [ "data", "002", "Osaka" ]
+    - [ "data", "id", "city" ]
+    - [ "", "半角数字", "半角英字" ]
+    - [ "", "001", "Tokyo" ]
+    - [ "", "002", "Osaka" ]
 
   SETUP_TABLE=DELETED_BLOCK: #ListMap
     - ID: "1"

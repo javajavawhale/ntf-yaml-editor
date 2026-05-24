@@ -148,6 +148,7 @@ const pages = [
     checks: {
       visible: [
         "#root .app",
+        ".sidebar-content",
         ".side-toolbar [data-action='save']",
         "[data-action='add-row']",
         "[data-action='add-column']",
@@ -220,6 +221,10 @@ const pages = [
           rowFocused: true,
           colFocusedIndex: "1"
         }
+      ],
+      styleNot: [
+        { selector: ".app aside", property: "overflowY", values: ["auto", "scroll"] },
+        { selector: ".sidebar-content", property: "overflowY", values: ["visible", "hidden"] }
       ],
       hidden: [".diff-legend", ".scm-diff-header"]
     }

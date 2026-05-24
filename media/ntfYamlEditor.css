@@ -10,9 +10,10 @@
     --warn: #8a4b00;
     --danger: #a33a2a;
     --danger-bg: #fff4f1;
-    --table-header-bg: #e8ecea;
+    --danger-hover-bg: #fde8e4;
+    --table-header-bg: #dde3e0;
     --surface-muted: #f3f5f4;
-    --filler-cell-bg: #fafbfa;
+    --filler-cell-bg: #f0f3f1;
     --row-action-width: 18px;
     --block-padding-x: 10px;
     --z-sticky-row-action: 3;
@@ -31,6 +32,13 @@
 }
 
 /* Base */
+html,
+body,
+#root {
+    height: 100%;
+    overflow: hidden;
+}
+
 body {
     margin: 0;
     background: var(--bg);
@@ -48,11 +56,13 @@ body.resizing-sidebar {
 .app {
     display: grid;
     grid-template-columns: var(--ntf-sidebar-width, 240px) minmax(0, 1fr);
-    min-height: 100vh;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .app.diff-app {
-    min-height: 100%;
+    height: 100%;
 }
 
 .app.diff-app > aside {
@@ -61,14 +71,28 @@ body.resizing-sidebar {
 
 .app aside {
     position: relative;
+    display: flex;
+    min-height: 0;
+    overflow: hidden;
     border-right: 1px solid var(--line);
     background: #eef1ef;
+}
+
+.sidebar-content {
+    box-sizing: border-box;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
     padding: 14px;
     overflow-x: hidden;
     overflow-y: auto;
 }
 
 .app main {
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
     padding: 16px;
 }
 
@@ -277,8 +301,15 @@ body.resizing-sidebar {
     background: white;
     font-weight: 700;
     overflow-wrap: anywhere;
-    min-width: 260px;
+    min-width: min(50ch, 100%);
     max-width: min(720px, 100%);
+}
+
+.app input.block-name,
+.diff-panel-shell input.block-name {
+    width: auto;
+    field-sizing: content;
+    flex: 0 1 auto;
 }
 
 /* Editor Tables */
@@ -412,9 +443,11 @@ body.resizing-sidebar {
     z-index: var(--z-action-bar);
     padding: 2px 3px;
     border-radius: 5px 5px 0 0;
-    background: var(--accent);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-bottom: 0;
     white-space: nowrap;
-    box-shadow: 0 -2px 6px rgb(0 0 0 / 18%);
+    box-shadow: 0 -2px 6px rgb(0 0 0 / 12%);
 }
 
 .ntf-table th:hover .col-action-bar,
@@ -466,7 +499,10 @@ body.resizing-sidebar {
     min-width: var(--row-action-width);
     padding: 2px 0;
     border-radius: 5px 0 0 5px;
-    background: var(--accent);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-right: 0;
+    box-shadow: -2px 0 6px rgb(0 0 0 / 12%);
 }
 
 .ntf-table tr:hover .row-action-bar,
@@ -508,31 +544,54 @@ tr.row-focused .row-action-bar {
     box-shadow: none;
 }
 
-.sheet-delete-button,
-.block-delete-button {
+.app button.sheet-delete-button,
+.app button.block-delete-button {
     position: absolute;
     z-index: var(--z-action-bar);
-    font-weight: 700;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-width: 0;
-    min-height: 0;
-    line-height: 1;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border-radius: 4px;
+    /* idle: muted（主張しすぎない）→ hover: danger */
+    color: var(--muted);
+    background: transparent;
+    border-color: transparent;
+    transition: background 130ms ease, color 130ms ease, transform 100ms ease;
 }
 
-.sheet-delete-button {
-    top: 0;
-    right: 0;
-    padding: 4px;
-    border-radius: 4px;
+.app button.sheet-delete-button:hover,
+.app button.block-delete-button:hover {
+    color: var(--danger);
+    background: var(--danger-hover-bg);
+    border-color: transparent;
 }
 
-.block-delete-button {
-    top: 0;
-    right: 0;
-    padding: 4px;
-    border-radius: 4px;
+.app button.sheet-delete-button:active,
+.app button.block-delete-button:active {
+    background: var(--danger-bg);
+}
+
+.app button.sheet-delete-button {
+    top: 50%;
+    right: 4px;
+    transform: translateY(-50%);
+}
+
+.app button.sheet-delete-button:active {
+    transform: translateY(-50%) scale(0.88);
+}
+
+.app button.block-delete-button {
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+}
+
+.app button.block-delete-button:active {
+    transform: translateY(-50%) scale(0.88);
 }
 
 .app button.action-bar-delete,
@@ -547,17 +606,22 @@ tr.row-focused .row-action-bar {
     padding: 0;
     box-sizing: border-box;
     border: 0;
-    border-radius: 2px;
+    border-radius: 4px;
     background: transparent;
-    color: white;
-    font-weight: 700;
-    line-height: 1;
+    color: var(--muted);
     cursor: pointer;
+    transition: background 130ms ease, color 130ms ease, transform 100ms ease;
 }
 
 .app button.action-bar-delete:hover,
 .diff-panel-shell button.action-bar-delete:hover {
-    background: var(--danger);
+    color: var(--danger);
+    background: var(--danger-hover-bg);
+}
+
+.app button.action-bar-delete:active,
+.diff-panel-shell button.action-bar-delete:active {
+    transform: scale(0.85);
 }
 
 .col-action-bar .drag-handle,
@@ -567,15 +631,17 @@ tr.row-focused .row-action-bar {
     justify-content: center;
     width: 14px;
     height: 14px;
-    color: white;
-    opacity: 1;
+    color: var(--muted);
+    opacity: 0.7;
     padding: 0;
+    transition: opacity 130ms ease, background 130ms ease;
 }
 
 .col-action-bar .drag-handle:hover,
 .row-action-bar .drag-handle:hover {
-    border-radius: 2px;
-    background: var(--accent-hover);
+    opacity: 1;
+    border-radius: 4px;
+    background: var(--surface-muted);
 }
 
 .app button.action-bar-delete svg,
@@ -583,8 +649,15 @@ tr.row-focused .row-action-bar {
 .col-action-bar .drag-handle svg,
 .row-action-bar .drag-handle svg {
     display: block;
-    width: 10px;
-    height: 10px;
+    width: 9px;
+    height: 9px;
+}
+
+.sheet-delete-button svg,
+.block-delete-button svg {
+    display: block;
+    width: 13px;
+    height: 13px;
 }
 
 /* Drag and Drop */
@@ -637,7 +710,7 @@ tr.row-focused .row-action-bar {
 .scm-diff-body > #root {
     flex: 1;
     min-height: 0;
-    overflow: auto;
+    overflow: hidden;
 }
 
 .scm-diff-header {
@@ -987,6 +1060,10 @@ tr.row-focused .row-action-bar {
     border: 1px solid var(--line);
     background: var(--filler-cell-bg);
     min-width: 0;
+}
+
+.rawrows-table .raw-filler-cell input:focus {
+    background: var(--filler-cell-bg);
 }
 
 /* Raw Blocks */

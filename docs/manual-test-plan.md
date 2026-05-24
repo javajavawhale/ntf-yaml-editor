@@ -186,8 +186,8 @@ Extension Development Host でこの repository を開き、SCM diff・Cell Diff
 | 1 | fixture を Explorer で開く | `NTF YAML Table Editor` タブが開く。スクリプトエラーや blank webview が出ない |
 | 2 | sidebar の sheet list を確認する | `tableUi`・`wideTable` の 2 シートが表示される |
 | 3 | `tableUi` sheet を選択する | `LIST_MAP=requestParams`（Table Block）・`SETUP_TABLE=PROJECT`・`EXPECTED_TABLE=PROJECT` が key-value 行テーブルとして表示される（C-BLOCK-01） |
-| 4 | `EXPECTED_VARIABLE=./tmp/result.csv` を確認する | 配列テーブル（ディレクティブ行、`header` / `data` のレコード種別行、データ型行、データ行）として表示される（C-BLOCK-02） |
-| 5 | `EXPECTED_FIXED[1]=./tmp/fixed.dat` を確認する | 配列テーブル（ディレクティブ行、レコード種別行、データ型行、フィールド長行、データ行）として表示される（C-BLOCK-02） |
+| 4 | `EXPECTED_VARIABLE=./tmp/result.csv` を確認する | 配列テーブル（ディレクティブ行、`header` / `data` のレコード種別行、データ型行、データ行）として表示される。ディレクティブ行以外の先頭列は補助セルとして表示される（C-BLOCK-02） |
+| 5 | `EXPECTED_FIXED[1]=./tmp/fixed.dat` を確認する | 配列テーブル（ディレクティブ行、レコード種別行、データ型行、フィールド長行、データ行）として表示される。ディレクティブ行以外の先頭列は補助セルとして表示される（C-BLOCK-02） |
 | 6 | sidebar で `wideTable` sheet をクリックする | `LIST_MAP=wideRows` が 11 列のテーブルとして表示される。`日本語列` が正しく表示される。横スクロールバーの左端がテーブルの左端と揃う |
 
 ---

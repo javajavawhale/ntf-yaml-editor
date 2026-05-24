@@ -17,9 +17,10 @@ changedSheet:
   EXPECTED_VARIABLE=./tmp/result.csv: #RawRows
     - [ "text-encoding", "UTF-8" ]
     - [ "field-separator", "," ]
-    - [ "header", "id", "city" ]
-    - [ "data", "001", "Kyoto" ]
-    - [ "data", "003", "Nara" ]
+    - [ "data", "id", "city" ]
+    - [ "", "半角数字", "半角英字" ]
+    - [ "", "001", "Kyoto" ]
+    - [ "", "003", "Nara" ]
 
   EXPECTED_TABLE=ADDED_BLOCK: #ListMap
     - ID: "9"

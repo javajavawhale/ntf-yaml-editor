@@ -58,9 +58,12 @@ tableUi:
     - ["", "002", "Osaka", ""]
 
   SETUP_VARIABLE=./tmp/input.csv: #RawRows
-    - ["id", "name", "value"]
-    - ["001", "alpha", "1"]
-    - ["002", "beta", "2"]
+    - ["text-encoding", "UTF-8"]
+    - ["field-separator", ","]
+    - ["data", "id", "name", "value"]
+    - ["", "半角数字", "半角英字", "半角数字"]
+    - ["", "001", "alpha", "1"]
+    - ["", "002", "beta", "2"]
 
   EXPECTED_FIXED[1]=./tmp/fixed.dat: #FixedLengthFile
     - ["text-encoding", "ms932"]

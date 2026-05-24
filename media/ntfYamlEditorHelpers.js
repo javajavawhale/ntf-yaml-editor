@@ -145,18 +145,18 @@
 
     if (sectionState.next === "types") {
       sectionState.next = options?.fixedLength ? "lengths" : "values";
-      return { className: "raw-type-row", headerLike: true };
+      return { className: "raw-type-row", headerLike: true, auxiliaryFirstCell: true };
     }
 
     if (sectionState.next === "lengths") {
       sectionState.next = "values";
-      return { className: "raw-length-row", headerLike: true };
+      return { className: "raw-length-row", headerLike: true, auxiliaryFirstCell: true };
     }
 
     if (!first && sectionState.next === "values") {
       return {
         className: "raw-value-row",
-        keyLike: true,
+        auxiliaryFirstCell: true,
         lockFirstCell: true
       };
     }
@@ -165,7 +165,7 @@
     if (first && (sectionState.fileRowsStarted || isKnownRecordType || sectionState.next === "values")) {
       sectionState.fileRowsStarted = true;
       sectionState.next = "types";
-      return { className: "raw-section-header-row", headerLike: true };
+      return { className: "raw-section-header-row", headerLike: true, auxiliaryFirstCell: true };
     }
 
     sectionState.fileRowsStarted = false;

@@ -140,6 +140,39 @@ test("webview applies sidebar resize messages from another pane", () => {
   );
 });
 
+test("webview renders sidebar content as the sidebar scroll container", () => {
+  const { root } = createHarness();
+  const aside = root.querySelector(".app aside");
+  const sidebarContent = aside.querySelector(":scope > .sidebar-content");
+
+  assert.ok(sidebarContent, "sidebar content should be a direct child of aside");
+  assert.ok(sidebarContent.querySelector('[data-action="save"]'));
+  assert.ok(sidebarContent.querySelector('[data-sheet-name="case2"]'));
+  assert.ok(aside.querySelector(":scope > .sidebar-resizer"));
+});
+
+test("webview preserves sidebar content and main scroll positions across same-sheet renders", () => {
+  const { root } = createHarness();
+  const sidebarContent = root.querySelector(".app .sidebar-content");
+  const main = root.querySelector(".app main");
+  sidebarContent.scrollTop = 48;
+  main.scrollTop = 160;
+
+  block(root, "LIST_MAP=requestParams").querySelector('[data-action="add-row"]').click();
+
+  assert.equal(root.querySelector(".app .sidebar-content").scrollTop, 48);
+  assert.equal(root.querySelector(".app main").scrollTop, 160);
+});
+
+test("webview preserves sidebar content scroll when switching sheets", () => {
+  const { root } = createHarness();
+  root.querySelector(".app .sidebar-content").scrollTop = 72;
+
+  root.querySelector('[data-sheet-name="case2"]').click();
+
+  assert.equal(root.querySelector(".app .sidebar-content").scrollTop, 72);
+});
+
 test("webview edits a table cell and sends serialized YAML on save", () => {
   const { dom, root, messages } = createHarness();
   const requestParams = block(root, "LIST_MAP=requestParams");
@@ -516,6 +549,10 @@ test("webview renders RawRows without column numbers and highlights structural c
   assert.ok(rawRows.querySelector(".raw-key-cell"));
   assert.ok(rawRows.querySelector(".raw-section-header-row .table-header-cell"));
   assert.ok(rawRows.querySelector(".raw-type-row .table-header-cell"));
+  assert.equal(rawRows.querySelector('[data-raw-row="2"][data-raw-column="0"]').closest("td").classList.contains("table-header-cell"), false);
+  assert.equal(rawRows.querySelector('[data-raw-row="2"][data-raw-column="0"]').closest("td").classList.contains("raw-filler-cell"), true);
+  assert.equal(rawRows.querySelector('[data-raw-row="3"][data-raw-column="0"]').closest("td").classList.contains("table-header-cell"), false);
+  assert.equal(rawRows.querySelector('[data-raw-row="3"][data-raw-column="0"]').closest("td").classList.contains("raw-filler-cell"), true);
   assert.equal(rawRows.querySelector('[data-raw-row="0"][data-raw-column="1"]').closest("td").classList.contains("table-header-cell"), false);
   assert.equal(rawRows.querySelector('[data-raw-row="0"][data-raw-column="0"]').closest("tr").classList.contains("raw-metadata-row"), true);
   assert.equal(rawRows.querySelector('[data-raw-row="1"][data-raw-column="0"]').closest("tr").classList.contains("raw-metadata-row"), true);
@@ -528,7 +565,7 @@ test("webview renders RawRows without column numbers and highlights structural c
   assert.ok(rawRows.querySelector(".raw-value-row"));
 });
 
-test("webview highlights fixed-length type and length label rows as structural cells", () => {
+test("webview highlights fixed-length type and length rows with auxiliary first cells", () => {
   const { root } = createHarness([
     "case1:",
     "  EXPECTED_FIXED[1]=data.dat: #FixedLengthFile",
@@ -543,10 +580,18 @@ test("webview highlights fixed-length type and length label rows as structural c
   ].join("\n"));
   const fixed = block(root, "EXPECTED_FIXED[1]=data.dat");
 
+  assert.equal(fixed.querySelector('[data-raw-row="2"][data-raw-column="0"]').closest("td").classList.contains("table-header-cell"), false);
+  assert.equal(fixed.querySelector('[data-raw-row="2"][data-raw-column="0"]').closest("td").classList.contains("raw-filler-cell"), true);
+  assert.equal(fixed.querySelector('[data-raw-row="2"][data-raw-column="1"]').closest("td").classList.contains("table-header-cell"), true);
   assert.ok(fixed.querySelector('[data-raw-row="3"][data-raw-column="0"]'));
-  assert.equal(fixed.querySelector('[data-raw-row="3"][data-raw-column="0"]').closest("td").classList.contains("table-header-cell"), true);
-  assert.equal(fixed.querySelector('[data-raw-row="4"][data-raw-column="0"]').closest("td").classList.contains("table-header-cell"), true);
+  assert.equal(fixed.querySelector('[data-raw-row="3"][data-raw-column="0"]').closest("td").classList.contains("table-header-cell"), false);
+  assert.equal(fixed.querySelector('[data-raw-row="3"][data-raw-column="0"]').closest("td").classList.contains("raw-filler-cell"), true);
+  assert.equal(fixed.querySelector('[data-raw-row="3"][data-raw-column="1"]').closest("td").classList.contains("table-header-cell"), true);
+  assert.equal(fixed.querySelector('[data-raw-row="4"][data-raw-column="0"]').closest("td").classList.contains("table-header-cell"), false);
+  assert.equal(fixed.querySelector('[data-raw-row="4"][data-raw-column="0"]').closest("td").classList.contains("raw-filler-cell"), true);
+  assert.equal(fixed.querySelector('[data-raw-row="4"][data-raw-column="1"]').closest("td").classList.contains("table-header-cell"), true);
   assert.equal(fixed.querySelector('[data-raw-row="5"][data-raw-column="0"]'), null);
+  assert.equal(fixed.querySelector(".raw-value-row td:first-child").classList.contains("raw-filler-cell"), true);
   assert.equal(fixed.querySelector('[data-raw-row="5"][data-raw-column="1"]').closest("td").classList.contains("table-header-cell"), false);
 });
 

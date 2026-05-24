@@ -48,6 +48,8 @@
     let nextId = 1;
     let activeSheetId = "";
     let activeUnifiedSheetName = "";
+    let sidebarScrollTop = 0;
+    const mainScrollTopByKey = new Map();
     ensureIds(state);
     activeSheetId = state.sheets[0]?._id ?? "";
     if (options.sidebarWidth) {
@@ -56,6 +58,7 @@
 
     function handleMessage(event) {
       if (event.data.type === "update") {
+        captureScrollPositions();
         const activeName = activeSheet()?.name;
         state = event.data.model || { sheets: [] };
         diffReport = event.data.diffReport || null;
@@ -63,7 +66,7 @@
         activeSheetId = state.sheets.find(sheet => sheet.name === activeName)?._id
           ?? state.sheets[0]?._id
           ?? "";
-        render();
+        render({ skipScrollCapture: true });
       } else if (event.data.type === "setSidebarWidth") {
         setSidebarWidth(event.data.width);
       }
@@ -73,10 +76,13 @@
       options.window.addEventListener("message", handleMessage);
     }
 
-    function render() {
+    function render(options) {
       if (diffSide === "unified" && diffReport) {
-        renderUnifiedView();
+        renderUnifiedView(options);
         return;
+      }
+      if (!options?.skipScrollCapture) {
+        captureScrollPositions();
       }
       const sheet = activeSheet();
       root.innerHTML = "";
@@ -87,16 +93,19 @@
         app.classList.add("diff-app");
       }
       const aside = document.createElement("aside");
+      const sidebarContent = document.createElement("div");
+      sidebarContent.className = "sidebar-content";
+      aside.append(sidebarContent);
       const main = document.createElement("main");
       app.append(aside, main);
       attachSidebarResize(aside);
 
       const title = document.createElement("h1");
       title.textContent = "NTF YAML Editor";
-      aside.append(title);
+      sidebarContent.append(title);
       if (!readOnly) {
-        aside.append(renderSaveControl());
-        aside.append(renderAddSheetForm());
+        sidebarContent.append(renderSaveControl());
+        sidebarContent.append(renderAddSheetForm());
       }
       for (const item of state.sheets) {
         const itemWrapper = document.createElement("div");
@@ -115,11 +124,11 @@
             state.sheets.splice(index, 1);
             activeSheetId = state.sheets[Math.max(0, index - 1)]?._id ?? "";
             render();
-          }, "danger ghost compact sheet-delete-button");
+          }, "sheet-delete-button");
           deleteBtn.dataset.action = "delete-sheet";
           itemWrapper.append(deleteBtn);
         }
-        aside.append(itemWrapper);
+        sidebarContent.append(itemWrapper);
       }
 
       if (!sheet) {
@@ -140,6 +149,37 @@
       }
 
       root.append(app);
+      restoreScrollPositions(sidebarContent, main);
+    }
+
+    function captureScrollPositions() {
+      const app = root.querySelector(".app");
+      if (!app) return;
+      const sidebarContent = app.querySelector(".sidebar-content");
+      const main = app.querySelector("main");
+      if (sidebarContent) {
+        sidebarScrollTop = sidebarContent.scrollTop;
+      }
+      const key = mainScrollKey();
+      if (main && key) {
+        mainScrollTopByKey.set(key, main.scrollTop);
+      }
+    }
+
+    function restoreScrollPositions(sidebarContent, main) {
+      sidebarContent.scrollTop = sidebarScrollTop;
+      const key = mainScrollKey();
+      if (key && mainScrollTopByKey.has(key)) {
+        main.scrollTop = mainScrollTopByKey.get(key);
+      }
+    }
+
+    function mainScrollKey() {
+      if (diffSide === "unified") {
+        return "unified:" + activeUnifiedSheetName;
+      }
+      const sheet = activeSheet();
+      return sheet ? "normal:" + sheet.name : "";
     }
 
     function attachSidebarResize(aside) {
@@ -228,8 +268,9 @@
       applyDiffClass(div, findDiffSheet(sheet.name)?.status, "diff-sheet");
       div.append(document.createTextNode(sheet.name || "(unnamed sheet)"));
       div.onclick = () => {
+        captureScrollPositions();
         activeSheetId = sheet._id;
-        render();
+        render({ skipScrollCapture: true });
       };
       div.onkeydown = (e) => {
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); div.click(); }
@@ -534,6 +575,9 @@
             applyDiffClass(td, diffCell?.status, "diff-cell");
             setDiffStatus(td, diffCell?.status);
           }
+          if (ci === 0 && rowView.auxiliaryFirstCell) {
+            td.classList.add("raw-filler-cell");
+          }
           if (!readOnly && ci === 0) {
             appendRowActionBar(td, "Delete raw row", () => deleteRow(block, ri));
           }
@@ -541,7 +585,7 @@
             tr.append(td);
             continue;
           }
-          if (rowView.headerLike) {
+          if (rowView.headerLike && !(ci === 0 && rowView.auxiliaryFirstCell)) {
             td.classList.add("table-header-cell");
           }
           const input = document.createElement("input");
@@ -578,7 +622,7 @@
       const btn = smallButton(CLOSE_SVG, "Delete block", () => {
         sheet.blocks.splice(sheet.blocks.indexOf(block), 1);
         render();
-      }, "danger ghost compact block-delete-button");
+      }, "block-delete-button");
       btn.dataset.action = "delete-block";
       return btn;
     }
@@ -872,20 +916,26 @@
       });
     }
 
-    function renderUnifiedView() {
+    function renderUnifiedView(options) {
+      if (!options?.skipScrollCapture) {
+        captureScrollPositions();
+      }
       const diffFile = diffReport?.files?.[0];
       root.innerHTML = "";
 
       const app = document.createElement("div");
       app.className = "app diff-app unified-view";
       const aside = document.createElement("aside");
+      const sidebarContent = document.createElement("div");
+      sidebarContent.className = "sidebar-content";
+      aside.append(sidebarContent);
       const main = document.createElement("main");
       app.append(aside, main);
       attachSidebarResize(aside);
 
       const title = document.createElement("h1");
       title.textContent = "NTF YAML Editor";
-      aside.append(title);
+      sidebarContent.append(title);
 
       const diffSheets = diffFile?.sheets || [];
       if (!activeUnifiedSheetName || !diffSheets.find(s => s.name === activeUnifiedSheetName)) {
@@ -913,10 +963,14 @@
           btn.dataset.sheetName = diffSheet.name;
           applyDiffClass(btn, diffSheet.status, "diff-sheet");
           btn.textContent = diffSheet.name || "(unnamed sheet)";
-          btn.onclick = () => { activeUnifiedSheetName = diffSheet.name; renderUnifiedView(); };
+          btn.onclick = () => {
+            captureScrollPositions();
+            activeUnifiedSheetName = diffSheet.name;
+            renderUnifiedView({ skipScrollCapture: true });
+          };
           itemWrapper.append(btn);
         }
-        aside.append(itemWrapper);
+        sidebarContent.append(itemWrapper);
       }
 
       const activeDiffSheet = diffSheets.find(s => s.name === activeUnifiedSheetName);
@@ -939,6 +993,7 @@
       }
 
       root.append(app);
+      restoreScrollPositions(sidebarContent, main);
     }
 
     function renderUnifiedBlock(diffBlock) {
