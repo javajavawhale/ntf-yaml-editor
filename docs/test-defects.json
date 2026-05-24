@@ -44,6 +44,36 @@
       "fix_notes": "diff-cell-*/diff-row-* と table-header-cell/raw-key-cell/raw-filler-cell の組み合わせルールを追加。セル・行レベルの 6 パターンをカバー。",
       "created_at": "2026-05-24",
       "updated_at": "2026-05-24"
+    },
+    {
+      "id": "D-004",
+      "title": "SCM diff 左ペインでテーブル左余白が消滅",
+      "category": "T01",
+      "severity": "中",
+      "status": "修正済",
+      "description": "SCM diff の左ペイン（base, readonly）で、カード内のテーブル左端とカードボーダーの間にあるべき余白が消滅し、テーブルがカード左端に密着して表示される。通常エディタ（non-readonly）では余白が確保されている。",
+      "steps": "1. SCM パネルから diff-all-base.ntf.yaml をクリックして SCM diff を開く\n2. 左ペイン（base）のいずれかのブロックのテーブルを確認する\n3. 通常エディタ（Explorer から同ファイルを開く）と左端の余白を比較する",
+      "actual": "左ペインのテーブルがカードの左ボーダーに密着して表示される（余白 0）",
+      "expected": "通常エディタと同様、テーブル左端とカード左ボーダーの間に余白（block-padding-x 相当: 約 10px）が確保される",
+      "fix_strategy": "0007b53（D-001/D-002 fix）で誤って削除された .table-scroll--with-row-actions CSS を復活させる。また .table-scroll 本体に padding-left: var(--block-padding-x) を追加して readonly モードにも一律 10px の左余白を確保する。non-readonly は table-scroll--with-row-actions の padding-left: var(--row-action-width)（18px）で上書きされ、row-action-bar が padding 内に収まる。",
+      "fix_notes": ".table-scroll の padding を 0 0 12px var(--row-action-width) (18px) に統一。冗長な .table-scroll--with-row-actions の padding-left override を削除。scrollbar-track margin-left は維持。readonly/non-readonly ともに 18px で一致。",
+      "created_at": "2026-05-24",
+      "updated_at": "2026-05-24"
+    },
+    {
+      "id": "D-005",
+      "title": "base ペインで added 行が誤マッチして緑表示",
+      "category": "T01",
+      "severity": "高",
+      "status": "修正中",
+      "description": "SCM diff の base（左）ペインで、unchanged であるはずの行が added（緑）ハイライトされる。diff レポートの added 行は key = headIndex（head 側の位置インデックス）で生成されるが、findDiffRow（base 側）が base 行の位置インデックスで検索するため、両者が一致するとその base 行に誤って added ステータスが適用される。",
+      "steps": "1. diff-all-base（base: [no]1/2/3）を git にコミットし、diff-all-head（head: [no]1/3/4）で SCM diff を表示する\n2. 左ペイン（base）の changedSheet → LIST_MAP=requestParams を確認する",
+      "actual": "base ペインの [no]3（base インデックス 2）が added（緑）ハイライトで表示される",
+      "expected": "base ペインの [no]3 はハイライトなし（unchanged）で表示される",
+      "fix_strategy": "findDiffRow（media/ntfYamlEditorDiffHelpers.js:18）の base 側検索に status !== 'added' フィルタを追加する。added 行は head にしか存在しないため base 側では絶対にマッチさせてはならない。変更箇所: `block.rows.find(item => item.key === key)` → `block.rows.find(item => item.key === key && item.status !== 'added')`",
+      "fix_notes": null,
+      "created_at": "2026-05-24",
+      "updated_at": "2026-05-24"
     }
   ]
 }

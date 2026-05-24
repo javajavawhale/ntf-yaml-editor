@@ -18,7 +18,8 @@
   function findDiffRow(block, key, diffSide) {
     if (!block?.rows) return null;
     if (diffSide === "base") {
-      return block.rows.find(item => item.key === key) || null;
+      // added 行は head にのみ存在し base インデックスを持たないため除外する
+      return block.rows.find(item => item.key === key && item.status !== "added") || null;
     }
     return block.rows.find(item => item.headIndex !== null && item.headIndex !== undefined && String(item.headIndex) === key) || null;
   }
