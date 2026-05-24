@@ -597,20 +597,20 @@ tr.row-focused .row-action-bar {
     display: none;
 }
 
-.ntf-table tr:hover > td[data-col-index="0"],
-.ntf-table tr.row-focused > td[data-col-index="0"] {
+.ntf-table tr:hover > td:first-child,
+.ntf-table tr.row-focused > td:first-child {
     box-shadow: inset 3px 0 0 var(--accent);
 }
 
-.ntf-table.has-focused-cell tr:not(.row-focused):hover > td[data-col-index="0"] {
+.ntf-table.has-focused-cell tr:not(.row-focused):hover > td:first-child {
     box-shadow: none;
 }
 
-.ntf-table:focus-within tr:not(.row-focused):hover > td[data-col-index="0"] {
+.ntf-table:focus-within tr:not(.row-focused):hover > td:first-child {
     box-shadow: none;
 }
 
-.ntf-table[data-focus-locked="true"] tr:not(.row-focused):hover > td[data-col-index="0"] {
+.ntf-table[data-focus-locked="true"] tr:not(.row-focused):hover > td:first-child {
     box-shadow: none;
 }
 
