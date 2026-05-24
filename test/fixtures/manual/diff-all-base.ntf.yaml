@@ -8,7 +8,7 @@ changedSheet:
       name: "delete me"
       status: "base only"
       note: "row will be deleted"
-    - "[no]": "4"
+    - "[no]": "3"
       name: "stable"
       status: "unchanged"
       note: "this row stays the same"

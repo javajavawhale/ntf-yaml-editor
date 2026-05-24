@@ -10,13 +10,13 @@ changedSheet:
       status: "same"
       note: "cell changed"
     - "[no]": "3"
-      name: "added row"
-      status: "head only"
-      note: "row was added"
-    - "[no]": "4"
       name: "stable"
       status: "unchanged"
       note: "this row stays the same"
+    - "[no]": "4"
+      name: "added row"
+      status: "head only"
+      note: "row was added"
 
   EXPECTED_VARIABLE=./tmp/result.csv: #RawRows
     - [ "text-encoding", "UTF-8" ]
@@ -25,6 +25,7 @@ changedSheet:
     - [ "", "半角数字", "半角英字" ]
     - [ "", "001", "Kyoto" ]
     - [ "", "003", "Nara" ]
+    - [ "", "004", "NewCity" ]
 
   EXPECTED_TABLE=ADDED_BLOCK: #ListMap
     - ID: "9"

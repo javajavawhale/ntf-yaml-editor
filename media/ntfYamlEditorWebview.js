@@ -515,9 +515,6 @@
           input.dataset.column = col;
           input.value = row[col] ?? "";
           input.readOnly = readOnly;
-          if (diffCell?.status && diffCell.status !== "unchanged") {
-            input.title = "before: " + valueText(diffCell.before);
-          }
           input.oninput = () => {
             row[col] = input.value;
           };
@@ -620,9 +617,6 @@
           input.dataset.rawColumn = String(ci);
           input.value = row[ci] ?? "";
           input.readOnly = readOnly;
-          if (diffCell?.status && diffCell.status !== "unchanged") {
-            input.title = "before: " + valueText(diffCell.before);
-          }
           (function(r, idx) {
             input.oninput = function() {
               r[idx] = input.value;
