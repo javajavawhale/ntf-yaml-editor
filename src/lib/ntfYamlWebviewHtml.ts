@@ -11,6 +11,7 @@ export interface RenderHtmlOptions {
   readOnly?: boolean;
   diffSide?: string;
   sidebarWidth?: number;
+  showReadOnlyTableActions?: boolean;
 }
 
 export function renderHtmlDiffPanel(
@@ -205,6 +206,7 @@ export function renderHtml(
   const initialReadOnly = options.readOnly ? "true" : "false";
   const initialDiffSide = JSON.stringify(options.diffSide || (options.readOnly ? "base" : "head"));
   const initialSidebarWidth = JSON.stringify(options.sidebarWidth || 240);
+  const showReadOnlyTableActions = options.showReadOnlyTableActions ? "true" : "false";
   const webviewHelpersScript = fs.readFileSync(path.join(extensionRoot, "media", "ntfYamlEditorHelpers.js"), "utf8");
   const webviewDiffHelpersScript = fs.readFileSync(path.join(extensionRoot, "media", "ntfYamlEditorDiffHelpers.js"), "utf8");
   const webviewScript = fs.readFileSync(path.join(extensionRoot, "media", "ntfYamlEditorWebview.js"), "utf8");
@@ -242,6 +244,7 @@ ${editorCss}
       readOnly: ${initialReadOnly},
       diffSide: ${initialDiffSide},
       sidebarWidth: ${initialSidebarWidth},
+      showReadOnlyTableActions: ${showReadOnlyTableActions},
       vscode,
       window
     });

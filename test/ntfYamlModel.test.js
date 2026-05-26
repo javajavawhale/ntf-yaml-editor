@@ -1180,6 +1180,87 @@ test("document diff report uses '~' git URI ref and displays it as 'index' when 
   assert.equal(report.summary.cells.changed, 1);
 });
 
+test("document diff report treats empty git URI ref as the staged index side", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ntf-yaml-git-uri-empty-ref-"));
+  git(dir, ["init"]);
+  git(dir, ["config", "user.email", "ntf-yaml@example.test"]);
+  git(dir, ["config", "user.name", "NTF YAML Test"]);
+  const file = path.join(dir, "case.ntf.yaml");
+  const committedText = [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"committed\"",
+    ""
+  ].join("\n");
+  fs.writeFileSync(file, committedText);
+  git(dir, ["add", "case.ntf.yaml"]);
+  git(dir, ["commit", "-m", "initial"]);
+
+  const stagedText = committedText.replace("committed", "staged");
+  fs.writeFileSync(file, stagedText);
+  git(dir, ["add", "case.ntf.yaml"]);
+
+  const worktreeText = committedText.replace("committed", "worktree");
+  fs.writeFileSync(file, worktreeText);
+
+  // VS Code's git extension uses ref="" for the right side of staged diffs.
+  const query = JSON.stringify({ path: file, ref: "" });
+  const report = createDocumentDiffReport({
+    uri: { scheme: "git", fsPath: file, query },
+    text: stagedText,
+    workspaceFolder: dir,
+    repositoryPath: dir
+  });
+
+  assert.equal(report.baseRef, "HEAD");
+  assert.equal(report.headRef, "index");
+  assert.match(report.baseText, /committed/);
+  assert.match(report.headText, /staged/);
+  assert.doesNotMatch(report.headText, /worktree/);
+  assert.equal(report.summary.cells.changed, 1);
+});
+
+test("document diff report compares HEAD git URI against index when staged changes exist", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ntf-yaml-git-uri-head-index-"));
+  git(dir, ["init"]);
+  git(dir, ["config", "user.email", "ntf-yaml@example.test"]);
+  git(dir, ["config", "user.name", "NTF YAML Test"]);
+  const file = path.join(dir, "case.ntf.yaml");
+  const committedText = [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"committed\"",
+    ""
+  ].join("\n");
+  fs.writeFileSync(file, committedText);
+  git(dir, ["add", "case.ntf.yaml"]);
+  git(dir, ["commit", "-m", "initial"]);
+
+  const stagedText = committedText.replace("committed", "staged");
+  fs.writeFileSync(file, stagedText);
+  git(dir, ["add", "case.ntf.yaml"]);
+
+  const worktreeText = committedText.replace("committed", "worktree");
+  fs.writeFileSync(file, worktreeText);
+
+  const query = JSON.stringify({ path: file, ref: "HEAD" });
+  const report = createDocumentDiffReport({
+    uri: { scheme: "git", fsPath: file, query },
+    text: committedText,
+    workspaceFolder: dir,
+    repositoryPath: dir
+  });
+
+  assert.equal(report.baseRef, "HEAD");
+  assert.equal(report.headRef, "index");
+  assert.match(report.baseText, /committed/);
+  assert.match(report.headText, /staged/);
+  assert.doesNotMatch(report.headText, /worktree/);
+  assert.equal(report.summary.cells.changed, 1);
+});
+
 test("working tree all-files diff reports modified, deleted, and untracked NTF YAML files", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ntf-yaml-all-files-diff-"));
   git(dir, ["init"]);

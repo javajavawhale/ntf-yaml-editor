@@ -56,15 +56,15 @@ export interface EditorViewContext {
 }
 
 export function editorViewContextForUri(uri: vscode.Uri): EditorViewContext {
+  const gitRef = uri.scheme === "git" ? parseGitQuery(uri.query).ref : undefined;
   return {
-    diffSide: uri.scheme === "git" ? "base" : "head",
+    diffSide: uri.scheme === "git" && gitRef !== "" ? "base" : "head",
     readOnly: uri.scheme !== "file",
   };
 }
 
 export function shouldUseWebviewDiffReport(uri: vscode.Uri, candidateUris: vscode.Uri[]): boolean {
-  const context = editorViewContextForUri(uri);
-  return context.diffSide === "base" || hasGitPairForFileUri(uri, candidateUris);
+  return uri.scheme === "git" || hasGitPairForFileUri(uri, candidateUris);
 }
 
 export function isInsidePath(filePath: string, rootPath: string): boolean {

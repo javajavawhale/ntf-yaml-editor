@@ -155,10 +155,20 @@ cp test/fixtures/manual/diff-all-head.ntf.yaml test/fixtures/manual/diff-all-bas
 
 これにより、Git の `HEAD` 側は `diff-all-base.ntf.yaml` の base 内容、working tree 側は `diff-all-head.ntf.yaml` の head 内容になる。Extension Development Host は既存ウィンドウのまま、SCM diff・Cell Diff Panel・HTML report の各ケースを実施する。
 
+ステージ済み差分の SCM diff を確認する場合は、上記の差分作成後に対象ファイルを stage する。
+
+```sh
+cd /home/happy/nablarch/vscode-ntf-yaml-editor
+git add test/fixtures/manual/diff-all-base.ntf.yaml
+```
+
+この場合、Git の `HEAD` 側は base 内容、index 側は head 内容になる。SCM パネルでは `Changes` ではなく `Staged Changes` から対象ファイルを開く。
+
 確認後は次のコマンドで戻す。
 
 ```sh
 cd /home/happy/nablarch/vscode-ntf-yaml-editor
+git restore --staged test/fixtures/manual/diff-all-base.ntf.yaml
 git restore test/fixtures/manual/diff-all-base.ntf.yaml
 ```
 
@@ -302,7 +312,14 @@ git restore test/fixtures/manual/diff-all-base.ntf.yaml
 | 2 | 拡張側 UI に split / unified 切り替えボタンが**ない**ことを確認する | split 切り替え UI は出ない（C-VIEW-01） |
 | 3 | 左ペイン（base）を確認する | `Save YAML`・行追加・列追加などの編集 UI が表示されない（C-EDIT-02） |
 | 4 | 右ペイン（head）を確認する | `Save YAML`・行追加・列追加などの編集 UI が表示される（C-EDIT-03） |
-| 5 | 左ペインの上部ラベルと右ペインの上部ラベルを確認する | base / head のブランチ名や ref が正しく表示される（C-VIEW-05） |
+| 5 | 左ペインの上部ラベルと右ペインの上部ラベルを確認する | 左ペインは `HEAD`、右ペインは `working tree` と表示される（C-VIEW-05） |
+
+ステージ済み差分も確認する場合は、4.3 のステージ済み差分手順を実施してから次を確認する。
+
+| # | 操作 | 期待結果 |
+|---|------|---------|
+| 6 | SCM パネルの `Staged Changes` から `test/fixtures/manual/diff-all-base.ntf.yaml` をクリックする | VS Code の diff editor が開き、左右ペインに `NTF YAML Table Editor` が表示される |
+| 7 | 左ペインの上部ラベルと右ペインの上部ラベルを確認する | 左ペインは `HEAD`、右ペインは `index` と表示される（C-VIEW-05） |
 
 ---
 
@@ -313,10 +330,11 @@ git restore test/fixtures/manual/diff-all-base.ntf.yaml
 | # | 操作 | 期待結果 |
 |---|------|---------|
 | 1 | 右ペインの `changedSheet` → `LIST_MAP=requestParams` を確認する | `"[no]": "1"` 行の `name` セルが changed（黄）ハイライトされている（C-DIFF-01） |
-| 2 | 右ペインで `"[no]": "4"` 行を確認する | added（緑）ハイライトで表示される（C-DIFF-02） |
+| 2 | 右ペインで `"[no]": "4"` 行を確認する | 行全体が added（緑）ハイライトで表示される（C-DIFF-02） |
 | 3 | 左ペインで `"[no]": "2"` 行（`delete me`）を確認する | deleted（赤）ハイライトで表示される（C-DIFF-03） |
 | 4 | 右ペインの `EXPECTED_VARIABLE=./tmp/result.csv` を確認する | 変更行（001/Kyoto・003/Nara）と追加行（004/NewCity）が changed / added ハイライトで表示される（C-DIFF-06, C-BLOCK-02） |
-| 5 | 左ペインの `SETUP_TABLE=DELETED_BLOCK`・右ペインの `EXPECTED_TABLE=STABLE_BLOCK` ブロックが Table Block として表示されることを確認する | key-value 行テーブル表示（C-BLOCK-01） |
+| 5 | 右ペインの `EXPECTED_TABLE=STABLE_BLOCK` ブロックを確認する | key-value 行テーブル表示（C-BLOCK-01） |
+| 6 | 左ペインの `SETUP_TABLE=DELETED_BLOCK`・右ペインの `EXPECTED_TABLE=ADDED_BLOCK` ブロックを確認する | key-value 行テーブル表示（C-BLOCK-01） |
 
 ---
 
@@ -352,7 +370,7 @@ git restore test/fixtures/manual/diff-all-base.ntf.yaml
 
 ---
 
-#### TC-CDP-01　3 経路からのパネル起動確認
+#### TC-CDP-01　2 経路からのパネル起動確認
 
 **優先度**: P1　**カバー条件**: —
 
@@ -362,7 +380,6 @@ git restore test/fixtures/manual/diff-all-base.ntf.yaml
 | 2 | パネルを閉じる | — |
 | 3 | Explorer で `test/fixtures/manual/diff-all-base.ntf.yaml` を右クリック → `NTF YAML: Open Cell Diff` を実行する | パネルが開く |
 | 4 | パネルを閉じる | — |
-| 5 | `test/fixtures/manual/diff-all-base.ntf.yaml` をテキストエディタで開き、タブ右上のボタン `NTF YAML: Open Cell Diff` をクリックする | パネルが開く |
 
 ---
 
@@ -373,7 +390,7 @@ git restore test/fixtures/manual/diff-all-base.ntf.yaml
 | # | 操作 | 期待結果 |
 |---|------|---------|
 | 1 | TC-CDP-01 でパネルを開き、split 横方向表示になっていることを確認する | 左（base）・右（head）の 2 ペインが横並びで表示される |
-| 2 | 左右ペインの上部ラベルを確認する | base / head のラベルが正しく表示される（C-VIEW-05） |
+| 2 | 左右ペインの上部ラベルを確認する | 左ペインは `HEAD`、右ペインは `working tree` と読める状態で表示される（C-VIEW-05） |
 | 3 | 右ペインの `changedSheet` → `LIST_MAP=requestParams` を確認する | `"[no]": "1"` の `name` セルが changed（黄）ハイライト（C-DIFF-01） |
 | 4 | 右ペインで `"[no]": "4"` 行を確認する | added（緑）ハイライト（C-DIFF-02） |
 | 5 | 左ペインで `"[no]": "2"` 行を確認する | deleted（赤）ハイライト（C-DIFF-03） |
@@ -390,7 +407,7 @@ git restore test/fixtures/manual/diff-all-base.ntf.yaml
 
 | # | 操作 | 期待結果 |
 |---|------|---------|
-| 1 | パネル上部の unified 表示ボタンをクリックする | unified ペインに切り替わる（C-VIEW-02） |
+| 1 | パネル上部の unified 表示ボタンをクリックする | unified ペインに切り替わる。sidebar の sheet list は通常の sheet 項目として表示され、編集用 input 風にはならない（C-VIEW-02） |
 | 2 | `LIST_MAP=requestParams` の `"[no]": "1"` 行の `name` セルを確認する | before 値が打ち消し線付きで表示され、after 値が緑の強調表示で表示される（C-DIFF-07） |
 | 3 | 追加行・削除行を確認する | added / deleted ハイライトで表示される |
 

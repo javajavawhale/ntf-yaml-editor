@@ -242,6 +242,7 @@ class NtfYamlEditorProvider implements vscode.CustomTextEditorProvider {
       readOnly: viewContext.readOnly,
       diffSide: viewContext.diffSide,
       sidebarWidth: this.sidebarWidth,
+      showReadOnlyTableActions: Boolean(webviewDiffReport && viewContext.diffSide === "head"),
     });
 
     const updateWebview = (): void => {

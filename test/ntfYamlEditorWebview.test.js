@@ -19,6 +19,7 @@ function createHarness(initialText = sampleYaml(), options = {}) {
     readOnly: options.readOnly,
     diffSide: options.diffSide,
     allowDiffControls: options.allowDiffControls,
+    showReadOnlyTableActions: options.showReadOnlyTableActions,
     vscode: {
       postMessage(message) {
         messages.push(message);
@@ -92,19 +93,19 @@ function dragDrop(dom, from, to) {
 }
 
 function rowDragHandle(row) {
-  return row.querySelector(".row-action-bar .drag-handle");
+  const rowIndex = Array.from(row.parentElement.children).indexOf(row);
+  return row.closest(".table-scroll")
+    ?.querySelectorAll(".row-action-slot")
+    ?.[rowIndex]
+    ?.querySelector(".row-action-bar .drag-handle") ?? null;
 }
 
 function columnDragHandle(header) {
   return header.querySelector(".col-action-bar .drag-handle");
 }
 
-function sheetDragHandle(sheetItem) {
-  return sheetItem.querySelector(".sheet-drag-handle");
-}
-
-function blockDragHandle(blockElement) {
-  return blockElement.querySelector(".block-drag-handle");
+function blockDragSurface(blockElement) {
+  return blockElement.querySelector(".block-header");
 }
 
 function pointerEvent(dom, type, clientX) {
@@ -259,7 +260,6 @@ test("webview renders a read-only cell diff overlay", () => {
   assert.ok(projectName.closest("td").classList.contains("diff-cell-changed"));
   assert.equal(projectName.closest("td").dataset.diffStatus, "changed");
   assert.ok(projectName.closest("tr").classList.contains("diff-row-changed"));
-  assert.equal(projectName.title, "before: プロジェクト０００");
   assert.deepEqual(messages, []);
 });
 
@@ -464,7 +464,7 @@ test("webview adds and deletes RawRows rows and columns", () => {
   rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
   dragDrop(dom, rowDragHandle(rawRows.querySelectorAll("tbody tr")[1]), rawRows.querySelectorAll("tbody tr")[0]);
   rawRows = block(root, "EXPECTED_VARIABLE=./tmp/result.csv");
-  dragDrop(dom, columnDragHandle(rawRows.querySelectorAll("thead th")[2]), rawRows.querySelectorAll("thead th")[0]);
+  dragDrop(dom, columnDragHandle(rawRows.querySelector('thead th[data-col-index="2"]')), rawRows.querySelector('thead th[data-col-index="0"]'));
   save(root);
 
   assert.match(serializeYaml(messages[0].model), /EXPECTED_VARIABLE=\.\/tmp\/result\.csv: #RawRows/);
@@ -565,7 +565,7 @@ test("webview renders RawRows without column numbers and highlights structural c
   ].join("\n"));
   const rawRows = block(root, "SETUP_VARIABLE[1]=data.csv");
 
-  assert.ok(rawRows.querySelector("thead th:nth-child(1) [title='Delete raw column'], thead th:nth-child(1) button[title='Delete raw column']") || rawRows.querySelector("thead th:nth-child(1)").querySelector("button"));
+  assert.ok(rawRows.querySelector("thead th[data-col-index='0'] [title='Delete raw column'], thead th[data-col-index='0'] button[title='Delete raw column']"));
   assert.ok(rawRows.querySelector(".raw-metadata-row"));
   assert.ok(rawRows.querySelector(".raw-section-header-row"));
   assert.ok(rawRows.querySelector(".raw-key-cell"));
@@ -677,11 +677,11 @@ test("webview reorders sheets, blocks, rows, and columns with drag and drop", ()
 
   dragDrop(
     dom,
-    sheetDragHandle(root.querySelector('[data-sheet-name="case2"]').closest(".sheet-item")),
+    root.querySelector('[data-sheet-name="case2"]').closest(".sheet-item"),
     root.querySelector('[data-sheet-name="case1"]').closest(".sheet-item")
   );
   root.querySelector('[data-sheet-name="case1"]').click();
-  dragDrop(dom, blockDragHandle(block(root, "LIST_MAP=second")), block(root, "LIST_MAP=first"));
+  dragDrop(dom, blockDragSurface(block(root, "LIST_MAP=second")), block(root, "LIST_MAP=first"));
 
   let first = block(root, "LIST_MAP=first");
   dragDrop(dom, rowDragHandle(first.querySelectorAll("tbody tr")[1]), first.querySelectorAll("tbody tr")[0]);
@@ -696,7 +696,7 @@ test("webview reorders sheets, blocks, rows, and columns with drag and drop", ()
   assert.match(serializeYaml(messages[0].model), /    - name: "second-row"\n      no: "2"/);
 });
 
-test("webview only starts drag from action handles", () => {
+test("webview starts sheet and block drag from their visible card surfaces", () => {
   const { root } = createHarness([
     "case1:",
     "  LIST_MAP=first: #ListMap",
@@ -709,16 +709,17 @@ test("webview only starts drag from action handles", () => {
   const sheetItem = root.querySelector('[data-sheet-name="case1"]').closest(".sheet-item");
   const first = block(root, "LIST_MAP=first");
   const row = first.querySelector("tbody tr");
-  const header = first.querySelector("thead th");
+  const header = first.querySelector("thead th.table-header-cell"); // skip gutter th
 
-  assert.equal(sheetItem.draggable, false);
+  assert.equal(sheetItem.draggable, true);
   assert.equal(first.draggable, false);
+  assert.equal(blockDragSurface(first).draggable, true);
   assert.equal(row.draggable, false);
   assert.equal(header.draggable, false);
-  assert.equal(sheetDragHandle(sheetItem).draggable, true);
-  assert.equal(blockDragHandle(first).draggable, true);
   assert.equal(rowDragHandle(row).draggable, true);
   assert.equal(columnDragHandle(header).draggable, true);
+  assert.equal(sheetItem.querySelector(".sheet-drag-handle"), null);
+  assert.equal(first.querySelector(".block-drag-handle"), null);
 });
 
 test("webview keeps cell text drag separate from row and column movement", () => {
@@ -904,7 +905,6 @@ test("webview highlights diff on head side using headIndex", () => {
 
   assert.ok(projectName.closest("tr").classList.contains("diff-row-changed"));
   assert.ok(projectName.closest("td").classList.contains("diff-cell-changed"));
-  assert.equal(projectName.title, "before: プロジェクト０００");
 });
 
 test("webview highlights SCM diff base and head panes against their own document rows", () => {
@@ -927,6 +927,39 @@ test("webview highlights SCM diff base and head panes against their own document
   const headName = block(headHarness.root, "LIST_MAP=requestParams").querySelector('[data-column="name"]');
   assert.equal(headName.value, "after");
   assert.ok(headName.closest("td").classList.contains("diff-cell-changed"));
+});
+
+test("webview can show read-only SCM head table actions without enabling mutation", () => {
+  const baseText = [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"before\"",
+    ""
+  ].join("\n");
+  const headText = baseText.replace("before", "after");
+  const initialDiffReport = createDiffReport({ path: "case.ntf.yaml", baseText, headText });
+
+  const scmHead = createHarness(headText, {
+    initialDiffReport,
+    readOnly: true,
+    diffSide: "head",
+    showReadOnlyTableActions: true
+  });
+  const table = block(scmHead.root, "LIST_MAP=requestParams");
+  assert.ok(scmHead.root.querySelector(".app").classList.contains("has-table-actions"));
+  assert.equal(table.querySelector(".row-action-gutter-cell"), null);
+  assert.ok(table.querySelector(".row-action-layer"));
+  assert.ok(table.querySelector(".row-action-slot"));
+  assert.ok(table.querySelector(".row-action-bar"));
+  assert.ok(table.querySelector(".col-action-bar"));
+  assert.equal(table.querySelector(".action-bar-delete").disabled, true);
+  assert.equal(table.querySelector("[data-column='name']").readOnly, true);
+
+  const cellDiffHead = createHarness(headText, { initialDiffReport, readOnly: true, diffSide: "head" });
+  assert.equal(cellDiffHead.root.querySelector(".row-action-gutter-cell"), null);
+  assert.equal(cellDiffHead.root.querySelector(".row-action-layer"), null);
+  assert.equal(cellDiffHead.root.querySelector(".row-action-bar"), null);
 });
 
 test("webview does not highlight deleted rows on head side (headIndex is null)", () => {

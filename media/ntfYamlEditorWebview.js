@@ -44,6 +44,8 @@
     let state = options.initialModel || { sheets: [] };
     let diffReport = options.initialDiffReport || null;
     const readOnly = Boolean(options.readOnly);
+    const canEditModel = !readOnly;
+    const showReadOnlyTableActions = Boolean(options.showReadOnlyTableActions);
     const diffSide = options.diffSide != null ? options.diffSide : (readOnly ? "base" : "head");
     let nextId = 1;
     let activeSheetId = "";
@@ -91,8 +93,14 @@
 
       const app = document.createElement("div");
       app.className = "app";
-      if (readOnly && diffReport) {
+      if (diffReport) {
         app.classList.add("diff-app");
+      }
+      if (diffReport && (diffSide === "base" || diffSide === "head")) {
+        app.classList.add(`diff-${diffSide}`);
+      }
+      if (showTableActions()) {
+        app.classList.add("has-table-actions");
       }
       const aside = document.createElement("aside");
       const sidebarContent = document.createElement("div");
@@ -112,11 +120,8 @@
       for (const item of state.sheets) {
         const itemWrapper = document.createElement("div");
         itemWrapper.className = "sheet-item";
-        let sheetDragHandle = null;
         if (!readOnly) {
-          sheetDragHandle = createDragHandle();
-          sheetDragHandle.classList.add("sheet-drag-handle");
-          itemWrapper.append(sheetDragHandle);
+          itemWrapper.draggable = true;
         }
         const sheetControl = item._id === activeSheetId
           ? renderActiveSheetNameInput(item)
@@ -124,7 +129,6 @@
         itemWrapper.append(sheetControl);
         if (!readOnly) {
           attachDragSort(itemWrapper, state.sheets, item, () => { activeSheetId = item._id; }, {
-            dragSource: sheetDragHandle,
             type: "sheet",
             scope: "model"
           });
@@ -353,11 +357,8 @@
       applyDiffClass(wrapper, diffBlock?.status, "diff-block");
       const header = document.createElement("div");
       header.className = "block-header";
-      let blockDragHandle = null;
       if (!readOnly) {
-        blockDragHandle = createDragHandle();
-        blockDragHandle.classList.add("block-drag-handle");
-        header.append(blockDragHandle);
+        header.draggable = true;
       }
       const name = document.createElement("input");
       name.className = "block-name";
@@ -368,7 +369,7 @@
       header.append(name);
       if (!readOnly) {
         attachDragSort(wrapper, sheet.blocks, block, null, {
-          dragSource: blockDragHandle,
+          dragSource: header,
           type: "block",
           scope: sheet._id
         });
@@ -449,7 +450,11 @@
       }
 
       const scroll = document.createElement("div");
-      scroll.className = readOnly ? "table-scroll" : "table-scroll table-scroll--with-row-actions";
+      scroll.className = showTableActions() ? "table-scroll table-scroll--with-row-actions" : "table-scroll";
+      const rowActionLayer = showTableActions() ? createRowActionLayer() : null;
+      if (rowActionLayer) {
+        scroll.append(rowActionLayer);
+      }
       const viewport = document.createElement("div");
       viewport.className = "table-viewport";
       const table = document.createElement("table");
@@ -473,26 +478,30 @@
           render();
         };
         thContent.append(input);
-        if (!readOnly) {
+        if (showTableActions()) {
           const colActionBar = document.createElement("div");
           colActionBar.className = "col-action-bar";
           const colDragHandle = createDragHandle("h");
           colActionBar.append(colDragHandle);
-          colActionBar.append(smallButton(CLOSE_SVG, "Delete column", () => {
+          const deleteColumnButton = smallButton(CLOSE_SVG, "Delete column", () => {
             helper.deleteColumn(block, col);
             render();
-          }, "action-bar-delete"));
+          }, "action-bar-delete");
+          deleteColumnButton.disabled = !allowTableMutation();
+          colActionBar.append(deleteColumnButton);
           th.append(colActionBar);
-          attachIndexDragSort(th, () => columns(block).length, colIndex, (from, to) => {
-            const order = columns(block);
-            helper.moveItem(order, from, to);
-            block.columnOrder = order;
-            render();
-          }, {
-            dragSource: colDragHandle,
-            type: "column",
-            scope: block._id
-          });
+          if (allowTableMutation()) {
+            attachIndexDragSort(th, () => columns(block).length, colIndex, (from, to) => {
+              const order = columns(block);
+              helper.moveItem(order, from, to);
+              block.columnOrder = order;
+              render();
+            }, {
+              dragSource: colDragHandle,
+              type: "column",
+              scope: block._id
+            });
+          }
         }
         th.append(thContent);
         headRow.append(th);
@@ -506,6 +515,9 @@
         const diffRow = findDiffRow(diffBlock, tableRowKey(row, index));
         applyDiffClass(tr, diffRow?.status, "diff-row");
         let rowDragHandle = null;
+        if (rowActionLayer) {
+          rowDragHandle = appendRowActionBar(rowActionLayer, "Delete row", () => deleteRow(block, index), tr);
+        }
         cols.forEach(col => {
           const td = document.createElement("td");
           const diffCell = findDiffCell(diffRow, col);
@@ -518,13 +530,10 @@
           input.oninput = () => {
             row[col] = input.value;
           };
-          if (!readOnly && col === cols[0]) {
-            rowDragHandle = appendRowActionBar(td, "Delete row", () => deleteRow(block, index));
-          }
           td.append(input);
           tr.append(td);
         });
-        if (!readOnly) {
+        if (allowTableMutation()) {
           attachDragSort(tr, block.rows, row, null, {
             dragSource: rowDragHandle,
             type: "row",
@@ -534,18 +543,25 @@
         tbody.append(tr);
       });
       table.append(tbody);
+      viewport.append(table);
+      scroll.append(viewport);
       attachTableInteraction(table, headRow, input =>
         Array.from(input.closest("tr").children).indexOf(input.closest("td"))
       );
-      viewport.append(table);
-      scroll.append(viewport);
+      if (rowActionLayer) {
+        scheduleRowActionLayerSync(scroll, table);
+      }
       wrapper.append(scroll);
       return wrapper;
     }
 
     function renderRawRowsTable(block, diffBlock) {
       const scroll = document.createElement("div");
-      scroll.className = readOnly ? "table-scroll" : "table-scroll table-scroll--with-row-actions";
+      scroll.className = showTableActions() ? "table-scroll table-scroll--with-row-actions" : "table-scroll";
+      const rowActionLayer = showTableActions() ? createRowActionLayer() : null;
+      if (rowActionLayer) {
+        scroll.append(rowActionLayer);
+      }
       const viewport = document.createElement("div");
       viewport.className = "table-viewport";
       const table = document.createElement("table");
@@ -557,24 +573,28 @@
         const th = document.createElement("th");
         th.className = "table-header-cell";
         th.dataset.colIndex = String(i);
-        if (!readOnly) {
+        if (showTableActions()) {
           const colActionBar = document.createElement("div");
           colActionBar.className = "col-action-bar";
           const colDragHandle = createDragHandle("h");
           colActionBar.append(colDragHandle);
-          colActionBar.append(smallButton(CLOSE_SVG, "Delete raw column", () => {
+          const deleteColumnButton = smallButton(CLOSE_SVG, "Delete raw column", () => {
             helper.deleteRawColumn(block, i);
             render();
-          }, "action-bar-delete"));
+          }, "action-bar-delete");
+          deleteColumnButton.disabled = !allowTableMutation();
+          colActionBar.append(deleteColumnButton);
           th.append(colActionBar);
-          attachIndexDragSort(th, () => helper.rawWidth(block), i, (from, to) => {
-            helper.moveRawColumnTo(block, from, to);
-            render();
-          }, {
-            dragSource: colDragHandle,
-            type: "column",
-            scope: block._id
-          });
+          if (allowTableMutation()) {
+            attachIndexDragSort(th, () => helper.rawWidth(block), i, (from, to) => {
+              helper.moveRawColumnTo(block, from, to);
+              render();
+            }, {
+              dragSource: colDragHandle,
+              type: "column",
+              scope: block._id
+            });
+          }
         }
         headRow.append(th);
       }
@@ -589,6 +609,9 @@
         const diffRow = findDiffRow(diffBlock, String(ri));
         applyDiffClass(tr, diffRow?.status, "diff-row");
         let rowDragHandle = null;
+        if (rowActionLayer) {
+          rowDragHandle = appendRowActionBar(rowActionLayer, "Delete raw row", () => deleteRow(block, ri), tr);
+        }
         for (let ci = 0; ci < row.length; ci++) {
           const td = document.createElement("td");
           const diffCell = findDiffCell(diffRow, String(ci));
@@ -601,9 +624,6 @@
           }
           if (ci === 0 && rowView.auxiliaryFirstCell) {
             td.classList.add("raw-filler-cell");
-          }
-          if (!readOnly && ci === 0) {
-            rowDragHandle = appendRowActionBar(td, "Delete raw row", () => deleteRow(block, ri));
           }
           if (ci === 0 && rowView.lockFirstCell) {
             tr.append(td);
@@ -625,7 +645,7 @@
           td.append(input);
           tr.append(td);
         }
-        if (!readOnly) {
+        if (allowTableMutation()) {
           attachDragSort(tr, block.rows, row, null, {
             dragSource: rowDragHandle,
             type: "row",
@@ -640,9 +660,12 @@
         tbody.append(tr);
       });
       table.append(tbody);
-      attachTableInteraction(table, headRow, input => parseInt(input.dataset.rawColumn ?? "0"));
       viewport.append(table);
       scroll.append(viewport);
+      attachTableInteraction(table, headRow, input => parseInt(input.dataset.rawColumn ?? "0"));
+      if (rowActionLayer) {
+        scheduleRowActionLayerSync(scroll, table);
+      }
       return scroll;
     }
 
@@ -680,25 +703,92 @@
       return handle;
     }
 
-    function appendRowActionBar(cell, deleteTitle, onDelete) {
+    function createRowActionLayer() {
+      const layer = document.createElement("div");
+      layer.className = "row-action-layer";
+      return layer;
+    }
+
+    function appendRowActionBar(container, deleteTitle, onDelete, row) {
+      const slot = document.createElement("div");
+      slot.className = "row-action-slot";
       const rowActionBar = document.createElement("div");
       rowActionBar.className = "row-action-bar";
       const dragHandle = createDragHandle();
       rowActionBar.append(dragHandle);
-      rowActionBar.append(smallButton(CLOSE_SVG, deleteTitle, onDelete, "action-bar-delete"));
-      cell.append(rowActionBar);
+      const deleteButton = smallButton(CLOSE_SVG, deleteTitle, onDelete, "action-bar-delete");
+      deleteButton.disabled = !allowTableMutation();
+      rowActionBar.append(deleteButton);
+      slot.append(rowActionBar);
+      container.append(slot);
+      if (row) {
+        row.__rowActionSlot = slot;
+      }
       return dragHandle;
+    }
+
+    function scheduleRowActionLayerSync(scroll, table) {
+      const sync = () => {
+        if (!scroll.isConnected) return;
+        const scrollRect = scroll.getBoundingClientRect();
+        table.querySelectorAll("tbody tr").forEach(tr => {
+          const slot = tr.__rowActionSlot;
+          if (!slot) return;
+          const rect = tr.getBoundingClientRect();
+          slot.style.top = (rect.top - scrollRect.top) + "px";
+          slot.style.height = rect.height + "px";
+        });
+      };
+      const schedule = () => {
+        if (typeof viewWindow.requestAnimationFrame === "function") {
+          viewWindow.requestAnimationFrame(sync);
+          viewWindow.requestAnimationFrame(() => viewWindow.requestAnimationFrame(sync));
+        } else {
+          viewWindow.setTimeout(sync, 0);
+        }
+      };
+      schedule();
+      viewWindow.setTimeout(sync, 80);
     }
 
     function attachTableInteraction(table, headRow, getColIndex) {
       let blurTimer = null;
       const headers = Array.from(headRow.querySelectorAll("th"));
+      const scroll = table.closest(".table-scroll");
+      const rowActionSlots = () => scroll ? Array.from(scroll.querySelectorAll(".row-action-slot")) : [];
+      const rowActionSlot = tr => tr?.__rowActionSlot || null;
+      const clearRowActionSlots = () => {
+        rowActionSlots().forEach(slot => {
+          slot.classList.remove("row-action-slot--visible", "row-action-slot--focused");
+        });
+        table.querySelectorAll("tr.row-action-hover").forEach(row => row.classList.remove("row-action-hover"));
+      };
+      const showRowActionSlot = (tr, focused) => {
+        const slot = rowActionSlot(tr);
+        if (!slot) return;
+        if (focused) {
+          clearRowActionSlots();
+          slot.classList.add("row-action-slot--focused");
+        }
+        slot.classList.add("row-action-slot--visible");
+      };
+      const hideRowActionSlot = tr => {
+        const slot = rowActionSlot(tr);
+        if (!slot || tr.classList.contains("row-focused") || slot.matches(":hover") || slot.contains(document.activeElement)) {
+          return;
+        }
+        slot.classList.remove("row-action-slot--visible", "row-action-slot--focused");
+      };
+      const scheduleHideRowActionSlot = tr => {
+        viewWindow.setTimeout(() => hideRowActionSlot(tr), 0);
+      };
       const clearActiveColumn = () => {
         headers.forEach(th => th.classList.remove("col-active"));
       };
       const clearFocusedGuides = () => {
         table.querySelectorAll("tr.row-focused").forEach(r => r.classList.remove("row-focused"));
         table.querySelectorAll("th.col-focused").forEach(h => h.classList.remove("col-focused"));
+        clearRowActionSlots();
       };
       const clearFocusedCell = () => {
         table.classList.remove("has-focused-cell");
@@ -742,6 +832,26 @@
         });
         cell.addEventListener("focusin", () => activateColumnByIndex(cell.cellIndex));
       });
+      table.querySelectorAll("tbody tr").forEach(tr => {
+        const slot = rowActionSlot(tr);
+        if (!slot) return;
+        tr.addEventListener("mouseenter", () => {
+          if (hasFocusedCell() && !tr.classList.contains("row-focused")) return;
+          showRowActionSlot(tr, false);
+        });
+        tr.addEventListener("mouseleave", () => scheduleHideRowActionSlot(tr));
+        slot.addEventListener("mouseenter", () => {
+          if (hasFocusedCell() && !tr.classList.contains("row-focused")) return;
+          tr.classList.add("row-action-hover");
+          showRowActionSlot(tr, false);
+        });
+        slot.addEventListener("mouseleave", () => {
+          tr.classList.remove("row-action-hover");
+          scheduleHideRowActionSlot(tr);
+        });
+        slot.addEventListener("focusin", () => showRowActionSlot(tr, true));
+        slot.addEventListener("focusout", () => scheduleHideRowActionSlot(tr));
+      });
       table.addEventListener("mouseleave", clearActiveColumn);
       table.querySelectorAll("tbody td input").forEach(input => {
         const focusInput = () => {
@@ -752,6 +862,7 @@
           table.dataset.focusLocked = "true";
           clearFocusedGuides();
           tr.classList.add("row-focused");
+          showRowActionSlot(tr, true);
           const th = headers[colIdx] || headRow.querySelector(`th[data-col-index="${colIdx}"]`);
           if (th) th.classList.add("col-focused");
           activateColumn(th);
@@ -870,6 +981,14 @@
       return diffHelper.tableRowKey(row, index);
     }
 
+    function showTableActions() {
+      return canEditModel || (showReadOnlyTableActions && Boolean(diffReport) && diffSide === "head");
+    }
+
+    function allowTableMutation() {
+      return canEditModel;
+    }
+
     function applyDiffClass(element, status, prefix) {
       diffHelper.applyDiffClass(element, status, prefix);
     }
@@ -905,6 +1024,11 @@
       if (!dragSource) return;
       dragSource.draggable = true;
       dragSource.addEventListener("dragstart", event => {
+        if (shouldIgnoreDragStart(event.target, dragSource)) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
         event.stopPropagation();
         element.classList.add("dragging");
         const payload = { type, scope, index: items.indexOf(item) };
@@ -943,6 +1067,12 @@
         if (afterMove) afterMove();
         render();
       });
+    }
+
+    function shouldIgnoreDragStart(target, dragSource) {
+      if (!(target instanceof viewWindow.Element)) return false;
+      if (target === dragSource) return false;
+      return Boolean(target.closest("input, textarea, select, button, [contenteditable='true']"));
     }
 
     function attachIndexDragSort(element, getLength, index, move, options) {
@@ -1053,15 +1183,12 @@
         const itemWrapper = document.createElement("div");
         itemWrapper.className = "sheet-item";
         if (isActive) {
-          const container = document.createElement("div");
+          const container = document.createElement("button");
           container.className = "sheet active";
           container.dataset.sheetName = diffSheet.name;
+          container.type = "button";
           applyDiffClass(container, diffSheet.status, "diff-sheet");
-          const input = document.createElement("input");
-          input.dataset.role = "sheet-name";
-          input.value = diffSheet.name;
-          input.readOnly = true;
-          container.append(input);
+          container.textContent = diffSheet.name || "(unnamed sheet)";
           itemWrapper.append(container);
         } else {
           const btn = document.createElement("button");

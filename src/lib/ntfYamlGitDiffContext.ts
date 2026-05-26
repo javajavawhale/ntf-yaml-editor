@@ -191,14 +191,33 @@ function createGitUriReport(options: DocumentDiffOptions): DiffReport | null {
     options.repositoryPath || options.workspaceFolder,
     filePath as string
   );
+  const relativePath = workspaceRelativePath(repositoryPath, filePath as string);
+  const ref = query.ref as string | undefined;
+  if (ref === "") {
+    const baseText = gitShow(repositoryPath, "HEAD", relativePath) || "";
+    const headText = options.text || "";
+    return createDiffReport({
+      path: relativePath,
+      oldPath: relativePath,
+      status: "modified",
+      baseRef: "HEAD",
+      headRef: "index",
+      baseText,
+      headText,
+      repositoryPath,
+    });
+  }
   const baseText = options.text || "";
-  const headText = fs.readFileSync(filePath as string, "utf8");
+  const comparesAgainstIndex = ref === "HEAD" && hasIndexStatus(repositoryPath, filePath as string);
+  const headText = comparesAgainstIndex
+    ? readRefFile(repositoryPath, "index", relativePath).text
+    : fs.readFileSync(filePath as string, "utf8");
   return createDiffReport({
-    path: workspaceRelativePath(repositoryPath, filePath as string),
-    oldPath: workspaceRelativePath(repositoryPath, filePath as string),
+    path: relativePath,
+    oldPath: relativePath,
     status: "modified",
-    baseRef: displayRefForGitUri(query.ref as string | undefined, repositoryPath, filePath as string),
-    headRef: "working tree",
+    baseRef: displayRefForGitUri(ref, repositoryPath, filePath as string),
+    headRef: comparesAgainstIndex ? "index" : "working tree",
     baseText,
     headText,
     repositoryPath,
@@ -339,6 +358,9 @@ function displayRefForGitUri(
   repositoryPath: string,
   filePath: string
 ): string {
+  if (ref === "") {
+    return "index";
+  }
   if (ref === "~") {
     return hasIndexStatus(repositoryPath, filePath) ? "index" : "HEAD";
   }

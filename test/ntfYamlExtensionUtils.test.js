@@ -64,16 +64,22 @@ test("hasGitPairForFileUri detects SCM diff head by backing file path", () => {
 
 test("editorViewContextForUri derives readonly and diff side from URI scheme", () => {
   assert.deepEqual(editorViewContextForUri({ scheme: "git" }), { diffSide: "base", readOnly: true });
+  assert.deepEqual(
+    editorViewContextForUri({ scheme: "git", query: JSON.stringify({ path: "/repo/case.ntf.yaml", ref: "" }) }),
+    { diffSide: "head", readOnly: true }
+  );
   assert.deepEqual(editorViewContextForUri({ scheme: "file" }), { diffSide: "head", readOnly: false });
   assert.deepEqual(editorViewContextForUri({ scheme: "untitled" }), { diffSide: "head", readOnly: true });
 });
 
-test("shouldUseWebviewDiffReport applies diff overlay only to base or paired SCM head", () => {
+test("shouldUseWebviewDiffReport applies diff overlay to git resources and paired SCM head", () => {
   const fileUri = { scheme: "file", fsPath: "/repo/case.ntf.yaml" };
   const gitQuery = encodeURIComponent(JSON.stringify({ path: "/repo/case.ntf.yaml", ref: "HEAD" }));
   const gitUri = { scheme: "git", fsPath: "/tmp/git/case.ntf.yaml", query: gitQuery };
+  const gitIndexUri = { scheme: "git", fsPath: "/tmp/git/case.ntf.yaml", query: JSON.stringify({ path: "/repo/case.ntf.yaml", ref: "" }) };
 
   assert.equal(shouldUseWebviewDiffReport(gitUri, []), true);
+  assert.equal(shouldUseWebviewDiffReport(gitIndexUri, []), true);
   assert.equal(shouldUseWebviewDiffReport(fileUri, []), false);
   assert.equal(shouldUseWebviewDiffReport(fileUri, [gitUri]), true);
 });

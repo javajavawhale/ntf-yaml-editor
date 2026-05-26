@@ -123,6 +123,51 @@ const rawRowsDiffReport = createDiffReport({
   repositoryPath: root
 });
 
+const wideBaseText = [
+  "case1:",
+  "  LIST_MAP=wideRows: #ListMap",
+  "    - c01: \"v01\"",
+  "      c02: \"v02\"",
+  "      c03: \"v03\"",
+  "      c04: \"v04\"",
+  "      c05: \"v05\"",
+  "      c06: \"v06\"",
+  "      c07: \"v07\"",
+  "      c08: \"v08\"",
+  "      c09: \"v09\"",
+  "      c10: \"v10\"",
+  "      c11: \"v11\"",
+  ""
+].join("\n");
+
+const wideHeadText = [
+  "case1:",
+  "  LIST_MAP=wideRows: #ListMap",
+  "    - c01: \"v01\"",
+  "      c02: \"v02\"",
+  "      c03: \"v03\"",
+  "      c04: \"v04\"",
+  "      c05: \"changed\"",
+  "      c06: \"v06\"",
+  "      c07: \"v07\"",
+  "      c08: \"v08\"",
+  "      c09: \"v09\"",
+  "      c10: \"v10\"",
+  "      c11: \"v11\"",
+  ""
+].join("\n");
+
+const wideText = wideHeadText;
+
+const wideDiffReport = createDiffReport({
+  path: "wide.ntf.yaml",
+  baseRef: "HEAD",
+  headRef: "working tree",
+  baseText: wideBaseText,
+  headText: wideHeadText,
+  repositoryPath: root
+});
+
 const multiSheetText = [
   "sheet1:",
   "  LIST_MAP=params: #ListMap",
@@ -190,10 +235,10 @@ const pages = [
           activate: { hover: "[data-column='name']" }
         },
         {
-          type: "touchesLeftEdge",
-          element: "tbody tr:first-child .row-action-bar",
-          container: "tbody tr:first-child > td:first-child",
-          tolerance: 0,
+          type: "centeredWithin",
+          element: ".row-action-slot:first-child .row-action-bar",
+          container: ".row-action-slot:first-child",
+          tolerance: 1,
           activate: { focus: "tbody tr:first-child [data-column='no']" }
         },
         {
@@ -210,10 +255,10 @@ const pages = [
           activate: { hover: "[data-column='name']" }
         },
         {
-          type: "outsideLeft",
-          element: "tbody tr:first-child .row-action-bar",
-          container: "tbody tr:first-child > td:first-child",
-          tolerance: 0,
+          type: "centeredWithin",
+          element: ".row-action-slot:first-child .row-action-bar",
+          container: ".row-action-slot:first-child",
+          tolerance: 1,
           activate: { focus: "tbody tr:first-child [data-column='no']" }
         }
       ],
@@ -241,7 +286,10 @@ const pages = [
         { selector: "body", property: "paddingLeft", value: "0px" },
         { selector: "body", property: "paddingRight", value: "0px" },
         { selector: ".app main", property: "paddingLeft", value: "16px" },
-        { selector: ".app main", property: "paddingRight", value: "16px" }
+        { selector: ".app main", property: "paddingRight", value: "16px" },
+        { selector: ".block-header", property: "cursor", value: "move" },
+        { selector: ".row-action-bar .drag-handle", property: "cursor", value: "move" },
+        { selector: ".col-action-bar .drag-handle", property: "cursor", value: "move" }
       ],
       hidden: [".diff-legend", ".scm-diff-header"]
     }
@@ -259,7 +307,7 @@ const pages = [
     checks: {
       visible: [
         "tr.row-focused",
-        "tr.row-focused .row-action-bar",
+        ".row-action-slot--focused .row-action-bar",
         "tr.row-focused > td:first-child",
         "th.col-focused",
         "th.col-focused .col-action-bar"
@@ -288,6 +336,10 @@ const pages = [
       exists: [
         ".sheet[tabindex='0']"
       ],
+      styleIs: [
+        { selector: ".sheet.active", property: "paddingLeft", value: "8px" },
+        { selector: ".sheet[role='button']", property: "paddingLeft", value: "8px" }
+      ],
       hidden: [
         ".sheet[role='button'] .drag-handle"
       ]
@@ -312,7 +364,14 @@ const pages = [
       hidden: [
         "[data-action='save']",
         "[data-action='add-row']",
-        "[data-action='add-column']"
+        "[data-action='add-column']",
+        ".row-action-layer",
+        ".row-action-bar",
+        ".col-action-bar"
+      ],
+      styleIs: [
+        { selector: ".sheet.active", property: "paddingLeft", value: "8px" },
+        { selector: ".table-scroll", property: "paddingLeft", value: "18px" }
       ]
     }
   },
@@ -332,6 +391,10 @@ const pages = [
         "#base-root .diff-cell-changed",
         "#head-root .diff-cell-changed"
       ],
+      styleNot: [
+        { selector: "#diff-base-ref", property: "backgroundColor", values: ["rgba(0, 0, 0, 0)"] },
+        { selector: "#diff-head-ref", property: "backgroundColor", values: ["rgba(0, 0, 0, 0)"] }
+      ],
       hidden: ["#unified-panel", "#unified-root .app"]
     }
   },
@@ -343,8 +406,15 @@ const pages = [
         "#unified-panel",
         "#unified-root .app.diff-app.unified-view",
         "#toggle-unified.layout-btn-active",
+        "#unified-root .sheet.active",
         ".cell-unified-diff",
         ".diff-cell-changed"
+      ],
+      styleIs: [
+        { selector: "#unified-root .cell-before", property: "opacity", value: "1" }
+      ],
+      styleNot: [
+        { selector: "#unified-root .sheet.active", property: "color", values: ["rgb(255, 255, 255)"] }
       ],
       hoverChecks: [
         {
@@ -353,7 +423,10 @@ const pages = [
           singleActiveColumn: true
         }
       ],
-      hidden: [".diff-panel-container"]
+      hidden: [
+        ".diff-panel-container",
+        "#unified-root .sheet.active input"
+      ]
     }
   },
   {
@@ -418,6 +491,58 @@ const pages = [
       hidden: [".diff-panel-container"],
       textPresent: ["text-encoding", "header", "data", "end", "Osaka", "Kyoto", "Nara", "record-length", "A001", "150"]
     }
+  },
+  {
+    name: "editor-wide",
+    html: renderAppHtml({
+      title: "NTF YAML Editor",
+      initialText: wideText,
+      diffReport: null,
+      readOnly: false,
+      diffSide: "head"
+    }),
+    checks: {
+      visible: [".table-scroll--with-row-actions"]
+    }
+  },
+  {
+    name: "scm-head-wide",
+    html: renderAppHtml({
+      title: "NTF YAML SCM Head",
+      initialText: wideText,
+      diffReport: wideDiffReport,
+      readOnly: true,
+      diffSide: "head",
+      initFocus: "[data-column='c01']",
+      showReadOnlyTableActions: true
+    }),
+    checks: {
+      visible: [
+        ".scm-diff-header",
+        "#root .app.diff-app.diff-head.has-table-actions",
+        ".table-scroll--with-row-actions",
+        ".row-action-layer",
+        ".row-action-slot",
+        ".row-action-bar",
+        ".col-action-bar",
+        ".diff-cell-changed"
+      ],
+      exists: [
+        ".row-action-bar",
+        ".col-action-bar"
+      ],
+      styleIs: [
+        { selector: ".table-scroll", property: "paddingLeft", value: "18px" }
+      ],
+      geometryChecks: [
+        {
+          type: "leftAligned",
+          element: "tbody tr:first-child > td:first-child",
+          container: ".table-viewport",
+          tolerance: 1
+        }
+      ]
+    }
   }
 ];
 
@@ -438,7 +563,15 @@ function renderAppHtml(options) {
     ? `<div class="scm-diff-header"><input class="diff-ref-input" type="text" value="${escapeHtml(scmRef)}" readonly aria-label="Git ref" title="Git ref"></div>`
     : "";
   const initFocusScript = options.initFocus
-    ? `document.querySelector(${json(options.initFocus)})?.focus();`
+    ? `{
+        const target = document.querySelector(${json(options.initFocus)});
+        if (target) {
+          target.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, view: window }));
+          target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
+          target.focus();
+          target.dispatchEvent(new FocusEvent("focusin", { bubbles: true, relatedTarget: null }));
+        }
+      }`
     : "";
   return htmlDocument(options.title, `
     ${scmHeader}
@@ -451,6 +584,7 @@ function renderAppHtml(options) {
         initialDiffReport: ${json(options.diffReport || null)},
         readOnly: ${options.readOnly ? "true" : "false"},
         diffSide: ${json(options.diffSide)},
+        showReadOnlyTableActions: ${options.showReadOnlyTableActions ? "true" : "false"},
         vscode: acquireVsCodeApi(),
         window
       });
@@ -624,6 +758,11 @@ function injectUiRegressionScript(html, checks) {
           if (header) {
             header.classList.add("col-focused", "col-active");
           }
+          const rowIndex = Array.from(row.parentElement.children).indexOf(row);
+          const slot = table.closest(".table-scroll")?.querySelectorAll(".row-action-slot")?.[rowIndex];
+          if (slot) {
+            slot.classList.add("row-action-slot--visible", "row-action-slot--focused");
+          }
         }
       }
     }
@@ -639,8 +778,11 @@ function injectUiRegressionScript(html, checks) {
     }
   }
   function cleanupInteractionState() {
-    document.querySelectorAll(".row-focused, .col-focused, .col-active").forEach(function(el) {
-      el.classList.remove("row-focused", "col-focused", "col-active");
+    document.querySelectorAll(".row-focused, .row-action-hover, .col-focused, .col-active").forEach(function(el) {
+      el.classList.remove("row-focused", "row-action-hover", "col-focused", "col-active");
+    });
+    document.querySelectorAll(".row-action-slot--visible, .row-action-slot--focused").forEach(function(el) {
+      el.classList.remove("row-action-slot--visible", "row-action-slot--focused");
     });
     document.querySelectorAll(".has-focused-cell").forEach(function(el) {
       el.classList.remove("has-focused-cell");

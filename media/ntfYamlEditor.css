@@ -28,10 +28,10 @@
     --diff-changed-bg: #fff0b8;
     --diff-changed-soft-bg: #fffbea;
     --diff-changed-border: #d8a700;
-    --diff-deleted-bg: #ffdcd2;
-    --diff-deleted-soft-bg: #ffe3dc;
-    --diff-deleted-border: #c9543d;
-    --diff-deleted-accent: #b43d28;
+    --diff-deleted-bg: #ffc9bd;
+    --diff-deleted-soft-bg: #ffd8cf;
+    --diff-deleted-border: #b63f2c;
+    --diff-deleted-accent: #8f2d1f;
 }
 
 /* Base */
@@ -307,7 +307,18 @@ body.resizing-sidebar {
     transition: background 130ms ease;
 }
 
+.app button.sheet {
+    background: white;
+    color: var(--text);
+    border-color: var(--line);
+    transform: none;
+}
+
 .sheet:hover:not(.active) {
+    background: var(--surface-muted);
+}
+
+.app button.sheet:hover:not(.active) {
     background: var(--surface-muted);
 }
 
@@ -374,19 +385,15 @@ body.resizing-sidebar {
     overflow: visible;
     width: 100%;
     box-sizing: border-box;
-    padding: 0 0 12px var(--row-action-width);
+    padding: 0 0 12px;
 }
 
-/* non-readonly: viewport を 18px 左に拡張し、row-action-bar を viewport の padding 内（overflow クリップ外）に収める */
-.table-scroll--with-row-actions .table-viewport {
-    margin-left: calc(-1 * var(--row-action-width));
+.table-scroll--with-row-actions {
     padding-left: var(--row-action-width);
-    width: calc(100% + var(--row-action-width));
 }
 
-/* row-action-bar スペース分だけ scrollbar track を右にオフセット（non-readonly のみ適用） */
-.table-scroll--with-row-actions .table-viewport::-webkit-scrollbar-track:horizontal {
-    margin-left: var(--row-action-width);
+.app.diff-app:not(.has-table-actions) .table-scroll {
+    padding-left: var(--row-action-width);
 }
 
 .table-viewport {
@@ -395,6 +402,28 @@ body.resizing-sidebar {
     padding-top: var(--column-action-space);
     width: 100%;
     box-sizing: border-box;
+}
+
+.table-viewport::-webkit-scrollbar {
+    height: 12px;
+}
+
+.table-viewport::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.table-viewport::-webkit-scrollbar-thumb {
+    background: rgb(98 106 115 / 65%);
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+}
+
+.table-viewport::-webkit-scrollbar-button {
+    display: block;
+    width: 0;
+    height: 0;
+    background: transparent;
 }
 
 .ntf-table {
@@ -410,20 +439,8 @@ body.resizing-sidebar {
     vertical-align: top;
 }
 
-/* row-action-bar の containing block を td にするため、アクションバーを持つ最初のセルに position:relative を付与 */
 .ntf-table tbody td:first-child {
     position: relative;
-}
-
-.ntf-table th.row-action-gutter-cell,
-.ntf-table td.row-action-gutter-cell {
-    position: relative;
-    width: var(--row-action-width);
-    min-width: var(--row-action-width);
-    max-width: var(--row-action-width);
-    border: 0;
-    padding: 0;
-    background: transparent;
 }
 
 .ntf-table td {
@@ -558,6 +575,7 @@ body.resizing-sidebar {
     z-index: var(--z-action-bar);
     width: var(--row-action-width);
     min-width: var(--row-action-width);
+    box-sizing: border-box;
     padding: 2px 0;
     border-radius: 5px 0 0 5px;
     background: var(--panel);
@@ -566,38 +584,51 @@ body.resizing-sidebar {
     box-shadow: -2px 0 6px rgb(0 0 0 / 12%);
 }
 
-.ntf-table tr:hover .row-action-bar,
-.ntf-table tr:focus-within .row-action-bar,
-tr.row-focused .row-action-bar {
+.row-action-layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 12px;
+    z-index: var(--z-action-bar);
+    width: var(--row-action-width);
+    pointer-events: none;
+}
+
+.row-action-slot {
+    position: absolute;
+    left: 0;
+    width: var(--row-action-width);
+    pointer-events: none;
+}
+
+.row-action-slot > .row-action-bar {
+    right: 0;
+    pointer-events: auto;
+}
+
+.row-action-slot--visible > .row-action-bar,
+.row-action-slot--focused > .row-action-bar {
     display: flex;
 }
 
-.ntf-table.has-focused-cell tr:not(.row-focused):hover .row-action-bar {
-    display: none;
-}
-
-.ntf-table:focus-within tr:not(.row-focused):hover .row-action-bar {
-    display: none;
-}
-
-.ntf-table[data-focus-locked="true"] tr:not(.row-focused):hover .row-action-bar {
-    display: none;
-}
-
 .ntf-table tr:hover > td:first-child,
-.ntf-table tr.row-focused > td:first-child {
+.ntf-table tr.row-focused > td:first-child,
+.ntf-table tr.row-action-hover > td:first-child {
     box-shadow: inset 3px 0 0 var(--accent);
 }
 
-.ntf-table.has-focused-cell tr:not(.row-focused):hover > td:first-child {
+.ntf-table.has-focused-cell tr:not(.row-focused):hover > td:first-child,
+.ntf-table.has-focused-cell tr:not(.row-focused).row-action-hover > td:first-child {
     box-shadow: none;
 }
 
-.ntf-table:focus-within tr:not(.row-focused):hover > td:first-child {
+.ntf-table:focus-within tr:not(.row-focused):hover > td:first-child,
+.ntf-table:focus-within tr:not(.row-focused).row-action-hover > td:first-child {
     box-shadow: none;
 }
 
-.ntf-table[data-focus-locked="true"] tr:not(.row-focused):hover > td:first-child {
+.ntf-table[data-focus-locked="true"] tr:not(.row-focused):hover > td:first-child,
+.ntf-table[data-focus-locked="true"] tr:not(.row-focused).row-action-hover > td:first-child {
     box-shadow: none;
 }
 
@@ -698,6 +729,16 @@ tr.row-focused .row-action-bar {
     transform: scale(0.85);
 }
 
+.app button.action-bar-delete:disabled {
+    cursor: default;
+    opacity: 0.45;
+}
+
+.app button.action-bar-delete:disabled:hover {
+    color: var(--muted);
+    background: transparent;
+}
+
 .col-action-bar .drag-handle,
 .row-action-bar .drag-handle {
     display: inline-flex;
@@ -737,7 +778,7 @@ tr.row-focused .row-action-bar {
 /* Drag and Drop */
 .drag-handle {
     color: var(--muted);
-    cursor: grab;
+    cursor: move;
     user-select: none;
     padding: 0 2px;
     font-size: 13px;
@@ -752,7 +793,7 @@ tr.row-focused .row-action-bar {
 }
 
 .app [draggable="true"] {
-    cursor: grab;
+    cursor: move;
 }
 
 .dragging {
@@ -919,9 +960,15 @@ tr.row-focused .row-action-bar {
     font-family: var(--vscode-editor-font-family, monospace);
 }
 
+.diff-panel-shell input.diff-ref-input {
+    background: var(--vscode-input-background, var(--vscode-editorWidget-background, var(--surface-muted))) !important;
+    color: var(--vscode-editor-foreground, var(--text)) !important;
+    -webkit-text-fill-color: var(--vscode-editor-foreground, var(--text));
+}
+
 .diff-ref-input:focus {
     background: var(--vscode-input-background, #fff);
-    color: var(--vscode-input-foreground, #202124);
+    color: var(--vscode-editor-foreground, var(--text));
     outline: 1px solid var(--vscode-focusBorder, var(--accent));
     outline-offset: -1px;
 }
@@ -1104,11 +1151,11 @@ tr.row-focused .row-action-bar {
 
 .cell-before {
     text-decoration: line-through;
-    color: var(--vscode-gitDecoration-deletedResourceForeground, #c0392b);
+    color: var(--vscode-gitDecoration-deletedResourceForeground, var(--diff-deleted-accent));
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    opacity: 0.75;
+    opacity: 1;
     line-height: 1.4;
 }
 
@@ -1136,8 +1183,8 @@ tr.row-focused .row-action-bar {
 
 .unified-view .diff-row-deleted td input {
     text-decoration: line-through;
-    color: var(--vscode-gitDecoration-deletedResourceForeground, #c0392b);
-    opacity: 0.75;
+    color: var(--vscode-gitDecoration-deletedResourceForeground, var(--diff-deleted-accent));
+    opacity: 1;
 }
 
 /* RawRows */
