@@ -2,7 +2,7 @@
   "name": "ntf-yaml-editor",
   "displayName": "NTF YAML Editor PoC",
   "description": "Table editor PoC for Nablarch NTF YAML files.",
-  "version": "0.0.1",
+  "version": "0.2.0",
   "publisher": "javajavawhale",
   "private": true,
   "license": "UNLICENSED",
@@ -39,7 +39,7 @@
     "test:e2e": "node ./test/e2e/runTest.js",
     "perf:diff": "npm run compile && node out/scripts/perf-diff-report.js",
     "ui:screenshots": "npm run compile && node scripts/capture-ui-screenshots.js",
-    "package:vsix": "npm run test:unit && node -e \"require('fs').mkdirSync('dist', { recursive: true })\" && vsce package --allow-missing-repository --out dist/ntf-yaml-editor-0.0.1.vsix"
+    "package:vsix": "npm run test:unit && node -e \"require('fs').mkdirSync('dist', { recursive: true })\" && vsce package --allow-missing-repository --out dist/ntf-yaml-editor-0.2.0.vsix"
   },
   "contributes": {
     "customEditors": [
