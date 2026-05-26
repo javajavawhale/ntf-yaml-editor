@@ -6,8 +6,12 @@
   "publisher": "javajavawhale",
   "private": true,
   "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/javajavawhale/ntf-yaml-editor.git"
+  },
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.120.0"
   },
   "categories": [
     "Other"
