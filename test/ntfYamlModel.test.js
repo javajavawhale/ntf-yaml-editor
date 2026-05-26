@@ -1168,7 +1168,7 @@ test("document diff report uses '~' git URI ref and displays it as 'index' when 
   const query = encodeURIComponent(JSON.stringify({ path: file, ref: "~" }));
   const report = createDocumentDiffReport({
     uri: { scheme: "git", fsPath: file, query },
-    text: stagedText,
+    text: worktreeText,
     workspaceFolder: dir,
     repositoryPath: dir
   });
@@ -1208,7 +1208,7 @@ test("document diff report treats empty git URI ref as the staged index side", (
   const query = JSON.stringify({ path: file, ref: "" });
   const report = createDocumentDiffReport({
     uri: { scheme: "git", fsPath: file, query },
-    text: stagedText,
+    text: worktreeText,
     workspaceFolder: dir,
     repositoryPath: dir
   });
@@ -1218,6 +1218,47 @@ test("document diff report treats empty git URI ref as the staged index side", (
   assert.match(report.baseText, /committed/);
   assert.match(report.headText, /staged/);
   assert.doesNotMatch(report.headText, /worktree/);
+  assert.equal(report.summary.cells.changed, 1);
+});
+
+test("document diff report refreshes stale empty-ref git URI against working tree after unstage", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ntf-yaml-git-uri-empty-ref-unstaged-"));
+  git(dir, ["init"]);
+  git(dir, ["config", "user.email", "ntf-yaml@example.test"]);
+  git(dir, ["config", "user.name", "NTF YAML Test"]);
+  const file = path.join(dir, "case.ntf.yaml");
+  const committedText = [
+    "case1:",
+    "  LIST_MAP=requestParams: #ListMap",
+    "    - no: \"1\"",
+    "      name: \"committed\"",
+    ""
+  ].join("\n");
+  fs.writeFileSync(file, committedText);
+  git(dir, ["add", "case.ntf.yaml"]);
+  git(dir, ["commit", "-m", "initial"]);
+
+  const stagedText = committedText.replace("committed", "staged");
+  fs.writeFileSync(file, stagedText);
+  git(dir, ["add", "case.ntf.yaml"]);
+  git(dir, ["restore", "--staged", "case.ntf.yaml"]);
+
+  const worktreeText = committedText.replace("committed", "worktree");
+  fs.writeFileSync(file, worktreeText);
+
+  const query = JSON.stringify({ path: file, ref: "" });
+  const report = createDocumentDiffReport({
+    uri: { scheme: "git", fsPath: file, query },
+    text: stagedText,
+    workspaceFolder: dir,
+    repositoryPath: dir
+  });
+
+  assert.equal(report.baseRef, "HEAD");
+  assert.equal(report.headRef, "working tree");
+  assert.match(report.baseText, /committed/);
+  assert.match(report.headText, /worktree/);
+  assert.doesNotMatch(report.headText, /staged/);
   assert.equal(report.summary.cells.changed, 1);
 });
 
@@ -1495,9 +1536,14 @@ test("CLI diff args require explicit base and head refs", () => {
 
 test("package contributes cell diff to SCM resources and NTF YAML file menus", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(extensionRoot, "package.json"), "utf8"));
+  const commandTitles = Object.fromEntries(pkg.contributes.commands.map(item => [item.command, item.title]));
   const menus = pkg.contributes.menus;
   const cellDiffCommand = "ntfYaml.openCellDiff";
   const ntfYamlPattern = "resourceFilename =~ /\\.ntf\\.ya?ml$/";
+
+  assert.equal(commandTitles["ntfYaml.openAsTable"], "NTF YAML Editor: NTF データとして開く");
+  assert.equal(commandTitles["ntfYaml.generateDiffReport"], "NTF YAML Editor: NTF データ差分レポートの出力");
+  assert.equal(commandTitles[cellDiffCommand], "NTF YAML Editor: NTF データ差分を表示");
 
   const scmEntries = menus["scm/resourceState/context"].filter(item => item.command === cellDiffCommand);
   assert.equal(scmEntries.length, 4);

@@ -193,33 +193,53 @@ function createGitUriReport(options: DocumentDiffOptions): DiffReport | null {
   );
   const relativePath = workspaceRelativePath(repositoryPath, filePath as string);
   const ref = query.ref as string | undefined;
-  if (ref === "") {
-    const baseText = gitShow(repositoryPath, "HEAD", relativePath) || "";
-    const headText = options.text || "";
+  if (!repositoryPath) {
+    const baseText = options.text || "";
+    const headText = fs.readFileSync(filePath as string, "utf8");
     return createDiffReport({
       path: relativePath,
       oldPath: relativePath,
       status: "modified",
-      baseRef: "HEAD",
-      headRef: "index",
+      baseRef: displayRefForGitUri(ref, repositoryPath, filePath as string),
+      headRef: "working tree",
       baseText,
       headText,
       repositoryPath,
     });
   }
-  const baseText = options.text || "";
-  const comparesAgainstIndex = ref === "HEAD" && hasIndexStatus(repositoryPath, filePath as string);
-  const headText = comparesAgainstIndex
-    ? readRefFile(repositoryPath, "index", relativePath).text
-    : fs.readFileSync(filePath as string, "utf8");
+  if (ref === "") {
+    const baseFile = readRefFile(repositoryPath, "HEAD", relativePath);
+    const useIndex = hasIndexStatus(repositoryPath, filePath as string);
+    const headFile = useIndex
+      ? readRefFile(repositoryPath, "index", relativePath)
+      : readRefFile(repositoryPath, "working tree", relativePath);
+    return createDiffReport({
+      path: relativePath,
+      oldPath: relativePath,
+      status: statusFromRefFiles(baseFile, headFile),
+      baseRef: "HEAD",
+      headRef: useIndex ? "index" : "working tree",
+      baseText: baseFile.text,
+      headText: headFile.text,
+      repositoryPath,
+    });
+  }
+  const comparesAgainstIndex = (
+    (ref === "HEAD" || ref === "~")
+    && hasIndexStatus(repositoryPath, filePath as string)
+  );
+  const baseRef = ref === "~" && !comparesAgainstIndex ? "HEAD" : (ref || "HEAD");
+  const baseFile = readRefFile(repositoryPath, baseRef, relativePath);
+  const headRef = comparesAgainstIndex && ref === "HEAD" ? "index" : "working tree";
+  const headFile = readRefFile(repositoryPath, headRef, relativePath);
   return createDiffReport({
     path: relativePath,
     oldPath: relativePath,
-    status: "modified",
+    status: statusFromRefFiles(baseFile, headFile),
     baseRef: displayRefForGitUri(ref, repositoryPath, filePath as string),
-    headRef: comparesAgainstIndex ? "index" : "working tree",
-    baseText,
-    headText,
+    headRef,
+    baseText: baseFile.exists ? baseFile.text : (options.text || ""),
+    headText: headFile.text,
     repositoryPath,
   });
 }

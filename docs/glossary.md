@@ -13,7 +13,7 @@
 | Webview UI | sheet / block / row / cell を browser 側で描画・操作する UI。 |
 | Cell Diff | YAML をテキスト行ではなく、sheet / block / row / cell の単位で比較する差分機能。 |
 | Git Diff Context | VS Code の `git://` URI、working tree、index、任意 Git ref から base/head の YAML text を取り出す処理。 |
-| Cell Diff Panel | `NTF YAML: Open Cell Diff` で開く拡張機能所有の diff panel。左右分割、上下分割、統合表示、ref 編集、HTML export、Export All を扱う。 |
+| Cell Diff Panel | `NTF YAML Editor: NTF データ差分を表示` で開く拡張機能所有の diff panel。左右分割、上下分割、統合表示、ref 編集、HTML export、Export All を扱う。 |
 | SCM Diff | VS Code SCM から変更ファイルを開いたときの diff editor 連携。左右ペインは VS Code が管理し、拡張は base/head それぞれの custom editor を描画する。 |
 | Standalone HTML Report | VS Code 外で開ける静的 HTML の diff report。 |
 | CLI | `ntf-yaml` コマンド。`convert`, `lint`, `format`, `diff` を持つ。 |

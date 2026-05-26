@@ -201,12 +201,15 @@ interface EditorHandle {
 class NtfYamlEditorProvider implements vscode.CustomTextEditorProvider {
   private readonly editors = new Set<EditorHandle>();
   private sidebarWidth = 240;
+  private gitStateRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(private readonly context: vscode.ExtensionContext) {
     context.subscriptions.push(
       vscode.workspace.onDidChangeTextDocument(event => this.updateRelatedEditors(event.document.uri)),
-      vscode.workspace.onDidSaveTextDocument(document => this.updateRelatedEditors(document.uri))
+      vscode.workspace.onDidSaveTextDocument(document => this.updateRelatedEditors(document.uri)),
+      { dispose: () => this.clearGitStateRefreshTimer() }
     );
+    void this.registerGitStateRefresh();
   }
 
   async resolveCustomTextEditor(
@@ -230,31 +233,26 @@ class NtfYamlEditorProvider implements vscode.CustomTextEditorProvider {
       return Boolean(ePath && dPath && path.resolve(ePath) === path.resolve(dPath));
     });
 
-    const diffReport = createEditorDiffReport(document);
-    const initialText = diffReport
-      ? (viewContext.diffSide === "base" ? diffReport.baseText : diffReport.headText)
-      : document.getText();
-    const webviewDiffReport = !isStandalone && this.shouldUseWebviewDiffReport(document) ? diffReport : null;
-    webviewPanel.webview.html = renderHtml(extensionRoot, webviewPanel.webview, document.getText(), {
-      initialText,
-      diffReport,
-      webviewDiffReport,
-      readOnly: viewContext.readOnly,
-      diffSide: viewContext.diffSide,
-      sidebarWidth: this.sidebarWidth,
-      showReadOnlyTableActions: Boolean(webviewDiffReport && viewContext.diffSide === "head"),
-    });
+    const renderWebview = (): void => {
+      const diffReport = createEditorDiffReport(document);
+      const initialText = diffReport
+        ? (viewContext.diffSide === "base" ? diffReport.baseText : diffReport.headText)
+        : document.getText();
+      const webviewDiffReport = !isStandalone && this.shouldUseWebviewDiffReport(document) ? diffReport : null;
+      webviewPanel.webview.html = renderHtml(extensionRoot, webviewPanel.webview, document.getText(), {
+        initialText,
+        diffReport,
+        webviewDiffReport,
+        readOnly: viewContext.readOnly,
+        diffSide: viewContext.diffSide,
+        sidebarWidth: this.sidebarWidth,
+        showReadOnlyTableActions: Boolean(webviewDiffReport && viewContext.diffSide === "head"),
+      });
+    };
+    renderWebview();
 
     const updateWebview = (): void => {
-      const nextDiffReport = createEditorDiffReport(document);
-      const nextText = nextDiffReport
-        ? (viewContext.diffSide === "base" ? nextDiffReport.baseText : nextDiffReport.headText)
-        : document.getText();
-      webviewPanel.webview.postMessage({
-        type: "update",
-        model: parseYaml(nextText),
-        diffReport: !isStandalone && this.shouldUseWebviewDiffReport(document) ? nextDiffReport : null,
-      });
+      renderWebview();
     };
 
     const editor: EditorHandle = {
@@ -264,6 +262,11 @@ class NtfYamlEditorProvider implements vscode.CustomTextEditorProvider {
     };
     this.editors.add(editor);
     webviewPanel.onDidDispose(() => this.editors.delete(editor));
+    webviewPanel.onDidChangeViewState(event => {
+      if (event.webviewPanel.visible) {
+        editor.updateWebview();
+      }
+    });
     if (document.uri.scheme === "git") {
       this.updateRelatedEditors(document.uri);
     }
@@ -312,6 +315,54 @@ class NtfYamlEditorProvider implements vscode.CustomTextEditorProvider {
 
   private shouldUseWebviewDiffReport(document: vscode.TextDocument): boolean {
     return shouldUseWebviewDiffReport(document.uri, [...this.editors].map(editor => editor.document.uri));
+  }
+
+  private async registerGitStateRefresh(): Promise<void> {
+    try {
+      const extension = vscode.extensions.getExtension("vscode.git");
+      const gitExtension = extension?.isActive ? extension.exports : await extension?.activate();
+      const git = gitExtension?.getAPI?.(1);
+      if (!git) return;
+
+      const attachRepository = (repository: {
+        state?: { onDidChange?: (listener: () => void) => vscode.Disposable };
+      }): void => {
+        const disposable = repository?.state?.onDidChange?.(() => this.scheduleGitStateRefresh());
+        if (disposable) {
+          this.context.subscriptions.push(disposable);
+        }
+      };
+
+      for (const repository of git.repositories || []) {
+        attachRepository(repository);
+      }
+
+      const openDisposable = git.onDidOpenRepository?.((repository: unknown) => {
+        attachRepository(repository as { state?: { onDidChange?: (listener: () => void) => vscode.Disposable } });
+      });
+      if (openDisposable) {
+        this.context.subscriptions.push(openDisposable);
+      }
+    } catch {
+      // Git state events are an optimization; text/document events still keep normal editing live.
+    }
+  }
+
+  private scheduleGitStateRefresh(): void {
+    this.clearGitStateRefreshTimer();
+    this.gitStateRefreshTimer = setTimeout(() => {
+      this.gitStateRefreshTimer = undefined;
+      for (const editor of this.editors) {
+        editor.updateWebview();
+      }
+    }, 50);
+  }
+
+  private clearGitStateRefreshTimer(): void {
+    if (this.gitStateRefreshTimer) {
+      clearTimeout(this.gitStateRefreshTimer);
+      this.gitStateRefreshTimer = undefined;
+    }
   }
 }
 

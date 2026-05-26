@@ -12,7 +12,7 @@
 |--------|------|
 | 通常エディタ | Explorer で `.ntf.yaml` を開く。`renderHtml`（diffReport なし） |
 | SCM diff | SCM パネルでファイルをクリック → VS Code diff editor が左右各1回 `resolveCustomTextEditor` を呼ぶ。左=base（readonly）、右=head（編集可） |
-| Cell Diff Panel | `NTF YAML: Open Cell Diff` コマンド → 1 webview 内 2 ペイン、split/unified 切り替え付き |
+| Cell Diff Panel | `NTF YAML Editor: NTF データ差分を表示` コマンド → 1 webview 内 2 ペイン、split/unified 切り替え付き |
 | HTML report | Cell Diff Panel の Export HTML / Export All → スタンドアロン静的 HTML |
 
 ### 1.2 テスト対象外
@@ -376,9 +376,9 @@ git restore test/fixtures/manual/diff-all-base.ntf.yaml
 
 | # | 操作 | 期待結果 |
 |---|------|---------|
-| 1 | SCM パネルの `test/fixtures/manual/diff-all-base.ntf.yaml` を右クリック → `NTF YAML: Open Cell Diff` を実行する | `NTF YAML Cell Diff` パネルが開く |
+| 1 | SCM パネルの `test/fixtures/manual/diff-all-base.ntf.yaml` を右クリック → `NTF YAML Editor: NTF データ差分を表示` を実行する | `NTF YAML Cell Diff` パネルが開く |
 | 2 | パネルを閉じる | — |
-| 3 | Explorer で `test/fixtures/manual/diff-all-base.ntf.yaml` を右クリック → `NTF YAML: Open Cell Diff` を実行する | パネルが開く |
+| 3 | Explorer で `test/fixtures/manual/diff-all-base.ntf.yaml` を右クリック → `NTF YAML Editor: NTF データ差分を表示` を実行する | パネルが開く |
 | 4 | パネルを閉じる | — |
 
 ---

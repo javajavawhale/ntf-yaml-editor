@@ -63,15 +63,15 @@
     "commands": [
       {
         "command": "ntfYaml.openAsTable",
-        "title": "NTF YAML: Open as Table"
+        "title": "NTF YAML Editor: NTF データとして開く"
       },
       {
         "command": "ntfYaml.generateDiffReport",
-        "title": "NTF YAML: Generate Cell Diff Report"
+        "title": "NTF YAML Editor: NTF データ差分レポートの出力"
       },
       {
         "command": "ntfYaml.openCellDiff",
-        "title": "NTF YAML: Open Cell Diff"
+        "title": "NTF YAML Editor: NTF データ差分を表示"
       }
     ],
     "menus": {

@@ -271,7 +271,7 @@ const tests = [
     }
   },
   {
-    name: "opens the active text editor through NTF YAML: Open as Table",
+    name: "opens the active text editor through NTF YAML Editor: NTF データとして開く",
     run: async () => {
       const uri = makeTempYaml("command-open.yaml", [
         "case1:",

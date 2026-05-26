@@ -136,7 +136,7 @@ function reportCss(): string {
     "tbody th{position:sticky;left:0;background:#f7f8f7;z-index:1;text-align:left}",
     ".status-added{background:#edf8ef}.status-deleted{background:#fff1ed}.status-changed{background:#fffbea}",
     ".cell-added{background:#daf1df}.cell-deleted{background:#ffdcd2}.cell-changed{background:#fff0b8}",
-    ".old{color:#8f2f1f;text-decoration:line-through}.new{color:#145c2e;font-weight:600}",
+    ".old{color:#8b0000;text-decoration:line-through}.new{color:#145c2e;font-weight:600}",
     ".empty{color:#626a73}",
   ].join("");
 }

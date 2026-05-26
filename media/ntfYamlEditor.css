@@ -31,7 +31,7 @@
     --diff-deleted-bg: #ffc9bd;
     --diff-deleted-soft-bg: #ffd8cf;
     --diff-deleted-border: #b63f2c;
-    --diff-deleted-accent: #8f2d1f;
+    --diff-deleted-accent: #8b0000;
 }
 
 /* Base */
@@ -1151,7 +1151,7 @@ body.resizing-sidebar {
 
 .cell-before {
     text-decoration: line-through;
-    color: var(--vscode-gitDecoration-deletedResourceForeground, var(--diff-deleted-accent));
+    color: var(--diff-deleted-accent);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1183,7 +1183,7 @@ body.resizing-sidebar {
 
 .unified-view .diff-row-deleted td input {
     text-decoration: line-through;
-    color: var(--vscode-gitDecoration-deletedResourceForeground, var(--diff-deleted-accent));
+    color: var(--diff-deleted-accent);
     opacity: 1;
 }
 
