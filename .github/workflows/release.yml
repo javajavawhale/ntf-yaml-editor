@@ -26,7 +26,7 @@ jobs:
       - name: Package VSIX
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          npm version "$VERSION" --no-git-tag-version
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
           mkdir -p dist
           npx vsce package --allow-missing-repository --out "dist/ntf-yaml-editor-${VERSION}.vsix"
 
