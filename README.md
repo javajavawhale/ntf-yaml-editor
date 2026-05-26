@@ -1,10 +1,8 @@
 # readme
 
-// TODO: 暫定版
-
 ## これはなに
 
-NTFでテストデータをyamlにしていい感じに開発できるようにすることを目指す、javajavawhaleの個人プロジェクトです。
+NTFでテストデータをyamlとして扱うことを支援する、javajavawhaleの個人プロジェクトです。
 
 - yamlテストデータの閲覧・編集を支援するVSCode拡張：PoC実装済
 - Excelテストデータをyaml化するマイグレーションスクリプト：未実装
