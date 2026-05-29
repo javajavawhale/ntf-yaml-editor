@@ -89,3 +89,7 @@ gitのソース管理でyamlをクリックすると、HEADとworking treeの差
 - カードのドラッグ可能領域が変。あとカーソルが消滅する
 - ファイル用テーブルで、セルをホバー時に列がハイライトされない（辺が緑色にならない）
 - ブロック名のinput要素とテーブルに、余計な余白がある
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE.txt](LICENSE.txt).

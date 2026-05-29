@@ -5,7 +5,7 @@
   "version": "0.2.0",
   "publisher": "javajavawhale",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/javajavawhale/ntf-yaml-editor.git"
